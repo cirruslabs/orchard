@@ -1,0 +1,148 @@
+openapi: 3.0.0
+info:
+  title: Orchard
+  description: Orchard orchestration API
+  version: 0.1.0
+paths:
+  /workers:
+    post:
+      summary: "Create a Worker"
+      tags:
+        - workers
+      responses:
+        '200':
+          description: Worker resource was successfully created
+          content:
+            application/json:
+              schema:
+                $ref: '#components/schemas/Worker'
+        '409':
+          description: Worker resource with with the same name already exists
+    get:
+      summary: "List Workers"
+      tags:
+        - workers
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#components/schemas/Worker'
+  /workers/{name}:
+    get:
+      summary: "Retrieve a Worker"
+      tags:
+        - workers
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#components/schemas/Worker'
+        '404':
+          description: Worker resource with the given name doesn't exist
+    put:
+      summary: "Update a Worker"
+      tags:
+        - workers
+      responses:
+        '200':
+          description: Worker object was successfully updated
+          content:
+            application/json:
+              schema:
+                $ref: '#components/schemas/Worker'
+        '404':
+          description: Worker resource with the given name doesn't exist
+    delete:
+      summary: "Delete a Worker"
+      tags:
+        - workers
+      responses:
+        '200':
+          description: Worker resource was successfully deleted
+        '404':
+          description: Worker resource with the given name doesn't exist
+  /vms:
+    post:
+      summary: "Create a VM"
+      tags:
+        - vms
+      responses:
+        '200':
+          description: VM resource was successfully created
+          content:
+            application/json:
+              schema:
+                $ref: '#components/schemas/VM'
+        '409':
+          description: VM resource with with the same name already exists
+    get:
+      summary: "List VMs"
+      tags:
+        - vms
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#components/schemas/VM'
+  /vms/{name}:
+    get:
+      summary: "Retrieve a VM"
+      tags:
+        - vms
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#components/schemas/VM'
+        '404':
+          description: VM resource with the given name doesn't exist
+    put:
+      summary: "Update a VM"
+      tags:
+        - vms
+      responses:
+        '200':
+          description: VM object was successfully updated
+          content:
+            application/json:
+              schema:
+                $ref: '#components/schemas/VM'
+        '404':
+          description: VM resource with the given name doesn't exist
+    delete:
+      summary: "Delete a VM"
+      tags:
+        - vms
+      responses:
+        '200':
+          description: VM resource was successfully deleted
+        '404':
+          description: VM resource with the given name doesn't exist
+components:
+  schemas:
+    Worker:
+      title: Worker node
+      type: object
+      properties:
+        name:
+          type: string
+          description: Node name
+    VM:
+      title: Virtual Machine
+      type: object
+      properties:
+        name:
+          type: string
+          description: VM name
