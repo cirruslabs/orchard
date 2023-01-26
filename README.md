@@ -26,6 +26,6 @@ orchard create vm --image ghcr.io/cirruslabs/macos-ventura-base:latest ventura-b
 
 Check a list of VM resources to see if the Virtual Machine we've created above is already running: 
 
-```
+```shell
 orchard list vms
 ```
