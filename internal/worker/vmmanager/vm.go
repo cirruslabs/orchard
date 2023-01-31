@@ -66,7 +66,7 @@ func (vm *VM) Close() error {
 
 	_, _, err := Tart(context.Background(), "delete", vm.id)
 	if err != nil {
-		return fmt.Errorf("failed to delete VM %s: %v", vm.id, err)
+		return fmt.Errorf("%w: failed to delete VM %s: %v", ErrFailed, vm.id, err)
 	}
 
 	return nil

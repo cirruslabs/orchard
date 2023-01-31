@@ -12,7 +12,7 @@ type VMsService struct {
 }
 
 func (service *VMsService) Create(ctx context.Context, vm *v1.VM) error {
-	_, err := service.client.request(ctx, http.MethodPost, "vms",
+	err := service.client.request(ctx, http.MethodPost, "vms",
 		vm, nil, nil)
 	if err != nil {
 		return err
@@ -24,7 +24,7 @@ func (service *VMsService) Create(ctx context.Context, vm *v1.VM) error {
 func (service *VMsService) List(ctx context.Context) ([]v1.VM, error) {
 	var vms []v1.VM
 
-	_, err := service.client.request(ctx, http.MethodGet, "vms",
+	err := service.client.request(ctx, http.MethodGet, "vms",
 		nil, &vms, nil)
 	if err != nil {
 		return nil, err
@@ -36,7 +36,7 @@ func (service *VMsService) List(ctx context.Context) ([]v1.VM, error) {
 func (service *VMsService) Get(ctx context.Context, name string) (*v1.VM, error) {
 	var vm v1.VM
 
-	_, err := service.client.request(ctx, http.MethodGet, fmt.Sprintf("vms/%s", name),
+	err := service.client.request(ctx, http.MethodGet, fmt.Sprintf("vms/%s", name),
 		nil, &vm, nil)
 	if err != nil {
 		return nil, err
@@ -46,7 +46,7 @@ func (service *VMsService) Get(ctx context.Context, name string) (*v1.VM, error)
 }
 
 func (service *VMsService) Update(ctx context.Context, vm *v1.VM) error {
-	_, err := service.client.request(ctx, http.MethodPut, fmt.Sprintf("vms/%s", vm.Name),
+	err := service.client.request(ctx, http.MethodPut, fmt.Sprintf("vms/%s", vm.Name),
 		vm, nil, nil)
 	if err != nil {
 		return err
@@ -62,7 +62,7 @@ func (service *VMsService) Delete(ctx context.Context, name string, force bool) 
 		params["force"] = "true"
 	}
 
-	_, err := service.client.request(ctx, http.MethodDelete, fmt.Sprintf("vms/%s", name),
+	err := service.client.request(ctx, http.MethodDelete, fmt.Sprintf("vms/%s", name),
 		nil, nil, params)
 	if err != nil {
 		return err

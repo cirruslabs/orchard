@@ -59,14 +59,14 @@ func New(opts ...Option) (*Worker, error) {
 }
 
 func (worker *Worker) Run(ctx context.Context) error {
-	tickCh := time.Tick(pollInterval)
+	tickCh := time.NewTicker(pollInterval)
 
 	for {
 		if err := worker.registerWorker(ctx); err != nil {
 			worker.logger.Warnf("failed to register worker: %v", err)
 
 			select {
-			case <-tickCh:
+			case <-tickCh.C:
 				// continue
 			case <-ctx.Done():
 				return ctx.Err()
@@ -80,7 +80,7 @@ func (worker *Worker) Run(ctx context.Context) error {
 				worker.logger.Errorf("failed to update worker resource: %v", err)
 
 				select {
-				case <-tickCh:
+				case <-tickCh.C:
 					// continue
 				case <-ctx.Done():
 					return ctx.Err()
@@ -93,7 +93,7 @@ func (worker *Worker) Run(ctx context.Context) error {
 				worker.logger.Warnf("failed to sync VMs: %v", err)
 
 				select {
-				case <-tickCh:
+				case <-tickCh.C:
 					// continue
 				case <-ctx.Done():
 					return ctx.Err()
@@ -103,7 +103,7 @@ func (worker *Worker) Run(ctx context.Context) error {
 			}
 
 			select {
-			case <-tickCh:
+			case <-tickCh.C:
 				// continue
 			case <-ctx.Done():
 				return ctx.Err()
@@ -139,7 +139,8 @@ func (worker *Worker) updateWorker(ctx context.Context) error {
 	}
 
 	if workerResource.UID != worker.uid {
-		return fmt.Errorf("%w: our UID is %s, controller's ID is %s", ErrPollFailed)
+		return fmt.Errorf("%w: our UID is %s, controller's UID is %s",
+			ErrPollFailed, worker.uid, workerResource.UID)
 	}
 
 	worker.logger.Debugf("got worker from the API")
@@ -147,7 +148,7 @@ func (worker *Worker) updateWorker(ctx context.Context) error {
 	workerResource.LastSeen = time.Now()
 
 	if err := worker.client.Workers().Update(ctx, workerResource); err != nil {
-		return fmt.Errorf("%w: failed to update worker in the API: %v", err)
+		return fmt.Errorf("%w: failed to update worker in the API: %v", ErrPollFailed, err)
 	}
 
 	worker.logger.Debugf("updated worker in the API")
@@ -164,45 +165,63 @@ func (worker *Worker) syncVMs(ctx context.Context) error {
 	worker.logger.Infof("syncing %d VMs...", len(vms))
 
 	for _, vmResource := range vms {
+		vmResource := vmResource
+
 		if vmResource.Worker != worker.name {
 			continue
 		}
 
 		if !vmResource.DeletedAt.IsZero() {
-			worker.logger.Debugf("deleting VM %s (%s)", vmResource.Name, vmResource.UID)
-
-			// Delete VM locally, report to the controller
-			if worker.vmm.Exists(&vmResource) {
-				if err := worker.vmm.Delete(&vmResource); err != nil {
-					return err
-				}
-			}
-
-			if err := worker.client.VMs().Delete(ctx, vmResource.Name, true); err != nil {
-				return fmt.Errorf("%w: failed to delete VM %s (%s) from the API: %v",
-					ErrPollFailed, vmResource.Name, vmResource.UID, err)
-			}
-
-			worker.logger.Infof("deleted VM %s (%s)", vmResource.Name, vmResource.UID)
-		} else if !worker.vmm.Exists(&vmResource) {
-			worker.logger.Debugf("creating VM %s (%s)", vmResource.Name, vmResource.UID)
-
-			// Create or update VM locally, report to controller
-			_, err := worker.vmm.Create(&vmResource)
-			if err != nil {
+			if err := worker.deleteVM(ctx, vmResource); err != nil {
 				return err
 			}
-
-			vmResource.Status = v1.VMStatusRunning
-
-			if err := worker.client.VMs().Update(ctx, &vmResource); err != nil {
-				return fmt.Errorf("%w: failed to update VM %s (%s) in the API: %v",
-					ErrPollFailed, vmResource.Name, vmResource.UID, err)
+		} else if !worker.vmm.Exists(&vmResource) {
+			if err := worker.createVM(ctx, vmResource); err != nil {
+				return err
 			}
-
-			worker.logger.Infof("spawned VM %s (%s)", vmResource.Name, vmResource.UID)
 		}
 	}
+
+	return nil
+}
+
+func (worker *Worker) deleteVM(ctx context.Context, vmResource v1.VM) error {
+	worker.logger.Debugf("deleting VM %s (%s)", vmResource.Name, vmResource.UID)
+
+	// Delete VM locally, report to the controller
+	if worker.vmm.Exists(&vmResource) {
+		if err := worker.vmm.Delete(&vmResource); err != nil {
+			return err
+		}
+	}
+
+	if err := worker.client.VMs().Delete(ctx, vmResource.Name, true); err != nil {
+		return fmt.Errorf("%w: failed to delete VM %s (%s) from the API: %v",
+			ErrPollFailed, vmResource.Name, vmResource.UID, err)
+	}
+
+	worker.logger.Infof("deleted VM %s (%s)", vmResource.Name, vmResource.UID)
+
+	return nil
+}
+
+func (worker *Worker) createVM(ctx context.Context, vmResource v1.VM) error {
+	worker.logger.Debugf("creating VM %s (%s)", vmResource.Name, vmResource.UID)
+
+	// Create or update VM locally, report to controller
+	_, err := worker.vmm.Create(&vmResource)
+	if err != nil {
+		return err
+	}
+
+	vmResource.Status = v1.VMStatusRunning
+
+	if err := worker.client.VMs().Update(ctx, &vmResource); err != nil {
+		return fmt.Errorf("%w: failed to update VM %s (%s) in the API: %v",
+			ErrPollFailed, vmResource.Name, vmResource.UID, err)
+	}
+
+	worker.logger.Infof("spawned VM %s (%s)", vmResource.Name, vmResource.UID)
 
 	return nil
 }

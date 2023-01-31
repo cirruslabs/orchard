@@ -92,7 +92,7 @@ func (controller *Controller) getVM(ctx *gin.Context) responder.Responder {
 	})
 }
 
-func (controller *Controller) listVMs(ctx *gin.Context) responder.Responder {
+func (controller *Controller) listVMs(_ *gin.Context) responder.Responder {
 	return controller.storeView(func(txn *storepkg.Txn) responder.Responder {
 		vms, err := txn.ListVMs()
 		if err != nil {

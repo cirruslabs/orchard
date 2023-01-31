@@ -67,13 +67,13 @@ func (client *Client) request(
 	in interface{},
 	out interface{},
 	params map[string]string,
-) (*http.Response, error) {
+) error {
 	var body io.Reader
 
 	if in != nil {
 		jsonBytes, err := json.Marshal(in)
 		if err != nil {
-			return nil, fmt.Errorf("%w to marshal request body: %v", ErrFailed, err)
+			return fmt.Errorf("%w to marshal request body: %v", ErrFailed, err)
 		}
 
 		body = bytes.NewBuffer(jsonBytes)
@@ -81,7 +81,7 @@ func (client *Client) request(
 
 	endpointURL, err := url.Parse("v1/" + path)
 	if err != nil {
-		return nil, fmt.Errorf("%w to parse API endpoint path: %v", ErrFailed, err)
+		return fmt.Errorf("%w to parse API endpoint path: %v", ErrFailed, err)
 	}
 
 	endpointURL = &url.URL{
@@ -100,31 +100,34 @@ func (client *Client) request(
 
 	request, err := http.NewRequestWithContext(ctx, method, endpointURL.String(), body)
 	if err != nil {
-		return nil, fmt.Errorf("%w instantiate a request: %v", ErrFailed, err)
+		return fmt.Errorf("%w instantiate a request: %v", ErrFailed, err)
 	}
 
 	response, err := client.httpClient.Do(request)
 	if err != nil {
-		return nil, fmt.Errorf("%w to make a request: %v", ErrFailed, err)
+		return fmt.Errorf("%w to make a request: %v", ErrFailed, err)
 	}
+	defer func() {
+		_ = response.Body.Close()
+	}()
 
 	if response.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("%w to make a request: %d %s",
+		return fmt.Errorf("%w to make a request: %d %s",
 			ErrFailed, response.StatusCode, http.StatusText(response.StatusCode))
 	}
 
 	if out != nil {
 		bodyBytes, err := io.ReadAll(response.Body)
 		if err != nil {
-			return nil, fmt.Errorf("%w to read response body: %v", ErrFailed, err)
+			return fmt.Errorf("%w to read response body: %v", ErrFailed, err)
 		}
 
 		if err := json.Unmarshal(bodyBytes, out); err != nil {
-			return nil, fmt.Errorf("%w to unmarshal response body: %v", ErrFailed, err)
+			return fmt.Errorf("%w to unmarshal response body: %v", ErrFailed, err)
 		}
 	}
 
-	return response, nil
+	return nil
 }
 
 func (client *Client) Workers() *WorkersService {

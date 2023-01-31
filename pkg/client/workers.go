@@ -12,7 +12,7 @@ type WorkersService struct {
 }
 
 func (service *WorkersService) Create(ctx context.Context, worker *v1.Worker) (*v1.Worker, error) {
-	_, err := service.client.request(ctx, http.MethodPost, "workers",
+	err := service.client.request(ctx, http.MethodPost, "workers",
 		worker, &worker, nil)
 	if err != nil {
 		return nil, err
@@ -24,7 +24,7 @@ func (service *WorkersService) Create(ctx context.Context, worker *v1.Worker) (*
 func (service *WorkersService) List(ctx context.Context) ([]v1.Worker, error) {
 	var workers []v1.Worker
 
-	_, err := service.client.request(ctx, http.MethodGet, "workers",
+	err := service.client.request(ctx, http.MethodGet, "workers",
 		nil, &workers, nil)
 	if err != nil {
 		return nil, err
@@ -36,7 +36,7 @@ func (service *WorkersService) List(ctx context.Context) ([]v1.Worker, error) {
 func (service *WorkersService) Get(ctx context.Context, name string) (*v1.Worker, error) {
 	var worker v1.Worker
 
-	_, err := service.client.request(ctx, http.MethodGet, fmt.Sprintf("workers/%s", name),
+	err := service.client.request(ctx, http.MethodGet, fmt.Sprintf("workers/%s", name),
 		nil, &worker, nil)
 	if err != nil {
 		return nil, err
@@ -46,7 +46,7 @@ func (service *WorkersService) Get(ctx context.Context, name string) (*v1.Worker
 }
 
 func (service *WorkersService) Update(ctx context.Context, worker *v1.Worker) error {
-	_, err := service.client.request(ctx, http.MethodPut, fmt.Sprintf("workers/%s", worker.Name),
+	err := service.client.request(ctx, http.MethodPut, fmt.Sprintf("workers/%s", worker.Name),
 		worker, nil, nil)
 	if err != nil {
 		return err
@@ -56,7 +56,7 @@ func (service *WorkersService) Update(ctx context.Context, worker *v1.Worker) er
 }
 
 func (service *WorkersService) Delete(ctx context.Context, name string) error {
-	_, err := service.client.request(ctx, http.MethodDelete, fmt.Sprintf("workers/%s", name),
+	err := service.client.request(ctx, http.MethodDelete, fmt.Sprintf("workers/%s", name),
 		nil, nil, nil)
 	if err != nil {
 		return err
