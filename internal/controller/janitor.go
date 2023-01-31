@@ -9,14 +9,14 @@ import (
 const janitorInterval = 5 * time.Second
 
 func (controller *Controller) runJanitor(store *storepkg.Store) error {
-	ticker := time.Tick(janitorInterval)
+	ticker := time.NewTicker(janitorInterval)
 
 	for {
 		if err := controller.runJanitorInner(store); err != nil {
 			return err
 		}
 
-		<-ticker
+		<-ticker.C
 	}
 }
 
@@ -34,7 +34,9 @@ func (controller *Controller) runJanitorInner(store *storepkg.Store) error {
 	}
 
 	for _, worker := range workers {
-		if time.Now().Sub(worker.LastSeen).Minutes() > 1 {
+		worker := worker
+
+		if time.Since(worker.LastSeen).Minutes() > 1 {
 			controller.logger.Debugf("removing outdated worker %s", worker.Name)
 
 			err := store.Update(func(txn *storepkg.Txn) error {

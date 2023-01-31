@@ -3,12 +3,16 @@ package controller
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	storepkg "github.com/cirruslabs/orchard/internal/controller/store"
 	"go.uber.org/zap"
 	"net"
 	"net/http"
+	"time"
 )
+
+var ErrInitFailed = errors.New("controller initialization failed")
 
 type Controller struct {
 	dataDir    string
@@ -30,7 +34,8 @@ func New(opts ...Option) (*Controller, error) {
 
 	// Apply defaults
 	if controller.dataDir == "" {
-		return nil, fmt.Errorf("%w: please specify the data directory path with WithDataDir()")
+		return nil, fmt.Errorf("%w: please specify the data directory path with WithDataDir()",
+			ErrInitFailed)
 	}
 	if controller.listenAddr == "" {
 		controller.listenAddr = ":6120"
@@ -57,7 +62,8 @@ func New(opts ...Option) (*Controller, error) {
 	}
 
 	controller.httpServer = &http.Server{
-		Handler: controller.initAPI(),
+		Handler:     controller.initAPI(),
+		ReadTimeout: 5 * time.Second,
 	}
 
 	return controller, nil
@@ -85,7 +91,10 @@ func (controller *Controller) Run(ctx context.Context) error {
 	// A helper function to shut down the HTTP server on context cancellation
 	go func() {
 		<-ctx.Done()
-		controller.httpServer.Shutdown(ctx)
+
+		if err := controller.httpServer.Shutdown(ctx); err != nil {
+			controller.logger.Errorf("failed to cleanly shutdown the HTTP server: %v", err)
+		}
 	}()
 
 	if err := controller.httpServer.Serve(controller.listener); err != nil {

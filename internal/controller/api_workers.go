@@ -91,7 +91,7 @@ func (controller *Controller) getWorker(ctx *gin.Context) responder.Responder {
 	})
 }
 
-func (controller *Controller) listWorkers(ctx *gin.Context) responder.Responder {
+func (controller *Controller) listWorkers(_ *gin.Context) responder.Responder {
 	return controller.storeView(func(txn *storepkg.Txn) responder.Responder {
 		workers, err := txn.ListWorkers()
 		if err != nil {

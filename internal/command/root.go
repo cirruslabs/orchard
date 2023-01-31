@@ -3,7 +3,7 @@ package command
 import (
 	"github.com/cirruslabs/orchard/internal/command/controller"
 	"github.com/cirruslabs/orchard/internal/command/create"
-	deletepkg "github.com/cirruslabs/orchard/internal/command/delete"
+	deletepkg "github.com/cirruslabs/orchard/internal/command/deletecmd"
 	"github.com/cirruslabs/orchard/internal/command/dev"
 	"github.com/cirruslabs/orchard/internal/command/list"
 	"github.com/cirruslabs/orchard/internal/command/worker"

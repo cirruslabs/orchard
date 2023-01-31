@@ -1,9 +1,12 @@
 package vmmanager
 
 import (
+	"errors"
 	"fmt"
 	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
 )
+
+var ErrFailed = errors.New("VM manager failed")
 
 type VMManager struct {
 	vms map[string]*VM
@@ -24,7 +27,7 @@ func (vmm *VMManager) Exists(vmResource *v1.VM) bool {
 func (vmm *VMManager) Get(vmResource *v1.VM) (*VM, error) {
 	managedVM, ok := vmm.vms[vmResource.UID]
 	if !ok {
-		return nil, fmt.Errorf("VM does not exist")
+		return nil, fmt.Errorf("%w: VM does not exist", ErrFailed)
 	}
 
 	return managedVM, nil
@@ -32,7 +35,7 @@ func (vmm *VMManager) Get(vmResource *v1.VM) (*VM, error) {
 
 func (vmm *VMManager) Create(vmResource *v1.VM) (*VM, error) {
 	if _, ok := vmm.vms[vmResource.UID]; ok {
-		return nil, fmt.Errorf("VM already exists")
+		return nil, fmt.Errorf("%w: VM already exists", ErrFailed)
 	}
 
 	managedVM := NewVM(vmResource)
@@ -45,7 +48,7 @@ func (vmm *VMManager) Create(vmResource *v1.VM) (*VM, error) {
 func (vmm *VMManager) Delete(vmResource *v1.VM) error {
 	managedVM, ok := vmm.vms[vmResource.UID]
 	if !ok {
-		return fmt.Errorf("VM does not exist")
+		return fmt.Errorf("%w: VM does not exist", ErrFailed)
 	}
 
 	if err := managedVM.Close(); err != nil {

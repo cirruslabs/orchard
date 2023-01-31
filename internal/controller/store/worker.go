@@ -1,3 +1,4 @@
+//nolint:dupl // maybe we'll figure out how to make DB resource accessors generic in the future
 package store
 
 import (

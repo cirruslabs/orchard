@@ -1,4 +1,4 @@
-package delete
+package deletecmd
 
 import (
 	"github.com/cirruslabs/orchard/pkg/client"

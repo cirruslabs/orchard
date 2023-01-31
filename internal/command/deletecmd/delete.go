@@ -1,4 +1,4 @@
-package delete
+package deletecmd
 
 import (
 	"github.com/spf13/cobra"
