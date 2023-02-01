@@ -12,9 +12,13 @@ var (
 )
 
 func mapErr(err error) error {
-	if errors.Is(err, badger.ErrKeyNotFound) {
-		return ErrNotFound
+	if err != nil {
+		if errors.Is(err, badger.ErrKeyNotFound) {
+			return ErrNotFound
+		}
+
+		return fmt.Errorf("%w: %v", ErrBadgerFailed, err)
 	}
 
-	return fmt.Errorf("%w: %v", ErrBadgerFailed, err)
+	return err
 }
