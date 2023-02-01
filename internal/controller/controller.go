@@ -79,15 +79,6 @@ func (controller *Controller) Run(ctx context.Context) error {
 		}
 	}()
 
-	// Run the janitor so that inactive workers
-	// will eventually be removed from the DB
-	go func() {
-		err := controller.runJanitor(controller.store)
-		if err != nil {
-			panic(err)
-		}
-	}()
-
 	// A helper function to shut down the HTTP server on context cancellation
 	go func() {
 		<-ctx.Done()
