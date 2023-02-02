@@ -7,7 +7,7 @@ import (
 
 type Option func(*Controller)
 
-func WithDataDir(dataDir string) Option {
+func WithDataDir(dataDir *DataDir) Option {
 	return func(controller *Controller) {
 		controller.dataDir = dataDir
 	}

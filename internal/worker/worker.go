@@ -17,12 +17,12 @@ const pollInterval = 5 * time.Second
 var ErrPollFailed = errors.New("failed to poll controller")
 
 type Worker struct {
-	dataDir string
-	name    string
-	uid     string
-	vmm     *vmmanager.VMManager
-	client  *client.Client
-	logger  *zap.SugaredLogger
+	dataDirPath string
+	name        string
+	uid         string
+	vmm         *vmmanager.VMManager
+	client      *client.Client
+	logger      *zap.SugaredLogger
 }
 
 func New(opts ...Option) (*Worker, error) {
