@@ -15,7 +15,7 @@ import (
 var ErrInitFailed = errors.New("controller initialization failed")
 
 type Controller struct {
-	dataDir    string
+	dataDir    *DataDir
 	listenAddr string
 	tlsConfig  *tls.Config
 	listener   net.Listener
@@ -33,7 +33,7 @@ func New(opts ...Option) (*Controller, error) {
 	}
 
 	// Apply defaults
-	if controller.dataDir == "" {
+	if controller.dataDir == nil {
 		return nil, fmt.Errorf("%w: please specify the data directory path with WithDataDir()",
 			ErrInitFailed)
 	}
@@ -45,7 +45,7 @@ func New(opts ...Option) (*Controller, error) {
 	}
 
 	// Instantiate controller
-	store, err := storepkg.New(controller.dbPath())
+	store, err := storepkg.New(controller.dataDir.DBPath())
 	if err != nil {
 		return nil, err
 	}

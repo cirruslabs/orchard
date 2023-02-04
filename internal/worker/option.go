@@ -4,9 +4,9 @@ import "go.uber.org/zap"
 
 type Option func(*Worker)
 
-func WithDataDir(dataDir string) Option {
+func WithDataDirPath(dataDir string) Option {
 	return func(worker *Worker) {
-		worker.dataDir = dataDir
+		worker.dataDirPath = dataDir
 	}
 }
 

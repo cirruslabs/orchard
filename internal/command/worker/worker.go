@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 )
 
-var dataDir string
+var dataDirPath string
 
 func NewCommand() *cobra.Command {
 	command := &cobra.Command{
@@ -22,8 +22,8 @@ func NewCommand() *cobra.Command {
 		log.Fatal(err)
 	}
 
-	command.PersistentFlags().StringVar(&dataDir, "data-dir", filepath.Join(orchardHome, "worker"),
-		"path to the data directory")
+	command.PersistentFlags().StringVar(&dataDirPath, "data-dir", filepath.Join(orchardHome, "worker"),
+		"path to the worker's data directory")
 
 	return command
 }

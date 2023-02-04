@@ -25,7 +25,7 @@ func runWorker(cmd *cobra.Command, args []string) (err error) {
 		}
 	}()
 
-	worker, err := worker.New(worker.WithDataDir(dataDir), worker.WithLogger(logger))
+	worker, err := worker.New(worker.WithDataDirPath(dataDirPath), worker.WithLogger(logger))
 	if err != nil {
 		return err
 	}

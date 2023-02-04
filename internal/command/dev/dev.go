@@ -19,11 +19,6 @@ func NewCommand() *cobra.Command {
 }
 
 func runDev(cmd *cobra.Command, args []string) error {
-	tempDir, err := os.MkdirTemp("", "")
-	if err != nil {
-		return err
-	}
-
 	// Initialize the logger
 	logger, err := zap.NewDevelopment()
 	if err != nil {
@@ -35,12 +30,22 @@ func runDev(cmd *cobra.Command, args []string) error {
 		}
 	}()
 
-	controller, err := controller.New(controller.WithDataDir(tempDir), controller.WithLogger(logger))
+	tempDir, err := os.MkdirTemp("", "")
 	if err != nil {
 		return err
 	}
 
-	worker, err := worker.New(worker.WithDataDir(tempDir), worker.WithLogger(logger))
+	dataDir, err := controller.NewDataDir(tempDir)
+	if err != nil {
+		return err
+	}
+
+	controller, err := controller.New(controller.WithDataDir(dataDir), controller.WithLogger(logger))
+	if err != nil {
+		return err
+	}
+
+	worker, err := worker.New(worker.WithDataDirPath(tempDir), worker.WithLogger(logger))
 	if err != nil {
 		return err
 	}
