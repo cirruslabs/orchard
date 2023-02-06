@@ -12,6 +12,11 @@ import (
 	"time"
 )
 
+const (
+	DefaultPort       = 6120
+	DefaultServerName = "orchard-controller"
+)
+
 var ErrInitFailed = errors.New("controller initialization failed")
 
 type Controller struct {
@@ -38,7 +43,7 @@ func New(opts ...Option) (*Controller, error) {
 			ErrInitFailed)
 	}
 	if controller.listenAddr == "" {
-		controller.listenAddr = ":6120"
+		controller.listenAddr = fmt.Sprintf(":%d", DefaultPort)
 	}
 	if controller.logger == nil {
 		controller.logger = zap.NewNop().Sugar()

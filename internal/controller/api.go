@@ -17,6 +17,11 @@ func (controller *Controller) initAPI() *gin.Engine {
 	// v1 API
 	v1 := ginEngine.Group("/v1")
 
+	// A way to for the clients to check that the API is working
+	v1.GET("/", func(c *gin.Context) {
+		c.Status(http.StatusOK)
+	})
+
 	// Workers
 	v1.POST("/workers", func(c *gin.Context) {
 		controller.createWorker(c).Respond(c)

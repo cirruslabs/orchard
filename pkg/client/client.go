@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/cirruslabs/orchard/internal/config"
 	"io"
 	"net/http"
 	"net/url"
@@ -39,7 +40,23 @@ func New(opts ...Option) (*Client, error) {
 
 	// Apply defaults
 	if client.address == "" {
-		client.address = "http://127.0.0.1:6120"
+		configHandle, err := config.NewHandle()
+		if err != nil {
+			return nil, err
+		}
+
+		defaultContext, err := configHandle.DefaultContext()
+		if err != nil {
+			return nil, err
+		}
+
+		client.address = defaultContext.URL
+
+		tlsConfig, err := defaultContext.TLSConfig()
+		if err != nil {
+			return nil, err
+		}
+		client.tlsConfig = tlsConfig
 	}
 
 	// Instantiate client
@@ -128,6 +145,10 @@ func (client *Client) request(
 	}
 
 	return nil
+}
+
+func (client *Client) Check(ctx context.Context) error {
+	return client.request(ctx, http.MethodGet, "/", nil, nil, nil)
 }
 
 func (client *Client) Workers() *WorkersService {
