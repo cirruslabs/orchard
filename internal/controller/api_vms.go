@@ -28,7 +28,7 @@ func (controller *Controller) createVM(ctx *gin.Context) responder.Responder {
 	vm.UID = uuid.New().String()
 	vm.Generation = 0
 
-	return controller.storeUpdate(func(txn *storepkg.Txn) responder.Responder {
+	return controller.storeUpdate(func(txn storepkg.Transaction) responder.Responder {
 		// Does the VM resource with this name already exists?
 		_, err := txn.GetVM(vm.Name)
 		if !errors.Is(err, storepkg.ErrNotFound) {
@@ -54,14 +54,10 @@ func (controller *Controller) updateVM(ctx *gin.Context) responder.Responder {
 		return responder.Code(http.StatusPreconditionFailed)
 	}
 
-	return controller.storeUpdate(func(txn *storepkg.Txn) responder.Responder {
+	return controller.storeUpdate(func(txn storepkg.Transaction) responder.Responder {
 		dbVM, err := txn.GetVM(userVM.Name)
 		if err != nil {
-			if errors.Is(err, storepkg.ErrNotFound) {
-				return responder.Code(http.StatusNotFound)
-			}
-
-			return responder.Code(http.StatusInternalServerError)
+			return responder.Error(err)
 		}
 
 		dbVM.Status = userVM.Status
@@ -78,14 +74,10 @@ func (controller *Controller) updateVM(ctx *gin.Context) responder.Responder {
 func (controller *Controller) getVM(ctx *gin.Context) responder.Responder {
 	name := ctx.Param("name")
 
-	return controller.storeView(func(txn *storepkg.Txn) responder.Responder {
+	return controller.storeView(func(txn storepkg.Transaction) responder.Responder {
 		vm, err := txn.GetVM(name)
 		if err != nil {
-			if errors.Is(err, storepkg.ErrNotFound) {
-				return responder.Code(http.StatusNotFound)
-			}
-
-			return responder.Code(http.StatusInternalServerError)
+			return responder.Error(err)
 		}
 
 		return responder.JSON(http.StatusOK, &vm)
@@ -93,14 +85,10 @@ func (controller *Controller) getVM(ctx *gin.Context) responder.Responder {
 }
 
 func (controller *Controller) listVMs(_ *gin.Context) responder.Responder {
-	return controller.storeView(func(txn *storepkg.Txn) responder.Responder {
+	return controller.storeView(func(txn storepkg.Transaction) responder.Responder {
 		vms, err := txn.ListVMs()
 		if err != nil {
-			if errors.Is(err, storepkg.ErrNotFound) {
-				return responder.Code(http.StatusNotFound)
-			}
-
-			return responder.Code(http.StatusInternalServerError)
+			return responder.Error(err)
 		}
 
 		return responder.JSON(http.StatusOK, &vms)
@@ -111,33 +99,25 @@ func (controller *Controller) deleteVM(ctx *gin.Context) responder.Responder {
 	name := ctx.Param("name")
 
 	if ctx.Query("force") != "" {
-		return controller.storeUpdate(func(txn *storepkg.Txn) responder.Responder {
+		return controller.storeUpdate(func(txn storepkg.Transaction) responder.Responder {
 			if err := txn.DeleteVM(name); err != nil {
-				if errors.Is(err, storepkg.ErrNotFound) {
-					return responder.Code(http.StatusNotFound)
-				}
-
-				return responder.Code(http.StatusInternalServerError)
+				return responder.Error(err)
 			}
 
 			return responder.Code(http.StatusOK)
 		})
 	}
 
-	return controller.storeUpdate(func(txn *storepkg.Txn) responder.Responder {
+	return controller.storeUpdate(func(txn storepkg.Transaction) responder.Responder {
 		vm, err := txn.GetVM(name)
 		if err != nil {
-			if errors.Is(err, storepkg.ErrNotFound) {
-				return responder.Code(http.StatusNotFound)
-			}
-
-			return responder.Code(http.StatusInternalServerError)
+			return responder.Error(err)
 		}
 
 		vm.DeletedAt = time.Now()
 
 		if err := txn.SetVM(vm); err != nil {
-			return responder.Code(http.StatusInternalServerError)
+			return responder.Error(err)
 		}
 
 		return responder.Code(http.StatusOK)

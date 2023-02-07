@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	storepkg "github.com/cirruslabs/orchard/internal/controller/store"
+	"github.com/cirruslabs/orchard/internal/controller/store/badger"
 	"go.uber.org/zap"
 	"net"
 	"net/http"
@@ -20,7 +21,7 @@ type Controller struct {
 	tlsConfig  *tls.Config
 	listener   net.Listener
 	httpServer *http.Server
-	store      *storepkg.Store
+	store      storepkg.Store
 	logger     *zap.SugaredLogger
 }
 
@@ -45,7 +46,7 @@ func New(opts ...Option) (*Controller, error) {
 	}
 
 	// Instantiate controller
-	store, err := storepkg.New(controller.dataDir.DBPath())
+	store, err := badger.NewBadgerStore(controller.dataDir.DBPath())
 	if err != nil {
 		return nil, err
 	}

@@ -1,18 +1,28 @@
 package controller
 
 import (
+	"errors"
 	storepkg "github.com/cirruslabs/orchard/internal/controller/store"
 	"github.com/cirruslabs/orchard/internal/responder"
 	"github.com/gin-gonic/gin"
 	"net/http"
 )
 
-type storeTxFunc func(cb func(txn *storepkg.Txn) error) error
-type apiTxFunc func(txn *storepkg.Txn) responder.Responder
+func ErrorHandler(ctx *gin.Context) {
+	// make sure everything is executed in the chain before trying to override the code
+	ctx.Next()
+
+	for _, err := range ctx.Errors {
+		if errors.Is(err, storepkg.ErrNotFound) {
+			ctx.Status(http.StatusNotFound)
+		}
+	}
+}
 
 func (controller *Controller) initAPI() *gin.Engine {
 	gin.SetMode(gin.DebugMode)
 	ginEngine := gin.Default()
+	ginEngine.Use(ErrorHandler)
 
 	// v1 API
 	v1 := ginEngine.Group("/v1")
@@ -54,19 +64,26 @@ func (controller *Controller) initAPI() *gin.Engine {
 	return ginEngine
 }
 
-func (controller *Controller) storeView(cb apiTxFunc) responder.Responder {
-	return mapTxFuncs(controller.store.View, cb)
+type storeTransactionFunc func(operation func(txn storepkg.Transaction) error) error
+
+func (controller *Controller) storeView(view func(txn storepkg.Transaction) responder.Responder) responder.Responder {
+	return adaptResponderToStoreOperation(controller.store.View, view)
 }
 
-func (controller *Controller) storeUpdate(cb apiTxFunc) responder.Responder {
-	return mapTxFuncs(controller.store.Update, cb)
+func (controller *Controller) storeUpdate(
+	update func(txn storepkg.Transaction) responder.Responder,
+) responder.Responder {
+	return adaptResponderToStoreOperation(controller.store.Update, update)
 }
 
-func mapTxFuncs(txFunc storeTxFunc, cb apiTxFunc) responder.Responder {
+func adaptResponderToStoreOperation(
+	storeOperation storeTransactionFunc,
+	responderOperation func(txn storepkg.Transaction) responder.Responder,
+) responder.Responder {
 	var result responder.Responder
 
-	if err := txFunc(func(txn *storepkg.Txn) error {
-		result = cb(txn)
+	if err := storeOperation(func(txn storepkg.Transaction) error {
+		result = responderOperation(txn)
 
 		return nil
 	}); err != nil {

@@ -1,35 +1,36 @@
 package responder
 
-import "github.com/gin-gonic/gin"
+import (
+	"github.com/gin-gonic/gin"
+	"net/http"
+)
 
 type CodeResponder struct {
-	code    int
-	headers map[string]string
-
+	code int
+	err  error
 	DefaultResponder
 }
 
-func Code(code int, opts ...Option) *CodeResponder {
-	responder := &CodeResponder{
-		code:    code,
-		headers: map[string]string{},
-	}
+func Code(code int) *CodeResponder {
+	return ErrorCode(nil, code)
+}
 
-	for _, opt := range opts {
-		opt(responder)
+func Error(err error) *CodeResponder {
+	return ErrorCode(err, http.StatusInternalServerError)
+}
+
+func ErrorCode(err error, code int) *CodeResponder {
+	responder := &CodeResponder{
+		code: code,
+		err:  err,
 	}
 
 	return responder
 }
 
-func (responder *CodeResponder) SetHeader(key string, value string) {
-	responder.headers[key] = value
-}
-
 func (responder *CodeResponder) Respond(c *gin.Context) {
-	for key, value := range responder.headers {
-		c.Header(key, value)
-	}
-
 	c.Status(responder.code)
+	if responder.err != nil {
+		_ = c.Error(responder.err)
+	}
 }

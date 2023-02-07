@@ -31,7 +31,7 @@ func (controller *Controller) createWorker(ctx *gin.Context) responder.Responder
 	worker.UID = uuid.New().String()
 	worker.Generation = 0
 
-	return controller.storeUpdate(func(txn *storepkg.Txn) responder.Responder {
+	return controller.storeUpdate(func(txn storepkg.Transaction) responder.Responder {
 		// Does the worker resource with this name already exists?
 		_, err := txn.GetWorker(worker.Name)
 		if !errors.Is(err, storepkg.ErrNotFound) {
@@ -39,7 +39,7 @@ func (controller *Controller) createWorker(ctx *gin.Context) responder.Responder
 		}
 
 		if err := txn.SetWorker(&worker); err != nil {
-			return responder.Code(http.StatusInternalServerError)
+			return responder.Error(err)
 		}
 
 		return responder.JSON(200, &worker)
@@ -53,14 +53,10 @@ func (controller *Controller) updateWorker(ctx *gin.Context) responder.Responder
 		return responder.Code(http.StatusBadRequest)
 	}
 
-	return controller.storeUpdate(func(txn *storepkg.Txn) responder.Responder {
+	return controller.storeUpdate(func(txn storepkg.Transaction) responder.Responder {
 		dbWorker, err := txn.GetWorker(userWorker.Name)
 		if err != nil {
-			if errors.Is(err, storepkg.ErrNotFound) {
-				return responder.Code(http.StatusNotFound)
-			}
-
-			return responder.Code(http.StatusInternalServerError)
+			return responder.Error(err)
 		}
 
 		dbWorker.LastSeen = userWorker.LastSeen
@@ -77,14 +73,10 @@ func (controller *Controller) updateWorker(ctx *gin.Context) responder.Responder
 func (controller *Controller) getWorker(ctx *gin.Context) responder.Responder {
 	name := ctx.Param("name")
 
-	return controller.storeView(func(txn *storepkg.Txn) responder.Responder {
+	return controller.storeView(func(txn storepkg.Transaction) responder.Responder {
 		worker, err := txn.GetWorker(name)
 		if err != nil {
-			if errors.Is(err, storepkg.ErrNotFound) {
-				return responder.Code(http.StatusNotFound)
-			}
-
-			return responder.Code(http.StatusInternalServerError)
+			return responder.Error(err)
 		}
 
 		return responder.JSON(http.StatusOK, &worker)
@@ -92,14 +84,10 @@ func (controller *Controller) getWorker(ctx *gin.Context) responder.Responder {
 }
 
 func (controller *Controller) listWorkers(_ *gin.Context) responder.Responder {
-	return controller.storeView(func(txn *storepkg.Txn) responder.Responder {
+	return controller.storeView(func(txn storepkg.Transaction) responder.Responder {
 		workers, err := txn.ListWorkers()
 		if err != nil {
-			if errors.Is(err, storepkg.ErrNotFound) {
-				return responder.Code(http.StatusNotFound)
-			}
-
-			return responder.Code(http.StatusInternalServerError)
+			return responder.Error(err)
 		}
 
 		return responder.JSON(http.StatusOK, &workers)
@@ -109,13 +97,9 @@ func (controller *Controller) listWorkers(_ *gin.Context) responder.Responder {
 func (controller *Controller) deleteWorker(ctx *gin.Context) responder.Responder {
 	name := ctx.Param("name")
 
-	return controller.storeUpdate(func(txn *storepkg.Txn) responder.Responder {
+	return controller.storeUpdate(func(txn storepkg.Transaction) responder.Responder {
 		if err := txn.DeleteWorker(name); err != nil {
-			if errors.Is(err, storepkg.ErrNotFound) {
-				return responder.Code(http.StatusNotFound)
-			}
-
-			return responder.Code(http.StatusInternalServerError)
+			return responder.Error(err)
 		}
 
 		return responder.Code(http.StatusOK)

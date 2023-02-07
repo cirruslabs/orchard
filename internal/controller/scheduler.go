@@ -9,7 +9,7 @@ import (
 
 const schedulerInterval = 5 * time.Second
 
-func runScheduler(store *storepkg.Store) error {
+func runScheduler(store storepkg.Store) error {
 	ticker := time.NewTicker(schedulerInterval)
 
 	for {
@@ -21,12 +21,12 @@ func runScheduler(store *storepkg.Store) error {
 	}
 }
 
-func runSchedulerInner(store *storepkg.Store) error {
+func runSchedulerInner(store storepkg.Store) error {
 	var vms []*v1.VM
 	var workers []*v1.Worker
 	var err error
 
-	err = store.View(func(txn *storepkg.Txn) error {
+	err = store.View(func(txn storepkg.Transaction) error {
 		vms, err = txn.ListVMs()
 		if err != nil {
 			return err
@@ -61,7 +61,7 @@ func runSchedulerInner(store *storepkg.Store) error {
 
 			vm.Worker = worker.Name
 
-			err := store.Update(func(txn *storepkg.Txn) error {
+			err := store.Update(func(txn storepkg.Transaction) error {
 				return txn.SetVM(vm)
 			})
 			if err != nil {

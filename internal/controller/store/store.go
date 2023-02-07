@@ -1,24 +1,20 @@
 package store
 
-import (
-	"github.com/dgraph-io/badger/v3"
-)
+import v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
 
-type Store struct {
-	db *badger.DB
+type Store interface {
+	View(cb func(txn Transaction) error) error
+	Update(cb func(txn Transaction) error) error
 }
 
-func New(dbPath string) (*Store, error) {
-	opts := badger.DefaultOptions(dbPath)
+type Transaction interface {
+	GetVM(name string) (result *v1.VM, err error)
+	SetVM(vm *v1.VM) (err error)
+	DeleteVM(name string) (err error)
+	ListVMs() (result []*v1.VM, err error)
 
-	opts.SyncWrites = true
-
-	db, err := badger.Open(opts)
-	if err != nil {
-		return nil, err
-	}
-
-	return &Store{
-		db: db,
-	}, nil
+	GetWorker(name string) (result *v1.Worker, err error)
+	SetWorker(worker *v1.Worker) (err error)
+	DeleteWorker(name string) (err error)
+	ListWorkers() (result []*v1.Worker, err error)
 }
