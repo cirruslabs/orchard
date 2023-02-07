@@ -6,15 +6,20 @@ require (
 	github.com/dgraph-io/badger/v3 v3.2103.5
 	github.com/dustin/go-humanize v1.0.0
 	github.com/gin-gonic/gin v1.8.2
+	github.com/gofrs/flock v0.8.1
 	github.com/google/uuid v1.3.0
 	github.com/gosuri/uitable v0.0.4
+	github.com/manifoldco/promptui v0.9.0
 	github.com/spf13/cobra v1.6.0
 	go.uber.org/zap v1.24.0
+	golang.org/x/exp v0.0.0-20230203172020-98cc5a0785f9
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
 	github.com/cespare/xxhash v1.1.0 // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
+	github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e // indirect
 	github.com/dgraph-io/ristretto v0.1.1 // indirect
 	github.com/fatih/color v1.13.0 // indirect
 	github.com/gin-contrib/sse v0.1.0 // indirect

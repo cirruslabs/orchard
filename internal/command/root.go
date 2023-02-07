@@ -1,6 +1,7 @@
 package command
 
 import (
+	"github.com/cirruslabs/orchard/internal/command/context"
 	"github.com/cirruslabs/orchard/internal/command/controller"
 	"github.com/cirruslabs/orchard/internal/command/create"
 	deletepkg "github.com/cirruslabs/orchard/internal/command/deletecmd"
@@ -24,6 +25,7 @@ func NewRootCmd() *cobra.Command {
 	)
 
 	addGroupedCommands(command, "Administrative Tasks:",
+		context.NewCommand(),
 		controller.NewCommand(),
 		worker.NewCommand(),
 		dev.NewCommand(),

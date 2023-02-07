@@ -119,7 +119,7 @@ func generateSelfSignedControllerCertificate() (tls.Certificate, error) {
 		BasicConstraintsValid: true,
 		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
 		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
-		DNSNames:              []string{"orchard-controller"},
+		DNSNames:              []string{controller.DefaultServerName},
 	}
 
 	certBytes, err := x509.CreateCertificate(cryptorand.Reader, cert, cert, privateKey.Public(), privateKey)
