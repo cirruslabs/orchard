@@ -7,7 +7,3 @@ import (
 type Responder interface {
 	Respond(c *gin.Context)
 }
-
-type DefaultResponder struct{}
-
-func (dr DefaultResponder) Respond(c *gin.Context) {}

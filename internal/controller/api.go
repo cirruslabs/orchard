@@ -1,28 +1,15 @@
 package controller
 
 import (
-	"errors"
 	storepkg "github.com/cirruslabs/orchard/internal/controller/store"
 	"github.com/cirruslabs/orchard/internal/responder"
 	"github.com/gin-gonic/gin"
 	"net/http"
 )
 
-func ErrorHandler(ctx *gin.Context) {
-	// make sure everything is executed in the chain before trying to override the code
-	ctx.Next()
-
-	for _, err := range ctx.Errors {
-		if errors.Is(err, storepkg.ErrNotFound) {
-			ctx.Status(http.StatusNotFound)
-		}
-	}
-}
-
 func (controller *Controller) initAPI() *gin.Engine {
 	gin.SetMode(gin.DebugMode)
 	ginEngine := gin.Default()
-	ginEngine.Use(ErrorHandler)
 
 	// v1 API
 	v1 := ginEngine.Group("/v1")

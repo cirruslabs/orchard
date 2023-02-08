@@ -8,7 +8,7 @@ type JSONResponder struct {
 	code int
 	obj  interface{}
 
-	DefaultResponder
+	Responder
 }
 
 func JSON(code int, obj interface{}) *JSONResponder {
