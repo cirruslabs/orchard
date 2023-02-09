@@ -2,23 +2,10 @@ package store
 
 import (
 	"errors"
-	"fmt"
-	"github.com/dgraph-io/badger/v3"
 )
 
 var (
-	ErrNotFound     = errors.New("DB entry not found")
-	ErrBadgerFailed = errors.New("BadgerDB failed")
+	ErrNotFound    = errors.New("store entry not found")
+	ErrConflict    = errors.New("store conflict")
+	ErrStoreFailed = errors.New("store failed")
 )
-
-func mapErr(err error) error {
-	if err != nil {
-		if errors.Is(err, badger.ErrKeyNotFound) {
-			return ErrNotFound
-		}
-
-		return fmt.Errorf("%w: %v", ErrBadgerFailed, err)
-	}
-
-	return err
-}

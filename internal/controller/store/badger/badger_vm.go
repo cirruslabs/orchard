@@ -1,5 +1,5 @@
 //nolint:dupl // maybe we'll figure out how to make DB resource accessors generic in the future
-package store
+package badger
 
 import (
 	"encoding/json"
@@ -8,18 +8,18 @@ import (
 	"path"
 )
 
-const SpaceWorkers = "/workers"
+const SpaceVMs = "/vms"
 
-func WorkerKey(name string) []byte {
-	return []byte(path.Join(SpaceWorkers, name))
+func VMKey(name string) []byte {
+	return []byte(path.Join(SpaceVMs, name))
 }
 
-func (txn *Txn) GetWorker(name string) (result *v1.Worker, err error) {
+func (txn *Transaction) GetVM(name string) (result *v1.VM, err error) {
 	defer func() {
 		err = mapErr(err)
 	}()
 
-	key := WorkerKey(name)
+	key := VMKey(name)
 
 	item, err := txn.badgerTxn.Get(key)
 	if err != nil {
@@ -31,24 +31,24 @@ func (txn *Txn) GetWorker(name string) (result *v1.Worker, err error) {
 		return nil, err
 	}
 
-	var worker v1.Worker
+	var vm v1.VM
 
-	err = json.Unmarshal(valueBytes, &worker)
+	err = json.Unmarshal(valueBytes, &vm)
 	if err != nil {
 		return nil, err
 	}
 
-	return &worker, nil
+	return &vm, nil
 }
 
-func (txn *Txn) SetWorker(worker *v1.Worker) (err error) {
+func (txn *Transaction) SetVM(vm *v1.VM) (err error) {
 	defer func() {
 		err = mapErr(err)
 	}()
 
-	key := WorkerKey(worker.Name)
+	key := VMKey(vm.Name)
 
-	valueBytes, err := json.Marshal(worker)
+	valueBytes, err := json.Marshal(vm)
 	if err != nil {
 		return err
 	}
@@ -56,23 +56,23 @@ func (txn *Txn) SetWorker(worker *v1.Worker) (err error) {
 	return txn.badgerTxn.Set(key, valueBytes)
 }
 
-func (txn *Txn) DeleteWorker(name string) (err error) {
+func (txn *Transaction) DeleteVM(name string) (err error) {
 	defer func() {
 		err = mapErr(err)
 	}()
 
-	key := WorkerKey(name)
+	key := VMKey(name)
 
 	return txn.badgerTxn.Delete(key)
 }
 
-func (txn *Txn) ListWorkers() (result []*v1.Worker, err error) {
+func (txn *Transaction) ListVMs() (result []*v1.VM, err error) {
 	defer func() {
 		err = mapErr(err)
 	}()
 
 	it := txn.badgerTxn.NewIterator(badger.IteratorOptions{
-		Prefix: []byte(SpaceWorkers),
+		Prefix: []byte(SpaceVMs),
 	})
 	defer it.Close()
 
@@ -84,13 +84,13 @@ func (txn *Txn) ListWorkers() (result []*v1.Worker, err error) {
 			return nil, err
 		}
 
-		var worker v1.Worker
+		var vm v1.VM
 
-		if err := json.Unmarshal(vmBytes, &worker); err != nil {
+		if err := json.Unmarshal(vmBytes, &vm); err != nil {
 			return nil, err
 		}
 
-		result = append(result, &worker)
+		result = append(result, &vm)
 	}
 
 	return result, nil
