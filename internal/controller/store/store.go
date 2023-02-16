@@ -17,4 +17,9 @@ type Transaction interface {
 	SetWorker(worker *v1.Worker) (err error)
 	DeleteWorker(name string) (err error)
 	ListWorkers() (result []*v1.Worker, err error)
+
+	GetServiceAccount(name string) (result *v1.ServiceAccount, err error)
+	SetServiceAccount(serviceAccount *v1.ServiceAccount) (err error)
+	DeleteServiceAccount(name string) (err error)
+	ListServiceAccounts() (result []*v1.ServiceAccount, err error)
 }

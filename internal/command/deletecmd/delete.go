@@ -7,10 +7,10 @@ import (
 func NewCommand() *cobra.Command {
 	command := &cobra.Command{
 		Use:   "delete",
-		Short: "Delete resources from the controller (VMs)",
+		Short: "Delete resources from the controller",
 	}
 
-	command.AddCommand(newDeleteVMCommand())
+	command.AddCommand(newDeleteVMCommand(), newDeleteServiceComandCommand())
 
 	return command
 }

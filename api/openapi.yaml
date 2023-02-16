@@ -4,6 +4,69 @@ info:
   description: Orchard orchestration API
   version: 0.1.0
 paths:
+  /service-accounts:
+    post:
+      summary: "Create a Service Account"
+      tags:
+        - service-accounts
+      responses:
+        '200':
+          description: Service Account resource was successfully created
+          content:
+            application/json:
+              schema:
+                $ref: '#components/schemas/ServiceAccount'
+        '409':
+          description: Service Account resource with with the same name already exists
+    get:
+      summary: "List Service Accounts"
+      tags:
+        - service-accounts
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#components/schemas/ServiceAccount'
+  /service-accounts/{name}:
+    get:
+      summary: "Retrieve a Service Account"
+      tags:
+        - service-accounts
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#components/schemas/ServiceAccount'
+        '404':
+          description: Service Account resource with the given name doesn't exist
+    put:
+      summary: "Update a Service Account"
+      tags:
+        - service-accounts
+      responses:
+        '200':
+          description: Service Account object was successfully updated
+          content:
+            application/json:
+              schema:
+                $ref: '#components/schemas/ServiceAccount'
+        '404':
+          description: Service Account resource with the given name doesn't exist
+    delete:
+      summary: "Delete a Service Account"
+      tags:
+        - service-accounts
+      responses:
+        '200':
+          description: Service Account resource was successfully deleted
+        '404':
+          description: Service Account resource with the given name doesn't exist
   /workers:
     post:
       summary: "Create a Worker"
@@ -146,3 +209,17 @@ components:
         name:
           type: string
           description: VM name
+    ServiceAccount:
+      title: Service Account
+      type: object
+      properties:
+        name:
+          type: string
+          description: Name
+        token:
+          type: string
+          description: Secret token used to access the API
+        roles:
+          type: array
+          items:
+            type: string

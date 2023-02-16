@@ -9,10 +9,10 @@ var quiet bool
 func NewCommand() *cobra.Command {
 	command := &cobra.Command{
 		Use:   "list",
-		Short: "List resources on the controller (workers, VMs)",
+		Short: "List resources on the controller",
 	}
 
-	command.AddCommand(newListWorkersCommand(), newListVMsCommand())
+	command.AddCommand(newListWorkersCommand(), newListVMsCommand(), newListServiceAccountsCommand())
 
 	command.PersistentFlags().BoolVarP(&quiet, "", "q", false, "only show resource names")
 

@@ -15,3 +15,10 @@ func WithTLSConfig(tlsConfig *tls.Config) Option {
 		client.tlsConfig = tlsConfig
 	}
 }
+
+func WithCredentials(serviceAccountName string, serviceAccountToken string) Option {
+	return func(client *Client) {
+		client.serviceAccountName = serviceAccountName
+		client.serviceAccountToken = serviceAccountToken
+	}
+}

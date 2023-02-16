@@ -23,6 +23,9 @@ type Client struct {
 
 	httpClient *http.Client
 	baseURL    *url.URL
+
+	serviceAccountName  string
+	serviceAccountToken string
 }
 
 type Config struct {
@@ -51,6 +54,8 @@ func New(opts ...Option) (*Client, error) {
 		}
 
 		client.address = defaultContext.URL
+		client.serviceAccountName = defaultContext.ServiceAccountName
+		client.serviceAccountToken = defaultContext.ServiceAccountToken
 
 		tlsConfig, err := defaultContext.TLSConfig()
 		if err != nil {
@@ -60,7 +65,7 @@ func New(opts ...Option) (*Client, error) {
 	}
 
 	// Instantiate client
-	httpClient := &http.Client{
+	client.httpClient = &http.Client{
 		Transport: &http.Transport{
 			TLSClientConfig: client.tlsConfig,
 		},
@@ -70,11 +75,9 @@ func New(opts ...Option) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
+	client.baseURL = url
 
-	return &Client{
-		httpClient: httpClient,
-		baseURL:    url,
-	}, nil
+	return client, nil
 }
 
 func (client *Client) request(
@@ -120,6 +123,10 @@ func (client *Client) request(
 		return fmt.Errorf("%w instantiate a request: %v", ErrFailed, err)
 	}
 
+	if client.serviceAccountName != "" && client.serviceAccountToken != "" {
+		request.SetBasicAuth(client.serviceAccountName, client.serviceAccountToken)
+	}
+
 	response, err := client.httpClient.Do(request)
 	if err != nil {
 		return fmt.Errorf("%w to make a request: %v", ErrFailed, err)
@@ -159,6 +166,12 @@ func (client *Client) Workers() *WorkersService {
 
 func (client *Client) VMs() *VMsService {
 	return &VMsService{
+		client: client,
+	}
+}
+
+func (client *Client) ServiceAccounts() *ServiceAccountsService {
+	return &ServiceAccountsService{
 		client: client,
 	}
 }

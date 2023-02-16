@@ -7,10 +7,10 @@ import (
 func NewCommand() *cobra.Command {
 	command := &cobra.Command{
 		Use:   "create",
-		Short: "Create resources on the controller (VMs)",
+		Short: "Create resources on the controller",
 	}
 
-	command.AddCommand(newCreateVMCommand())
+	command.AddCommand(newCreateVMCommand(), newCreateServiceAccount())
 
 	return command
 }

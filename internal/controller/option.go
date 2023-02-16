@@ -25,6 +25,12 @@ func WithTLSConfig(tlsConfig *tls.Config) Option {
 	}
 }
 
+func WithInsecureAuthDisabled() Option {
+	return func(controller *Controller) {
+		controller.insecureAuthDisabled = true
+	}
+}
+
 func WithLogger(logger *zap.Logger) Option {
 	return func(controller *Controller) {
 		controller.logger = logger.Sugar()

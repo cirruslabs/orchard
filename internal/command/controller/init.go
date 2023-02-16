@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/cirruslabs/orchard/internal/controller"
+	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
 	"github.com/spf13/cobra"
 	"math/big"
 	"time"
@@ -20,6 +21,8 @@ var ErrInitFailed = errors.New("controller initialization failed")
 
 var controllerCertPath string
 var controllerKeyPath string
+var serviceAccountName string
+var serviceAccountToken string
 var force bool
 
 func newInitCommand() *cobra.Command {
@@ -35,6 +38,10 @@ func newInitCommand() *cobra.Command {
 	command.PersistentFlags().StringVar(&controllerKeyPath, "controller-key", "",
 		"do not auto-generate the controller certificate key, import it from the specified path instead"+
 			" (requires --controller-cert)")
+	command.PersistentFlags().StringVar(&serviceAccountName, "service-account-name", "admin",
+		"name of the service account with maximum privileges to create")
+	command.PersistentFlags().StringVar(&serviceAccountToken, "service-account-token", "",
+		"token to use when creating the service account with maximum privileges")
 	command.PersistentFlags().BoolVar(&force, "force", false,
 		"force re-initialization if the controller is already initialized")
 
@@ -42,7 +49,9 @@ func newInitCommand() *cobra.Command {
 }
 
 func runInit(cmd *cobra.Command, args []string) (err error) {
-	var controllerCert tls.Certificate
+	if serviceAccountToken == "" {
+		return fmt.Errorf("%w: --service-account-token is required", ErrInitFailed)
+	}
 
 	dataDir, err := controller.NewDataDir(dataDirPath)
 	if err != nil {
@@ -59,6 +68,8 @@ func runInit(cmd *cobra.Command, args []string) (err error) {
 			"please specify \"--force\" to re-initialize", ErrInitFailed)
 	}
 
+	var controllerCert tls.Certificate
+
 	if controllerCertPath != "" || controllerKeyPath != "" {
 		if err := checkBothCertAndKeyAreSpecified(); err != nil {
 			return err
@@ -69,7 +80,7 @@ func runInit(cmd *cobra.Command, args []string) (err error) {
 			return err
 		}
 	} else {
-		controllerCert, err = generateSelfSignedControllerCertificate()
+		controllerCert, err = GenerateSelfSignedControllerCertificate()
 		if err != nil {
 			return err
 		}
@@ -79,7 +90,19 @@ func runInit(cmd *cobra.Command, args []string) (err error) {
 		return err
 	}
 
-	return nil
+	// Run the controller to create the service account with maximum privileges
+	controller, err := controller.New(controller.WithDataDir(dataDir))
+	if err != nil {
+		return err
+	}
+
+	return controller.EnsureServiceAccount(&v1.ServiceAccount{
+		Meta: v1.Meta{
+			Name: serviceAccountName,
+		},
+		Token: serviceAccountToken,
+		Roles: v1.AllServiceAccountRoles(),
+	})
 }
 
 func checkBothCertAndKeyAreSpecified() error {
@@ -96,7 +119,7 @@ func checkBothCertAndKeyAreSpecified() error {
 	return nil
 }
 
-func generateSelfSignedControllerCertificate() (tls.Certificate, error) {
+func GenerateSelfSignedControllerCertificate() (tls.Certificate, error) {
 	privateKey, err := ecdsa.GenerateKey(elliptic.P384(), cryptorand.Reader)
 	if err != nil {
 		return tls.Certificate{}, err

@@ -7,6 +7,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"github.com/cirruslabs/orchard/internal/bootstraptoken"
 	"github.com/cirruslabs/orchard/internal/config"
 	"github.com/cirruslabs/orchard/internal/controller"
 	"github.com/cirruslabs/orchard/pkg/client"
@@ -19,6 +20,9 @@ import (
 
 var ErrCreateFailed = errors.New("failed to create context")
 
+var bootstrapTokenRaw string
+var serviceAccountName string
+var serviceAccountToken string
 var force bool
 
 func newCreateCommand() *cobra.Command {
@@ -31,6 +35,12 @@ func newCreateCommand() *cobra.Command {
 
 	command.PersistentFlags().StringVar(&contextName, "name", "default",
 		"context name to use")
+	command.PersistentFlags().StringVar(&bootstrapTokenRaw, "bootstrap-token", "",
+		"bootstrap token to use")
+	command.PersistentFlags().StringVar(&serviceAccountName, "service-account-name", "",
+		"service account name to use (alternative to --bootstrap-token)")
+	command.PersistentFlags().StringVar(&serviceAccountToken, "service-account-token", "",
+		"service account token to use (alternative to --bootstrap-token)")
 	command.PersistentFlags().BoolVar(&force, "force", false,
 		"create the context even if a context with the same name already exists")
 
@@ -54,9 +64,22 @@ func runCreate(cmd *cobra.Command, args []string) error {
 	}
 
 	// Establish trust
-	trustedControllerCertificate, err := probeControllerCertificate(controllerURL)
-	if err != nil {
-		return err
+	var trustedControllerCertificate *x509.Certificate
+
+	if bootstrapTokenRaw != "" {
+		bootstrapToken, err := bootstraptoken.NewFromString(bootstrapTokenRaw)
+		if err != nil {
+			return err
+		}
+
+		serviceAccountName = bootstrapToken.ServiceAccountName()
+		serviceAccountToken = bootstrapToken.ServiceAccountToken()
+		trustedControllerCertificate = bootstrapToken.Certificate()
+	} else {
+		trustedControllerCertificate, err = probeControllerCertificate(controllerURL)
+		if err != nil {
+			return err
+		}
 	}
 
 	// Check that the API is accessible
@@ -72,6 +95,7 @@ func runCreate(cmd *cobra.Command, args []string) error {
 	client, err := client.New(
 		client.WithAddress(controllerURL.String()),
 		client.WithTLSConfig(tlsConfig),
+		client.WithCredentials(serviceAccountName, serviceAccountToken),
 	)
 	if err != nil {
 		return err
@@ -92,8 +116,10 @@ func runCreate(cmd *cobra.Command, args []string) error {
 	})
 
 	return configHandle.CreateContext(contextName, config.Context{
-		URL:         controllerURL.String(),
-		Certificate: certificatePEMBytes,
+		URL:                 controllerURL.String(),
+		Certificate:         certificatePEMBytes,
+		ServiceAccountName:  serviceAccountName,
+		ServiceAccountToken: serviceAccountToken,
 	}, force)
 }
 
