@@ -12,6 +12,10 @@ import (
 )
 
 func (controller *Controller) createVM(ctx *gin.Context) responder.Responder {
+	if !controller.authorize(ctx, v1.ServiceAccountRoleComputeWrite) {
+		return responder.Code(http.StatusUnauthorized)
+	}
+
 	var vm v1.VM
 
 	if err := ctx.ShouldBindJSON(&vm); err != nil {
@@ -44,6 +48,10 @@ func (controller *Controller) createVM(ctx *gin.Context) responder.Responder {
 }
 
 func (controller *Controller) updateVM(ctx *gin.Context) responder.Responder {
+	if !controller.authorize(ctx, v1.ServiceAccountRoleComputeWrite) {
+		return responder.Code(http.StatusUnauthorized)
+	}
+
 	var userVM v1.VM
 
 	if err := ctx.ShouldBindJSON(&userVM); err != nil {
@@ -72,6 +80,10 @@ func (controller *Controller) updateVM(ctx *gin.Context) responder.Responder {
 }
 
 func (controller *Controller) getVM(ctx *gin.Context) responder.Responder {
+	if !controller.authorize(ctx, v1.ServiceAccountRoleComputeRead) {
+		return responder.Code(http.StatusUnauthorized)
+	}
+
 	name := ctx.Param("name")
 
 	return controller.storeView(func(txn storepkg.Transaction) responder.Responder {
@@ -84,7 +96,11 @@ func (controller *Controller) getVM(ctx *gin.Context) responder.Responder {
 	})
 }
 
-func (controller *Controller) listVMs(_ *gin.Context) responder.Responder {
+func (controller *Controller) listVMs(ctx *gin.Context) responder.Responder {
+	if !controller.authorize(ctx, v1.ServiceAccountRoleComputeRead) {
+		return responder.Code(http.StatusUnauthorized)
+	}
+
 	return controller.storeView(func(txn storepkg.Transaction) responder.Responder {
 		vms, err := txn.ListVMs()
 		if err != nil {
@@ -96,6 +112,10 @@ func (controller *Controller) listVMs(_ *gin.Context) responder.Responder {
 }
 
 func (controller *Controller) deleteVM(ctx *gin.Context) responder.Responder {
+	if !controller.authorize(ctx, v1.ServiceAccountRoleComputeWrite) {
+		return responder.Code(http.StatusUnauthorized)
+	}
+
 	name := ctx.Param("name")
 
 	if ctx.Query("force") != "" {

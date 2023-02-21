@@ -12,6 +12,10 @@ import (
 )
 
 func (controller *Controller) createWorker(ctx *gin.Context) responder.Responder {
+	if !controller.authorize(ctx, v1.ServiceAccountRoleComputeWrite, v1.ServiceAccountRoleWorker) {
+		return responder.Code(http.StatusUnauthorized)
+	}
+
 	var worker v1.Worker
 
 	if err := ctx.ShouldBindJSON(&worker); err != nil {
@@ -47,6 +51,10 @@ func (controller *Controller) createWorker(ctx *gin.Context) responder.Responder
 }
 
 func (controller *Controller) updateWorker(ctx *gin.Context) responder.Responder {
+	if !controller.authorize(ctx, v1.ServiceAccountRoleComputeWrite, v1.ServiceAccountRoleWorker) {
+		return responder.Code(http.StatusUnauthorized)
+	}
+
 	var userWorker v1.Worker
 
 	if err := ctx.ShouldBindJSON(&userWorker); err != nil {
@@ -71,6 +79,10 @@ func (controller *Controller) updateWorker(ctx *gin.Context) responder.Responder
 }
 
 func (controller *Controller) getWorker(ctx *gin.Context) responder.Responder {
+	if !controller.authorize(ctx, v1.ServiceAccountRoleComputeRead, v1.ServiceAccountRoleWorker) {
+		return responder.Code(http.StatusUnauthorized)
+	}
+
 	name := ctx.Param("name")
 
 	return controller.storeView(func(txn storepkg.Transaction) responder.Responder {
@@ -83,7 +95,11 @@ func (controller *Controller) getWorker(ctx *gin.Context) responder.Responder {
 	})
 }
 
-func (controller *Controller) listWorkers(_ *gin.Context) responder.Responder {
+func (controller *Controller) listWorkers(ctx *gin.Context) responder.Responder {
+	if !controller.authorize(ctx, v1.ServiceAccountRoleComputeRead, v1.ServiceAccountRoleWorker) {
+		return responder.Code(http.StatusUnauthorized)
+	}
+
 	return controller.storeView(func(txn storepkg.Transaction) responder.Responder {
 		workers, err := txn.ListWorkers()
 		if err != nil {
@@ -95,6 +111,10 @@ func (controller *Controller) listWorkers(_ *gin.Context) responder.Responder {
 }
 
 func (controller *Controller) deleteWorker(ctx *gin.Context) responder.Responder {
+	if !controller.authorize(ctx, v1.ServiceAccountRoleComputeWrite, v1.ServiceAccountRoleWorker) {
+		return responder.Code(http.StatusUnauthorized)
+	}
+
 	name := ctx.Param("name")
 
 	return controller.storeUpdate(func(txn storepkg.Transaction) responder.Responder {

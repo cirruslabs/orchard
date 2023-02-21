@@ -7,6 +7,8 @@ import (
 	"fmt"
 	storepkg "github.com/cirruslabs/orchard/internal/controller/store"
 	"github.com/cirruslabs/orchard/internal/controller/store/badger"
+	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 	"net"
 	"net/http"
@@ -18,16 +20,20 @@ const (
 	DefaultServerName = "orchard-controller"
 )
 
-var ErrInitFailed = errors.New("controller initialization failed")
+var (
+	ErrInitFailed      = errors.New("controller initialization failed")
+	ErrAdminTaskFailed = errors.New("controller administrative task failed")
+)
 
 type Controller struct {
-	dataDir    *DataDir
-	listenAddr string
-	tlsConfig  *tls.Config
-	listener   net.Listener
-	httpServer *http.Server
-	store      storepkg.Store
-	logger     *zap.SugaredLogger
+	dataDir              *DataDir
+	listenAddr           string
+	tlsConfig            *tls.Config
+	listener             net.Listener
+	httpServer           *http.Server
+	insecureAuthDisabled bool
+	store                storepkg.Store
+	logger               *zap.SugaredLogger
 }
 
 func New(opts ...Option) (*Controller, error) {
@@ -73,6 +79,26 @@ func New(opts ...Option) (*Controller, error) {
 	}
 
 	return controller, nil
+}
+
+func (controller *Controller) EnsureServiceAccount(serviceAccount *v1.ServiceAccount) error {
+	if serviceAccount.Name == "" {
+		return fmt.Errorf("%w: attempted to create a service account with an empty name",
+			ErrAdminTaskFailed)
+	}
+
+	if serviceAccount.Token == "" {
+		serviceAccount.Token = uuid.New().String()
+	}
+
+	serviceAccount.CreatedAt = time.Now()
+	serviceAccount.DeletedAt = time.Time{}
+	serviceAccount.UID = uuid.New().String()
+	serviceAccount.Generation = 0
+
+	return controller.store.Update(func(txn storepkg.Transaction) error {
+		return txn.SetServiceAccount(serviceAccount)
+	})
 }
 
 func (controller *Controller) Run(ctx context.Context) error {

@@ -6,6 +6,7 @@ import (
 	"github.com/cirruslabs/orchard/internal/command/create"
 	deletepkg "github.com/cirruslabs/orchard/internal/command/deletecmd"
 	"github.com/cirruslabs/orchard/internal/command/dev"
+	"github.com/cirruslabs/orchard/internal/command/get"
 	"github.com/cirruslabs/orchard/internal/command/list"
 	"github.com/cirruslabs/orchard/internal/command/worker"
 	"github.com/spf13/cobra"
@@ -20,6 +21,7 @@ func NewRootCmd() *cobra.Command {
 
 	addGroupedCommands(command, "Working With Resources:",
 		create.NewCommand(),
+		get.NewCommand(),
 		list.NewCommand(),
 		deletepkg.NewCommand(),
 	)

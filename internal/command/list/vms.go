@@ -9,8 +9,9 @@ import (
 
 func newListVMsCommand() *cobra.Command {
 	command := &cobra.Command{
-		Use:  "vms",
-		RunE: runListVMs,
+		Use:   "vms",
+		Short: "List VMs",
+		RunE:  runListVMs,
 	}
 
 	return command

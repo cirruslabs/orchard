@@ -40,7 +40,8 @@ func runDev(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	controller, err := controller.New(controller.WithDataDir(dataDir), controller.WithLogger(logger))
+	controller, err := controller.New(controller.WithDataDir(dataDir),
+		controller.WithInsecureAuthDisabled(), controller.WithLogger(logger))
 	if err != nil {
 		return err
 	}

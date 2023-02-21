@@ -30,10 +30,15 @@ func runList(cmd *cobra.Command, args []string) error {
 
 	table := uitable.New()
 
-	table.AddRow("Name", "URL")
+	table.AddRow("Name", "URL", "Default")
 
 	for name, context := range config.Contexts {
-		table.AddRow(name, context.URL)
+		var defaultMark string
+		if name == config.DefaultContext {
+			defaultMark = "*"
+		}
+
+		table.AddRow(name, context.URL, defaultMark)
 	}
 
 	fmt.Println(table)

@@ -8,8 +8,10 @@ import (
 )
 
 type Context struct {
-	URL         string `yaml:"url,omitempty"`
-	Certificate Base64 `yaml:"certificate,omitempty"`
+	URL                 string `yaml:"url,omitempty"`
+	Certificate         Base64 `yaml:"certificate,omitempty"`
+	ServiceAccountName  string `yaml:"serviceAccountName,omitempty"`
+	ServiceAccountToken string `yaml:"serviceAccountToken,omitempty"`
 }
 
 func (context *Context) TLSConfig() (*tls.Config, error) {
