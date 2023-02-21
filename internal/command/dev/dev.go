@@ -6,7 +6,11 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 	"os"
+	"path"
+	"path/filepath"
 )
+
+var devDataDirPath string
 
 func NewCommand() *cobra.Command {
 	command := &cobra.Command{
@@ -14,6 +18,9 @@ func NewCommand() *cobra.Command {
 		Short: "Run a controller and a worker for development purposes",
 		RunE:  runDev,
 	}
+
+	command.PersistentFlags().StringVarP(&devDataDirPath, "data-dir", "d", ".dev-data",
+		"path to persist data between runs")
 
 	return command
 }
@@ -30,12 +37,15 @@ func runDev(cmd *cobra.Command, args []string) error {
 		}
 	}()
 
-	tempDir, err := os.MkdirTemp("", "")
-	if err != nil {
-		return err
+	if !filepath.IsAbs(devDataDirPath) {
+		pwd, err := os.Getwd()
+		if err != nil {
+			return err
+		}
+		devDataDirPath = path.Join(pwd, devDataDirPath)
 	}
 
-	dataDir, err := controller.NewDataDir(tempDir)
+	dataDir, err := controller.NewDataDir(devDataDirPath)
 	if err != nil {
 		return err
 	}
@@ -46,7 +56,7 @@ func runDev(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	worker, err := worker.New(worker.WithDataDirPath(tempDir), worker.WithLogger(logger))
+	worker, err := worker.New(worker.WithDataDirPath(devDataDirPath), worker.WithLogger(logger))
 	if err != nil {
 		return err
 	}
