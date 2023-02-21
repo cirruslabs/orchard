@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/cirruslabs/orchard/pkg/resource/v1"
+	"strconv"
 	"sync"
 )
 
@@ -49,7 +50,31 @@ func (vm *VM) run(ctx context.Context) error {
 		return err
 	}
 
-	_, _, err = Tart(ctx, "run", vm.id)
+	if vm.vmResource.Memory != 0 {
+		_, _, err = Tart(ctx, "set", "--memory", strconv.FormatUint(vm.vmResource.Memory, 10))
+		if err != nil {
+			return err
+		}
+	}
+
+	if vm.vmResource.CPU != 0 {
+		_, _, err = Tart(ctx, "set", "--cpu", strconv.FormatUint(vm.vmResource.CPU, 10))
+		if err != nil {
+			return err
+		}
+	}
+
+	var runArgs = []string{"run", vm.id}
+
+	if vm.vmResource.Softnet {
+		runArgs = append(runArgs, "--net-softnet")
+	}
+
+	if vm.vmResource.Headless {
+		runArgs = append(runArgs, "--no-graphics")
+	}
+
+	_, _, err = Tart(ctx, runArgs...)
 	if err != nil {
 		return err
 	}
