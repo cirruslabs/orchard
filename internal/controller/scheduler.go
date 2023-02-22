@@ -22,8 +22,8 @@ func runScheduler(store storepkg.Store) error {
 }
 
 func runSchedulerInner(store storepkg.Store) error {
-	var vms []*v1.VM
-	var workers []*v1.Worker
+	var vms []v1.VM
+	var workers []v1.Worker
 	var err error
 
 	err = store.View(func(txn storepkg.Transaction) error {

@@ -92,7 +92,6 @@ func (controller *Controller) EnsureServiceAccount(serviceAccount *v1.ServiceAcc
 	}
 
 	serviceAccount.CreatedAt = time.Now()
-	serviceAccount.DeletedAt = time.Time{}
 	serviceAccount.UID = uuid.New().String()
 	serviceAccount.Generation = 0
 

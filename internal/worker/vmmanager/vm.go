@@ -4,13 +4,14 @@ import (
 	"context"
 	"fmt"
 	"github.com/cirruslabs/orchard/pkg/resource/v1"
+	"go.uber.org/zap"
 	"strconv"
 	"sync"
 )
 
 type VM struct {
-	id         string
-	vmResource *v1.VM
+	id       string
+	Resource v1.VM
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -18,12 +19,12 @@ type VM struct {
 	wg *sync.WaitGroup
 }
 
-func NewVM(vmResource *v1.VM) *VM {
+func NewVM(vmResource v1.VM, logger *zap.SugaredLogger) *VM {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	vm := &VM{
-		id:         fmt.Sprintf("orchard-%s-%s", vmResource.Name, vmResource.UID),
-		vmResource: vmResource,
+		id:       fmt.Sprintf("orchard-%s-%s", vmResource.Name, vmResource.UID),
+		Resource: vmResource,
 
 		ctx:    ctx,
 		cancel: cancel,
@@ -36,8 +37,13 @@ func NewVM(vmResource *v1.VM) *VM {
 	go func() {
 		defer vm.wg.Done()
 
+		// Optimistic set the status to running. Will be synced later by the worker loop.
+		vm.Resource.Status = v1.VMStatusRunning
 		if err := vm.run(vm.ctx); err != nil {
-			vmResource.Status = v1.VMStatusFailed
+			logger.Errorf("VM %s failed: %v", vm.id, err)
+			vm.Resource.Status = v1.VMStatusFailed
+		} else {
+			vm.Resource.Status = v1.VMStatusStopped
 		}
 	}()
 
@@ -45,35 +51,37 @@ func NewVM(vmResource *v1.VM) *VM {
 }
 
 func (vm *VM) run(ctx context.Context) error {
-	_, _, err := Tart(ctx, "clone", vm.vmResource.Image, vm.id)
+	_, _, err := Tart(ctx, "clone", vm.Resource.Image, vm.id)
 	if err != nil {
 		return err
 	}
 
-	if vm.vmResource.Memory != 0 {
-		_, _, err = Tart(ctx, "set", "--memory", strconv.FormatUint(vm.vmResource.Memory, 10))
+	if vm.Resource.Memory != 0 {
+		memoryInMb := 1024 * vm.Resource.Memory
+		_, _, err = Tart(ctx, "set", "--memory", strconv.FormatUint(memoryInMb, 10), vm.id)
 		if err != nil {
 			return err
 		}
 	}
 
-	if vm.vmResource.CPU != 0 {
-		_, _, err = Tart(ctx, "set", "--cpu", strconv.FormatUint(vm.vmResource.CPU, 10))
+	if vm.Resource.CPU != 0 {
+		_, _, err = Tart(ctx, "set", "--cpu", strconv.FormatUint(vm.Resource.CPU, 10), vm.id)
 		if err != nil {
 			return err
 		}
 	}
 
-	var runArgs = []string{"run", vm.id}
+	var runArgs = []string{"run"}
 
-	if vm.vmResource.Softnet {
+	if vm.Resource.Softnet {
 		runArgs = append(runArgs, "--net-softnet")
 	}
 
-	if vm.vmResource.Headless {
+	if vm.Resource.Headless {
 		runArgs = append(runArgs, "--no-graphics")
 	}
 
+	runArgs = append(runArgs, vm.id)
 	_, _, err = Tart(ctx, runArgs...)
 	if err != nil {
 		return err
@@ -82,13 +90,17 @@ func (vm *VM) run(ctx context.Context) error {
 	return nil
 }
 
-func (vm *VM) Close() error {
-	_, _, _ = Tart(context.Background(), "stop", "--timeout", "5", vm.id)
+func (vm *VM) Stop() error {
+	_, _, _ = Tart(context.Background(), "stop", vm.id)
 
 	vm.cancel()
 
 	vm.wg.Wait()
 
+	return nil
+}
+
+func (vm *VM) Delete() error {
 	_, _, err := Tart(context.Background(), "delete", vm.id)
 	if err != nil {
 		return fmt.Errorf("%w: failed to delete VM %s: %v", ErrFailed, vm.id, err)

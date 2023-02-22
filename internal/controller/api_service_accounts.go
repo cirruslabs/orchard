@@ -31,7 +31,6 @@ func (controller *Controller) createServiceAccount(ctx *gin.Context) responder.R
 	}
 
 	serviceAccount.CreatedAt = time.Now()
-	serviceAccount.DeletedAt = time.Time{}
 	serviceAccount.UID = uuid.New().String()
 	serviceAccount.Generation = 0
 

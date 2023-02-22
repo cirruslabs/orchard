@@ -1,19 +1,19 @@
-package deletecmd
+package stop
 
 import (
 	"github.com/cirruslabs/orchard/pkg/client"
 	"github.com/spf13/cobra"
 )
 
-func newDeleteVMCommand() *cobra.Command {
+func newStopVMCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:  "vm",
 		Args: cobra.ExactArgs(1),
-		RunE: runDeleteVM,
+		RunE: runStopVM,
 	}
 }
 
-func runDeleteVM(cmd *cobra.Command, args []string) error {
+func runStopVM(cmd *cobra.Command, args []string) error {
 	name := args[0]
 
 	client, err := client.New()
@@ -21,5 +21,6 @@ func runDeleteVM(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	return client.VMs().Delete(cmd.Context(), name)
+	_, err = client.VMs().Stop(cmd.Context(), name)
+	return err
 }

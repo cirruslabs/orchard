@@ -113,14 +113,12 @@ func (worker *Worker) Run(ctx context.Context) error {
 }
 
 func (worker *Worker) registerWorker(ctx context.Context) error {
-	workerResource := &v1.Worker{
+	workerResource, err := worker.client.Workers().Create(ctx, v1.Worker{
 		Meta: v1.Meta{
 			Name: worker.name,
 		},
 		LastSeen: time.Now(),
-	}
-
-	workerResource, err := worker.client.Workers().Create(ctx, workerResource)
+	})
 	if err != nil {
 		return err
 	}
@@ -147,7 +145,7 @@ func (worker *Worker) updateWorker(ctx context.Context) error {
 
 	workerResource.LastSeen = time.Now()
 
-	if err := worker.client.Workers().Update(ctx, workerResource); err != nil {
+	if _, err := worker.client.Workers().Update(ctx, *workerResource); err != nil {
 		return fmt.Errorf("%w: failed to update worker in the API: %v", ErrPollFailed, err)
 	}
 
@@ -157,25 +155,43 @@ func (worker *Worker) updateWorker(ctx context.Context) error {
 }
 
 func (worker *Worker) syncVMs(ctx context.Context) error {
-	vms, err := worker.client.VMs().List(ctx)
+	remoteVMs, err := worker.client.VMs().FindForWorker(ctx, worker.name)
 	if err != nil {
 		return err
 	}
 
-	worker.logger.Infof("syncing %d VMs...", len(vms))
+	worker.logger.Infof("syncing %d VMs...", len(remoteVMs))
 
-	for _, vmResource := range vms {
-		vmResource := vmResource
-
-		if vmResource.Worker != worker.name {
-			continue
-		}
-
-		if !vmResource.DeletedAt.IsZero() {
-			if err := worker.deleteVM(ctx, vmResource); err != nil {
+	// first try to sync local VMs with the remote ones
+	for _, vm := range worker.vmm.List() {
+		remoteVm, ok := remoteVMs[vm.Resource.UID]
+		if !ok {
+			if err := worker.deleteVM(ctx, vm.Resource); err != nil {
 				return err
 			}
-		} else if !worker.vmm.Exists(&vmResource) {
+		} else if remoteVm.Status != vm.Resource.Status {
+			updatedVm, err := worker.client.VMs().Update(ctx, vm.Resource)
+			if err != nil {
+				return err
+			}
+			remoteVMs[vm.Resource.UID] = *updatedVm
+			vm.Resource = *updatedVm
+		}
+	}
+
+	// check if need to stop any of the VMs
+	for _, vmResource := range remoteVMs {
+		if vmResource.Status == v1.VMStatusStopping && worker.vmm.Exists(vmResource) {
+			if err := worker.stopVM(ctx, vmResource); err != nil {
+				return err
+			}
+		}
+	}
+
+	// finally, handle pending VMs first
+	for _, vmResource := range remoteVMs {
+		// handle pending VMs
+		if vmResource.Status == v1.VMStatusPending && !worker.vmm.Exists(vmResource) {
 			if err := worker.createVM(ctx, vmResource); err != nil {
 				return err
 			}
@@ -189,13 +205,13 @@ func (worker *Worker) deleteVM(ctx context.Context, vmResource v1.VM) error {
 	worker.logger.Debugf("deleting VM %s (%s)", vmResource.Name, vmResource.UID)
 
 	// Delete VM locally, report to the controller
-	if worker.vmm.Exists(&vmResource) {
-		if err := worker.vmm.Delete(&vmResource); err != nil {
+	if worker.vmm.Exists(vmResource) {
+		if err := worker.vmm.Delete(vmResource); err != nil {
 			return err
 		}
 	}
 
-	if err := worker.client.VMs().Delete(ctx, vmResource.Name, true); err != nil {
+	if err := worker.client.VMs().Delete(ctx, vmResource.Name); err != nil {
 		return fmt.Errorf("%w: failed to delete VM %s (%s) from the API: %v",
 			ErrPollFailed, vmResource.Name, vmResource.UID, err)
 	}
@@ -208,20 +224,20 @@ func (worker *Worker) deleteVM(ctx context.Context, vmResource v1.VM) error {
 func (worker *Worker) createVM(ctx context.Context, vmResource v1.VM) error {
 	worker.logger.Debugf("creating VM %s (%s)", vmResource.Name, vmResource.UID)
 
-	// Create or update VM locally, report to controller
-	_, err := worker.vmm.Create(&vmResource)
+	// Create or update VM locally
+	_, err := worker.vmm.Create(vmResource, worker.logger)
 	if err != nil {
 		return err
-	}
-
-	vmResource.Status = v1.VMStatusRunning
-
-	if err := worker.client.VMs().Update(ctx, &vmResource); err != nil {
-		return fmt.Errorf("%w: failed to update VM %s (%s) in the API: %v",
-			ErrPollFailed, vmResource.Name, vmResource.UID, err)
 	}
 
 	worker.logger.Infof("spawned VM %s (%s)", vmResource.Name, vmResource.UID)
 
 	return nil
+}
+
+func (worker *Worker) stopVM(ctx context.Context, vmResource v1.VM) error {
+	worker.logger.Debugf("stopping VM %s (%s)", vmResource.Name, vmResource.UID)
+
+	// Stop VM locally
+	return worker.vmm.Stop(vmResource)
 }
