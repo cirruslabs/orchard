@@ -164,30 +164,25 @@ func (worker *Worker) syncVMs(ctx context.Context) error {
 
 	// first try to sync local VMs with the remote ones
 	for _, vm := range worker.vmm.List() {
-		remoteVm, ok := remoteVMs[vm.Resource.UID]
+		remoteVM, ok := remoteVMs[vm.Resource.UID]
 		if !ok {
-			if !vm.Resource.Stopped() {
-				if err := worker.stopVM(ctx, vm.Resource); err != nil {
-					return err
-				}
-			}
-			if err := worker.deleteVM(ctx, vm.Resource); err != nil {
+			if err := worker.deleteVM(vm.Resource); err != nil {
 				return err
 			}
-		} else if remoteVm.Status != vm.Resource.Status {
-			updatedVm, err := worker.client.VMs().Update(ctx, vm.Resource)
+		} else if remoteVM.Status != vm.Resource.Status {
+			updatedVM, err := worker.client.VMs().Update(ctx, vm.Resource)
 			if err != nil {
 				return err
 			}
-			remoteVMs[vm.Resource.UID] = *updatedVm
-			vm.Resource = *updatedVm
+			remoteVMs[vm.Resource.UID] = *updatedVM
+			vm.Resource = *updatedVM
 		}
 	}
 
 	// check if need to stop any of the VMs
 	for _, vmResource := range remoteVMs {
 		if vmResource.Status == v1.VMStatusStopping && worker.vmm.Exists(vmResource) {
-			if err := worker.stopVM(ctx, vmResource); err != nil {
+			if err := worker.stopVM(vmResource); err != nil {
 				return err
 			}
 		}
@@ -197,7 +192,7 @@ func (worker *Worker) syncVMs(ctx context.Context) error {
 	for _, vmResource := range remoteVMs {
 		// handle pending VMs
 		if vmResource.Status == v1.VMStatusPending && !worker.vmm.Exists(vmResource) {
-			if err := worker.createVM(ctx, vmResource); err != nil {
+			if err := worker.createVM(vmResource); err != nil {
 				return err
 			}
 		}
@@ -206,8 +201,14 @@ func (worker *Worker) syncVMs(ctx context.Context) error {
 	return nil
 }
 
-func (worker *Worker) deleteVM(ctx context.Context, vmResource v1.VM) error {
+func (worker *Worker) deleteVM(vmResource v1.VM) error {
 	worker.logger.Debugf("deleting VM %s (%s)", vmResource.Name, vmResource.UID)
+
+	if !vmResource.Stopped() {
+		if err := worker.stopVM(vmResource); err != nil {
+			return err
+		}
+	}
 
 	// Delete VM locally, report to the controller
 	if worker.vmm.Exists(vmResource) {
@@ -221,7 +222,7 @@ func (worker *Worker) deleteVM(ctx context.Context, vmResource v1.VM) error {
 	return nil
 }
 
-func (worker *Worker) createVM(ctx context.Context, vmResource v1.VM) error {
+func (worker *Worker) createVM(vmResource v1.VM) error {
 	worker.logger.Debugf("creating VM %s (%s)", vmResource.Name, vmResource.UID)
 
 	// Create or update VM locally
@@ -235,7 +236,7 @@ func (worker *Worker) createVM(ctx context.Context, vmResource v1.VM) error {
 	return nil
 }
 
-func (worker *Worker) stopVM(ctx context.Context, vmResource v1.VM) error {
+func (worker *Worker) stopVM(vmResource v1.VM) error {
 	worker.logger.Debugf("stopping VM %s (%s)", vmResource.Name, vmResource.UID)
 
 	// Create or update VM locally

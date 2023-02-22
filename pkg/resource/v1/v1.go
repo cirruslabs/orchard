@@ -70,7 +70,7 @@ const (
 	// that prevented the VM resource from reaching the VMStatusRunning state.
 	VMStatusFailed VMStatus = "failed"
 
-	// VMStatusStopping is set by the Controller to indicate that a particular VM resource needs to be stopped but not deleted.
+	// VMStatusStopping is set by the Controller to indicate that a VM resource needs to be stopped but not deleted.
 	VMStatusStopping VMStatus = "stopping"
 
 	// VMStatusStopped is set by both the Worker to indicate that a particular VM resource has been stopped successfully

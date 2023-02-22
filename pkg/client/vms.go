@@ -1,4 +1,3 @@
-//nolint:dupl // maybe we'll figure out how to make client API accessors generic in the future
 package client
 
 import (
@@ -73,7 +72,7 @@ func (service *VMsService) Stop(ctx context.Context, name string) (*v1.VM, error
 	}
 
 	if vm.Status != v1.VMStatusRunning {
-		return nil, fmt.Errorf("VM should be running in order to be stopped! Current status is '%s'", vm.Status)
+		return nil, fmt.Errorf("%w: can't stop VM in '%s' status", ErrInvalidState, vm.Status)
 	}
 
 	vm.Status = v1.VMStatusStopping
@@ -82,14 +81,14 @@ func (service *VMsService) Stop(ctx context.Context, name string) (*v1.VM, error
 }
 
 func (service *VMsService) Update(ctx context.Context, vm v1.VM) (*v1.VM, error) {
-	var updatedVm v1.VM
+	var updatedVM v1.VM
 	err := service.client.request(ctx, http.MethodPut, fmt.Sprintf("vms/%s", vm.Name),
-		vm, &updatedVm, nil)
+		vm, &updatedVM, nil)
 	if err != nil {
-		return &updatedVm, err
+		return &updatedVM, err
 	}
 
-	return &updatedVm, nil
+	return &updatedVM, nil
 }
 
 func (service *VMsService) Delete(ctx context.Context, name string) error {

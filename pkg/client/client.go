@@ -14,7 +14,8 @@ import (
 )
 
 var (
-	ErrFailed = errors.New("API client failed")
+	ErrFailed       = errors.New("API client failed")
+	ErrInvalidState = errors.New("invalid state")
 )
 
 type Client struct {

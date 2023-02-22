@@ -1,4 +1,3 @@
-//nolint:dupl // maybe we'll figure out how to make client API accessors generic in the future
 package client
 
 import (
