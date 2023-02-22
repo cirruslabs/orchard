@@ -166,6 +166,11 @@ func (worker *Worker) syncVMs(ctx context.Context) error {
 	for _, vm := range worker.vmm.List() {
 		remoteVm, ok := remoteVMs[vm.Resource.UID]
 		if !ok {
+			if !vm.Resource.Stopped() {
+				if err := worker.stopVM(ctx, vm.Resource); err != nil {
+					return err
+				}
+			}
 			if err := worker.deleteVM(ctx, vm.Resource); err != nil {
 				return err
 			}
@@ -211,11 +216,6 @@ func (worker *Worker) deleteVM(ctx context.Context, vmResource v1.VM) error {
 		}
 	}
 
-	if err := worker.client.VMs().Delete(ctx, vmResource.Name); err != nil {
-		return fmt.Errorf("%w: failed to delete VM %s (%s) from the API: %v",
-			ErrPollFailed, vmResource.Name, vmResource.UID, err)
-	}
-
 	worker.logger.Infof("deleted VM %s (%s)", vmResource.Name, vmResource.UID)
 
 	return nil
@@ -237,6 +237,13 @@ func (worker *Worker) createVM(ctx context.Context, vmResource v1.VM) error {
 
 func (worker *Worker) stopVM(ctx context.Context, vmResource v1.VM) error {
 	worker.logger.Debugf("stopping VM %s (%s)", vmResource.Name, vmResource.UID)
+
+	// Create or update VM locally
+	if worker.vmm.Exists(vmResource) {
+		if err := worker.vmm.Stop(vmResource); err != nil {
+			return err
+		}
+	}
 
 	// Stop VM locally
 	return worker.vmm.Stop(vmResource)
