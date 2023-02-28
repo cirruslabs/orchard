@@ -52,7 +52,7 @@ type VM struct {
 	Meta
 }
 
-func (vm VM) Stopped() bool {
+func (vm VM) TerminalState() bool {
 	return vm.Status == VMStatusStopped || vm.Status == VMStatusFailed
 }
 

@@ -204,7 +204,7 @@ func (worker *Worker) syncVMs(ctx context.Context) error {
 func (worker *Worker) deleteVM(vmResource v1.VM) error {
 	worker.logger.Debugf("deleting VM %s (%s)", vmResource.Name, vmResource.UID)
 
-	if !vmResource.Stopped() {
+	if !vmResource.TerminalState() {
 		if err := worker.stopVM(vmResource); err != nil {
 			return err
 		}
