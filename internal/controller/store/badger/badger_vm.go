@@ -41,7 +41,7 @@ func (txn *Transaction) GetVM(name string) (result *v1.VM, err error) {
 	return &vm, nil
 }
 
-func (txn *Transaction) SetVM(vm *v1.VM) (err error) {
+func (txn *Transaction) SetVM(vm v1.VM) (err error) {
 	defer func() {
 		err = mapErr(err)
 	}()
@@ -66,7 +66,7 @@ func (txn *Transaction) DeleteVM(name string) (err error) {
 	return txn.badgerTxn.Delete(key)
 }
 
-func (txn *Transaction) ListVMs() (result []*v1.VM, err error) {
+func (txn *Transaction) ListVMs() (result []v1.VM, err error) {
 	defer func() {
 		err = mapErr(err)
 	}()
@@ -90,7 +90,7 @@ func (txn *Transaction) ListVMs() (result []*v1.VM, err error) {
 			return nil, err
 		}
 
-		result = append(result, &vm)
+		result = append(result, vm)
 	}
 
 	return result, nil

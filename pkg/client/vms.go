@@ -1,4 +1,3 @@
-//nolint:dupl // maybe we'll figure out how to make client API accessors generic in the future
 package client
 
 import (
@@ -20,6 +19,23 @@ func (service *VMsService) Create(ctx context.Context, vm *v1.VM) error {
 	}
 
 	return nil
+}
+
+func (service *VMsService) FindForWorker(ctx context.Context, workerName string) (map[string]v1.VM, error) {
+	allVms, err := service.List(ctx)
+
+	if err != nil {
+		return nil, err
+	}
+
+	var filteredVms = make(map[string]v1.VM)
+	for _, vmResource := range allVms {
+		if vmResource.Worker != workerName {
+			continue
+		}
+		filteredVms[vmResource.UID] = vmResource
+	}
+	return filteredVms, nil
 }
 
 func (service *VMsService) List(ctx context.Context) ([]v1.VM, error) {
@@ -46,25 +62,34 @@ func (service *VMsService) Get(ctx context.Context, name string) (*v1.VM, error)
 	return &vm, nil
 }
 
-func (service *VMsService) Update(ctx context.Context, vm *v1.VM) error {
-	err := service.client.request(ctx, http.MethodPut, fmt.Sprintf("vms/%s", vm.Name),
-		vm, nil, nil)
+func (service *VMsService) Stop(ctx context.Context, name string) (*v1.VM, error) {
+	var vm v1.VM
+
+	err := service.client.request(ctx, http.MethodGet, fmt.Sprintf("vms/%s", name),
+		nil, &vm, nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return nil
+	vm.Status = v1.VMStatusStopping
+
+	return service.Update(ctx, vm)
 }
 
-func (service *VMsService) Delete(ctx context.Context, name string, force bool) error {
-	params := map[string]string{}
-
-	if force {
-		params["force"] = "true"
+func (service *VMsService) Update(ctx context.Context, vm v1.VM) (*v1.VM, error) {
+	var updatedVM v1.VM
+	err := service.client.request(ctx, http.MethodPut, fmt.Sprintf("vms/%s", vm.Name),
+		vm, &updatedVM, nil)
+	if err != nil {
+		return &updatedVM, err
 	}
 
+	return &updatedVM, nil
+}
+
+func (service *VMsService) Delete(ctx context.Context, name string) error {
 	err := service.client.request(ctx, http.MethodDelete, fmt.Sprintf("vms/%s", name),
-		nil, nil, params)
+		nil, nil, nil)
 	if err != nil {
 		return err
 	}

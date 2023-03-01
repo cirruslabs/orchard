@@ -41,7 +41,7 @@ func (txn *Transaction) GetWorker(name string) (result *v1.Worker, err error) {
 	return &worker, nil
 }
 
-func (txn *Transaction) SetWorker(worker *v1.Worker) (err error) {
+func (txn *Transaction) SetWorker(worker v1.Worker) (err error) {
 	defer func() {
 		err = mapErr(err)
 	}()
@@ -66,7 +66,7 @@ func (txn *Transaction) DeleteWorker(name string) (err error) {
 	return txn.badgerTxn.Delete(key)
 }
 
-func (txn *Transaction) ListWorkers() (result []*v1.Worker, err error) {
+func (txn *Transaction) ListWorkers() (result []v1.Worker, err error) {
 	defer func() {
 		err = mapErr(err)
 	}()
@@ -90,7 +90,7 @@ func (txn *Transaction) ListWorkers() (result []*v1.Worker, err error) {
 			return nil, err
 		}
 
-		result = append(result, &worker)
+		result = append(result, worker)
 	}
 
 	return result, nil

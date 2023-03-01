@@ -28,7 +28,6 @@ func (controller *Controller) createVM(ctx *gin.Context) responder.Responder {
 
 	vm.Status = v1.VMStatusPending
 	vm.CreatedAt = time.Now()
-	vm.DeletedAt = time.Time{}
 	vm.UID = uuid.New().String()
 	vm.Generation = 0
 
@@ -39,7 +38,7 @@ func (controller *Controller) createVM(ctx *gin.Context) responder.Responder {
 			return responder.Code(http.StatusConflict)
 		}
 
-		if err := txn.SetVM(&vm); err != nil {
+		if err := txn.SetVM(vm); err != nil {
 			return responder.Code(http.StatusInternalServerError)
 		}
 
@@ -68,14 +67,18 @@ func (controller *Controller) updateVM(ctx *gin.Context) responder.Responder {
 			return responder.Error(err)
 		}
 
+		if dbVM.TerminalState() && dbVM.Status != userVM.Status {
+			return responder.Code(http.StatusPreconditionFailed)
+		}
+
 		dbVM.Status = userVM.Status
 		dbVM.Generation++
 
-		if err := txn.SetVM(dbVM); err != nil {
+		if err := txn.SetVM(*dbVM); err != nil {
 			return responder.Code(http.StatusInternalServerError)
 		}
 
-		return responder.JSON(http.StatusOK, &dbVM)
+		return responder.JSON(http.StatusOK, dbVM)
 	})
 }
 
@@ -92,7 +95,7 @@ func (controller *Controller) getVM(ctx *gin.Context) responder.Responder {
 			return responder.Error(err)
 		}
 
-		return responder.JSON(http.StatusOK, &vm)
+		return responder.JSON(http.StatusOK, vm)
 	})
 }
 
@@ -107,7 +110,7 @@ func (controller *Controller) listVMs(ctx *gin.Context) responder.Responder {
 			return responder.Error(err)
 		}
 
-		return responder.JSON(http.StatusOK, &vms)
+		return responder.JSON(http.StatusOK, vms)
 	})
 }
 
@@ -118,25 +121,8 @@ func (controller *Controller) deleteVM(ctx *gin.Context) responder.Responder {
 
 	name := ctx.Param("name")
 
-	if ctx.Query("force") != "" {
-		return controller.storeUpdate(func(txn storepkg.Transaction) responder.Responder {
-			if err := txn.DeleteVM(name); err != nil {
-				return responder.Error(err)
-			}
-
-			return responder.Code(http.StatusOK)
-		})
-	}
-
 	return controller.storeUpdate(func(txn storepkg.Transaction) responder.Responder {
-		vm, err := txn.GetVM(name)
-		if err != nil {
-			return responder.Error(err)
-		}
-
-		vm.DeletedAt = time.Now()
-
-		if err := txn.SetVM(vm); err != nil {
+		if err := txn.DeleteVM(name); err != nil {
 			return responder.Error(err)
 		}
 

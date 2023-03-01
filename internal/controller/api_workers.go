@@ -31,7 +31,6 @@ func (controller *Controller) createWorker(ctx *gin.Context) responder.Responder
 		worker.LastSeen = currentTime
 	}
 	worker.CreatedAt = currentTime
-	worker.DeletedAt = time.Time{}
 	worker.UID = uuid.New().String()
 	worker.Generation = 0
 
@@ -42,11 +41,11 @@ func (controller *Controller) createWorker(ctx *gin.Context) responder.Responder
 			return responder.Code(http.StatusConflict)
 		}
 
-		if err := txn.SetWorker(&worker); err != nil {
+		if err := txn.SetWorker(worker); err != nil {
 			return responder.Error(err)
 		}
 
-		return responder.JSON(200, &worker)
+		return responder.JSON(200, worker)
 	})
 }
 
@@ -70,7 +69,7 @@ func (controller *Controller) updateWorker(ctx *gin.Context) responder.Responder
 		dbWorker.LastSeen = userWorker.LastSeen
 		dbWorker.Generation++
 
-		if err := txn.SetWorker(dbWorker); err != nil {
+		if err := txn.SetWorker(*dbWorker); err != nil {
 			return responder.Code(http.StatusInternalServerError)
 		}
 

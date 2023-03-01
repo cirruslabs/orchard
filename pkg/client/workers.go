@@ -11,14 +11,14 @@ type WorkersService struct {
 	client *Client
 }
 
-func (service *WorkersService) Create(ctx context.Context, worker *v1.Worker) (*v1.Worker, error) {
+func (service *WorkersService) Create(ctx context.Context, worker v1.Worker) (*v1.Worker, error) {
 	err := service.client.request(ctx, http.MethodPost, "workers",
 		worker, &worker, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	return worker, nil
+	return &worker, nil
 }
 
 func (service *WorkersService) List(ctx context.Context) ([]v1.Worker, error) {
@@ -45,14 +45,14 @@ func (service *WorkersService) Get(ctx context.Context, name string) (*v1.Worker
 	return &worker, nil
 }
 
-func (service *WorkersService) Update(ctx context.Context, worker *v1.Worker) error {
+func (service *WorkersService) Update(ctx context.Context, worker v1.Worker) (*v1.Worker, error) {
 	err := service.client.request(ctx, http.MethodPut, fmt.Sprintf("workers/%s", worker.Name),
-		worker, nil, nil)
+		worker, &worker, nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return nil
+	return &worker, nil
 }
 
 func (service *WorkersService) Delete(ctx context.Context, name string) error {

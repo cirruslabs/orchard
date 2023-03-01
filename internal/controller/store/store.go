@@ -9,14 +9,14 @@ type Store interface {
 
 type Transaction interface {
 	GetVM(name string) (result *v1.VM, err error)
-	SetVM(vm *v1.VM) (err error)
+	SetVM(vm v1.VM) (err error)
 	DeleteVM(name string) (err error)
-	ListVMs() (result []*v1.VM, err error)
+	ListVMs() (result []v1.VM, err error)
 
 	GetWorker(name string) (result *v1.Worker, err error)
-	SetWorker(worker *v1.Worker) (err error)
+	SetWorker(worker v1.Worker) (err error)
 	DeleteWorker(name string) (err error)
-	ListWorkers() (result []*v1.Worker, err error)
+	ListWorkers() (result []v1.Worker, err error)
 
 	GetServiceAccount(name string) (result *v1.ServiceAccount, err error)
 	SetServiceAccount(serviceAccount *v1.ServiceAccount) (err error)

@@ -17,12 +17,6 @@ type Meta struct {
 	// when receiving a POST request.
 	CreatedAt time.Time `json:"createdAt"`
 
-	// DeletedAt is a useful field for graceful resource termination.
-	//
-	// It is populated by the Controller with the current time
-	// when receiving a DELETE request.
-	DeletedAt time.Time `json:"deletedAt"`
-
 	// UID is a useful field for avoiding data races within a single Name.
 	//
 	// It is populated by the Controller when receiving a POST request.
@@ -58,6 +52,10 @@ type VM struct {
 	Meta
 }
 
+func (vm VM) TerminalState() bool {
+	return vm.Status == VMStatusStopped || vm.Status == VMStatusFailed
+}
+
 type VMStatus string
 
 const (
@@ -71,4 +69,11 @@ const (
 	// VMStatusFailed is set by both the Controller and the Worker to indicate a failure
 	// that prevented the VM resource from reaching the VMStatusRunning state.
 	VMStatusFailed VMStatus = "failed"
+
+	// VMStatusStopping is set by the Controller to indicate that a VM resource needs to be stopped but not deleted.
+	VMStatusStopping VMStatus = "stopping"
+
+	// VMStatusStopped is set by both the Worker to indicate that a particular VM resource has been stopped successfully
+	// (either via API or from within a VM via `sudo shutdown -now`).
+	VMStatusStopped VMStatus = "stopped"
 )
