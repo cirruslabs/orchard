@@ -57,8 +57,7 @@ func (vm *VM) run(ctx context.Context) error {
 	}
 
 	if vm.Resource.Memory != 0 {
-		memoryInMb := 1024 * vm.Resource.Memory
-		_, _, err = Tart(ctx, "set", "--memory", strconv.FormatUint(memoryInMb, 10), vm.id)
+		_, _, err = Tart(ctx, "set", "--memory", strconv.FormatUint(vm.Resource.Memory, 10), vm.id)
 		if err != nil {
 			return err
 		}
