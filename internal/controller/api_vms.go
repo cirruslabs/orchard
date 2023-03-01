@@ -67,6 +67,10 @@ func (controller *Controller) updateVM(ctx *gin.Context) responder.Responder {
 			return responder.Error(err)
 		}
 
+		if dbVM.TerminalState() && dbVM.Status != userVM.Status {
+			return responder.Code(http.StatusPreconditionFailed)
+		}
+
 		dbVM.Status = userVM.Status
 		dbVM.Generation++
 

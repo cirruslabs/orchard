@@ -71,10 +71,6 @@ func (service *VMsService) Stop(ctx context.Context, name string) (*v1.VM, error
 		return nil, err
 	}
 
-	if vm.Status != v1.VMStatusRunning {
-		return nil, fmt.Errorf("%w: can't stop VM in '%s' status", ErrInvalidState, vm.Status)
-	}
-
 	vm.Status = v1.VMStatusStopping
 
 	return service.Update(ctx, vm)
