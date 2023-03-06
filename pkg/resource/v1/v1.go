@@ -52,6 +52,12 @@ type VM struct {
 	Meta
 }
 
+type Event struct {
+	Kind      string `json:"kind"`
+	Timestamp uint64 `json:"timestamp"`
+	Payload   string `json:"payload"`
+}
+
 func (vm VM) TerminalState() bool {
 	return vm.Status == VMStatusStopped || vm.Status == VMStatusFailed
 }
