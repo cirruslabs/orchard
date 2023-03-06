@@ -1,4 +1,3 @@
-//nolint:dupl // maybe we'll figure out how to make DB resource accessors generic in the future
 package badger
 
 import (
@@ -17,6 +16,7 @@ func NewEventKey(event v1.Event, scope ...string) []byte {
 	timestampBytes := make([]byte, 8+4)
 	binary.BigEndian.PutUint64(timestampBytes, event.Timestamp)
 	// append random bytes to deduplicate events with the same timestamp if any
+	//nolint:gosec
 	binary.BigEndian.PutUint32(timestampBytes, rand.Uint32())
 	key = append(key, timestampBytes...)
 	return key
