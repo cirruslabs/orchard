@@ -7,6 +7,7 @@ import (
 	"github.com/cirruslabs/orchard/internal/worker/vmmanager"
 	"github.com/cirruslabs/orchard/pkg/client"
 	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
+	"github.com/hashicorp/go-multierror"
 	"go.uber.org/zap"
 	"os"
 	"time"
@@ -162,7 +163,26 @@ func (worker *Worker) syncVMs(ctx context.Context) error {
 
 	worker.logger.Infof("syncing %d VMs...", len(remoteVMs))
 
-	// first try to sync local VMs with the remote ones
+	// check if need to stop any of the VMs
+	for _, vmResource := range remoteVMs {
+		if vmResource.Status == v1.VMStatusStopping && worker.vmm.Exists(vmResource) {
+			if err := worker.stopVM(vmResource); err != nil {
+				return err
+			}
+		}
+	}
+
+	// then, handle pending VMs first
+	for _, vmResource := range remoteVMs {
+		// handle pending VMs
+		if vmResource.Status == v1.VMStatusPending && !worker.vmm.Exists(vmResource) {
+			if err := worker.createVM(vmResource); err != nil {
+				return err
+			}
+		}
+	}
+
+	// lastly, try to sync local VMs with the remote ones
 	for _, vm := range worker.vmm.List() {
 		remoteVM, ok := remoteVMs[vm.Resource.UID]
 		if !ok {
@@ -176,25 +196,6 @@ func (worker *Worker) syncVMs(ctx context.Context) error {
 			}
 			remoteVMs[vm.Resource.UID] = *updatedVM
 			vm.Resource = *updatedVM
-		}
-	}
-
-	// check if need to stop any of the VMs
-	for _, vmResource := range remoteVMs {
-		if vmResource.Status == v1.VMStatusStopping && worker.vmm.Exists(vmResource) {
-			if err := worker.stopVM(vmResource); err != nil {
-				return err
-			}
-		}
-	}
-
-	// finally, handle pending VMs first
-	for _, vmResource := range remoteVMs {
-		// handle pending VMs
-		if vmResource.Status == v1.VMStatusPending && !worker.vmm.Exists(vmResource) {
-			if err := worker.createVM(vmResource); err != nil {
-				return err
-			}
 		}
 	}
 
@@ -248,4 +249,21 @@ func (worker *Worker) stopVM(vmResource v1.VM) error {
 
 	// Stop VM locally
 	return worker.vmm.Stop(vmResource)
+}
+
+func (worker *Worker) DeleteAllVMs() error {
+	var result error
+	for _, vm := range worker.vmm.List() {
+		err := vm.Stop()
+		if err != nil {
+			result = multierror.Append(result, err)
+		}
+	}
+	for _, vm := range worker.vmm.List() {
+		err := vm.Delete()
+		if err != nil {
+			result = multierror.Append(result, err)
+		}
+	}
+	return result
 }
