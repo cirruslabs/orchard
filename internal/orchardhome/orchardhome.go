@@ -15,6 +15,9 @@ func Path() (string, error) {
 		return "", fmt.Errorf("%w: failed to retrieve current user's home directory %v",
 			ErrFailed, err)
 	}
+	if orchardHome := os.Getenv("ORCHARD_HOME"); orchardHome != "" {
+		homeDir = orchardHome
+	}
 
 	orchardDir := filepath.Join(homeDir, ".orchard")
 
