@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"github.com/cirruslabs/orchard/pkg/resource/v1"
+	"golang.org/x/net/websocket"
 	"net/http"
+	"strconv"
 )
 
 type VMsService struct {
@@ -95,4 +97,9 @@ func (service *VMsService) Delete(ctx context.Context, name string) error {
 	}
 
 	return nil
+}
+
+func (service *VMsService) PortForward(ctx context.Context, name string, port uint16) (*websocket.Conn, error) {
+	return service.client.wsRequest(ctx, fmt.Sprintf("vms/%s/port-forward", name),
+		map[string]string{"port": strconv.FormatUint(uint64(port), 10)})
 }

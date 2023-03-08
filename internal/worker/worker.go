@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/avast/retry-go/v4"
 	"github.com/cirruslabs/orchard/internal/worker/vmmanager"
 	"github.com/cirruslabs/orchard/pkg/client"
 	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
@@ -61,6 +62,14 @@ func New(opts ...Option) (*Worker, error) {
 
 func (worker *Worker) Run(ctx context.Context) error {
 	tickCh := time.NewTicker(pollInterval)
+
+	go func() {
+		_ = retry.Do(func() error {
+			return worker.pollRPC(ctx)
+		}, retry.OnRetry(func(n uint, err error) {
+			worker.logger.Warnf("failed to poll RPC: %v", err)
+		}), retry.Context(ctx), retry.Attempts(0))
+	}()
 
 	for {
 		if err := worker.registerWorker(ctx); err != nil {

@@ -29,3 +29,13 @@ Check a list of VM resources to see if the Virtual Machine we've created above i
 ```shell
 orchard list vms
 ```
+
+## Development
+
+Development is done as one would normally develop any Golang package, however, if you did modify any `*.proto` files in the `rpc/` directory, run the following commands from the project's root directory to re-generate the code:
+
+```shell
+go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+make
+```

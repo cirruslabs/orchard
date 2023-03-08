@@ -1,0 +1,55 @@
+syntax = "proto3";
+
+option go_package = "github.com/cirruslabs/orchard/rpc";
+
+service Controller {
+  rpc Poll(stream PollFromWorker) returns (stream PollFromController);
+  rpc PortForward(stream PortForwardFromWorker) returns (stream PortForwardFromController);
+}
+
+message PollFromWorker {
+  message Init {
+    string worker_uid = 1;
+  }
+
+  oneof action {
+    Init init_action = 1;
+  }
+}
+
+message PollFromController {
+  message PortForward {
+    string token = 1;
+    string vm_uid = 2;
+    uint32 vm_port = 3;
+  }
+
+  oneof action {
+    PortForward port_forward_action = 1;
+  }
+}
+
+message PortForwardFromWorker {
+  message Init {
+    string token = 1;
+  }
+
+  message Data {
+    bytes data = 1;
+  }
+
+  oneof action {
+    Init init_action = 1;
+    Data data_action = 2;
+  }
+}
+
+message PortForwardFromController {
+  message Data {
+    bytes data = 1;
+  }
+
+  oneof action {
+    Data data_action = 1;
+  }
+}

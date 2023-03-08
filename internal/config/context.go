@@ -4,7 +4,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"github.com/cirruslabs/orchard/internal/controller"
+	"github.com/cirruslabs/orchard/internal/netconstants"
 )
 
 type Context struct {
@@ -27,7 +27,7 @@ func (context *Context) TLSConfig() (*tls.Config, error) {
 
 	return &tls.Config{
 		MinVersion: tls.VersionTLS13,
-		ServerName: controller.DefaultServerName,
+		ServerName: netconstants.DefaultControllerServerName,
 		RootCAs:    privatePool,
 	}, nil
 }

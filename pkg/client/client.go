@@ -8,10 +8,19 @@ import (
 	"errors"
 	"fmt"
 	"github.com/cirruslabs/orchard/internal/config"
+	"golang.org/x/net/websocket"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 	"io"
 	"net/http"
 	"net/url"
 )
+
+const MetadataServiceAccountNameKey = "x-orchard-service-account-name"
+
+//nolint:gosec // G101 check yields a false-positive here, this is not a hard-coded credential
+const MetadataServiceAccountTokenKey = "x-orchard-service-account-token"
 
 var (
 	ErrFailed       = errors.New("API client failed")
@@ -20,6 +29,7 @@ var (
 
 type Client struct {
 	address   string
+	insecure  bool
 	tlsConfig *tls.Config
 
 	httpClient *http.Client
@@ -78,7 +88,44 @@ func New(opts ...Option) (*Client, error) {
 	}
 	client.baseURL = url
 
+	// Figure out if HTTP (insecure) or HTTPS (secure) was requested,
+	// so we can further adapt for gRPC and WebSocket usage patterns
+	switch client.baseURL.Scheme {
+	case "http":
+		client.insecure = true
+	case "https":
+		// do nothing, we're secure by default
+	default:
+		return nil, fmt.Errorf("%w: only http https schemes are supported, got %s",
+			ErrFailed, client.baseURL.Scheme)
+	}
+
 	return client, nil
+}
+
+func (client *Client) GRPCTarget() string {
+	return client.baseURL.Host
+}
+
+func (client *Client) GRPCTransportCredentials() credentials.TransportCredentials {
+	if client.insecure {
+		return insecure.NewCredentials()
+	}
+
+	return credentials.NewTLS(client.tlsConfig)
+}
+
+func (client *Client) GPRCMetadata() metadata.MD {
+	result := map[string]string{}
+
+	if client.serviceAccountName != "" && client.serviceAccountToken != "" {
+		result = map[string]string{
+			MetadataServiceAccountNameKey:  client.serviceAccountName,
+			MetadataServiceAccountTokenKey: client.serviceAccountToken,
+		}
+	}
+
+	return metadata.New(result)
 }
 
 func (client *Client) request(
@@ -100,17 +147,9 @@ func (client *Client) request(
 		body = bytes.NewBuffer(jsonBytes)
 	}
 
-	endpointURL, err := url.Parse("v1/" + path)
+	endpointURL, err := client.parsePath(path)
 	if err != nil {
-		return fmt.Errorf("%w to parse API endpoint path: %v", ErrFailed, err)
-	}
-
-	endpointURL = &url.URL{
-		Scheme:  client.baseURL.Scheme,
-		User:    client.baseURL.User,
-		Host:    client.baseURL.Host,
-		Path:    endpointURL.Path,
-		RawPath: endpointURL.RawPath,
+		return err
 	}
 
 	values := endpointURL.Query()
@@ -153,6 +192,54 @@ func (client *Client) request(
 	}
 
 	return nil
+}
+
+func (client *Client) wsRequest(
+	_ context.Context,
+	path string,
+	params map[string]string,
+) (*websocket.Conn, error) {
+	endpointURL, err := client.parsePath(path)
+	if err != nil {
+		return nil, err
+	}
+
+	// Adapt HTTP scheme to WebSocket scheme
+	if client.insecure {
+		endpointURL.Scheme = "ws"
+	} else {
+		endpointURL.Scheme = "wss"
+	}
+
+	values := endpointURL.Query()
+	for key, value := range params {
+		values.Set(key, value)
+	}
+	endpointURL.RawQuery = values.Encode()
+
+	config, err := websocket.NewConfig(endpointURL.String(), "http://127.0.0.1/")
+	if err != nil {
+		return nil, fmt.Errorf("%w to create WebSocket configuration: %v", ErrFailed, err)
+	}
+
+	config.TlsConfig = client.tlsConfig
+
+	return websocket.DialConfig(config)
+}
+
+func (client *Client) parsePath(path string) (*url.URL, error) {
+	endpointURL, err := url.Parse("v1/" + path)
+	if err != nil {
+		return nil, fmt.Errorf("%w to parse API endpoint path: %v", ErrFailed, err)
+	}
+
+	return &url.URL{
+		Scheme:  client.baseURL.Scheme,
+		User:    client.baseURL.User,
+		Host:    client.baseURL.Host,
+		Path:    endpointURL.Path,
+		RawPath: endpointURL.RawPath,
+	}, nil
 }
 
 func (client *Client) Check(ctx context.Context) error {

@@ -3,7 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
-	"github.com/cirruslabs/orchard/internal/controller"
+	"github.com/cirruslabs/orchard/internal/netconstants"
 	"github.com/cirruslabs/orchard/internal/orchardhome"
 	"github.com/gofrs/flock"
 	"gopkg.in/yaml.v3"
@@ -106,7 +106,7 @@ func (handle *Handle) DefaultContext() (Context, error) {
 	defaultContext, ok := config.RetrieveDefaultContext()
 	if !ok {
 		defaultContext = Context{
-			URL: fmt.Sprintf("http://127.0.0.1:%d", controller.DefaultPort),
+			URL: fmt.Sprintf("http://127.0.0.1:%d", netconstants.DefaultControllerPort),
 		}
 
 		config.SetContext("default", defaultContext)

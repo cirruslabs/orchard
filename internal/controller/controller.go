@@ -5,19 +5,21 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"github.com/cirruslabs/orchard/internal/controller/rendezvous"
 	storepkg "github.com/cirruslabs/orchard/internal/controller/store"
 	"github.com/cirruslabs/orchard/internal/controller/store/badger"
+	"github.com/cirruslabs/orchard/internal/netconstants"
 	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
+	"github.com/cirruslabs/orchard/rpc"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
+	"golang.org/x/net/http2"
+	"golang.org/x/net/http2/h2c"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/keepalive"
 	"net"
 	"net/http"
 	"time"
-)
-
-const (
-	DefaultPort       = 6120
-	DefaultServerName = "orchard-controller"
 )
 
 var (
@@ -34,10 +36,16 @@ type Controller struct {
 	insecureAuthDisabled bool
 	store                storepkg.Store
 	logger               *zap.SugaredLogger
+	grpcServer           *grpc.Server
+	rendezvous           *rendezvous.Rendezvous[net.Conn, PortForwardDetails]
+
+	rpc.UnimplementedControllerServer
 }
 
 func New(opts ...Option) (*Controller, error) {
-	controller := &Controller{}
+	controller := &Controller{
+		rendezvous: rendezvous.NewRendezvous[net.Conn, PortForwardDetails](),
+	}
 
 	// Apply options
 	for _, opt := range opts {
@@ -50,7 +58,7 @@ func New(opts ...Option) (*Controller, error) {
 			ErrInitFailed)
 	}
 	if controller.listenAddr == "" {
-		controller.listenAddr = fmt.Sprintf(":%d", DefaultPort)
+		controller.listenAddr = fmt.Sprintf(":%d", netconstants.DefaultControllerPort)
 	}
 	if controller.logger == nil {
 		controller.logger = zap.NewNop().Sugar()
@@ -73,9 +81,26 @@ func New(opts ...Option) (*Controller, error) {
 		controller.listener = listener
 	}
 
+	apiServer := controller.initAPI()
+
+	controller.grpcServer = grpc.NewServer(
+		grpc.KeepaliveParams(keepalive.ServerParameters{
+			Time: 30 * time.Second,
+		}),
+	)
+	rpc.RegisterControllerServer(controller.grpcServer, controller)
+
+	handler := http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.Header.Get("Content-Type") == "application/grpc" {
+			controller.grpcServer.ServeHTTP(writer, request)
+		} else {
+			apiServer.ServeHTTP(writer, request)
+		}
+	})
+
 	controller.httpServer = &http.Server{
-		Handler:     controller.initAPI(),
-		ReadTimeout: 5 * time.Second,
+		Handler:     h2c.NewHandler(handler, &http2.Server{}),
+		ReadTimeout: 60 * time.Second,
 	}
 
 	return controller, nil

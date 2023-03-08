@@ -1,0 +1,7 @@
+task:
+  name: Test (macOS)
+  persistent_worker:
+    labels:
+      name: dev-mini
+  test_script:
+    - go test -v ./...
