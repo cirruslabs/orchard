@@ -122,7 +122,16 @@ func (controller *Controller) deleteVM(ctx *gin.Context) responder.Responder {
 	name := ctx.Param("name")
 
 	return controller.storeUpdate(func(txn storepkg.Transaction) responder.Responder {
-		if err := txn.DeleteVM(name); err != nil {
+		vm, err := txn.GetVM(name)
+		if err != nil {
+			return responder.Error(err)
+		}
+		err = txn.DeleteVM(name)
+		if err != nil {
+			return responder.Error(err)
+		}
+		err = txn.DeleteEvents("vms", vm.UID)
+		if err != nil {
 			return responder.Error(err)
 		}
 

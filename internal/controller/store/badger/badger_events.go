@@ -71,3 +71,26 @@ func (txn *Transaction) ListEvents(scope ...string) (result []v1.Event, err erro
 
 	return result, nil
 }
+
+func (txn *Transaction) DeleteEvents(scope ...string) (err error) {
+	defer func() {
+		err = mapErr(err)
+	}()
+
+	it := txn.badgerTxn.NewIterator(badger.IteratorOptions{
+		Prefix:         ScopePrefix(scope),
+		AllVersions:    false,
+		PrefetchValues: false, // only need keys
+	})
+	defer it.Close()
+
+	for it.Rewind(); it.Valid(); it.Next() {
+		keyToDelete := it.Item().KeyCopy(nil)
+		err := txn.badgerTxn.Delete(keyToDelete)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
