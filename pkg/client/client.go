@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -220,6 +221,12 @@ func (client *Client) wsRequest(
 	config, err := websocket.NewConfig(endpointURL.String(), "http://127.0.0.1/")
 	if err != nil {
 		return nil, fmt.Errorf("%w to create WebSocket configuration: %v", ErrFailed, err)
+	}
+
+	if client.serviceAccountName != "" && client.serviceAccountToken != "" {
+		authPlain := fmt.Sprintf("%s:%s", client.serviceAccountName, client.serviceAccountToken)
+		authEncoded := base64.StdEncoding.EncodeToString([]byte(authPlain))
+		config.Header.Add("Authorization", fmt.Sprintf("Basic %s", authEncoded))
 	}
 
 	config.TlsConfig = client.tlsConfig
