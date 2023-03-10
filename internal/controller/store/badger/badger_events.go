@@ -16,7 +16,7 @@ func ScopePrefix(scope []string) []byte {
 	keyParts = append(keyParts, scope...)
 	return []byte(path.Join(keyParts...))
 }
-func (txn *Transaction) AppendEvent(event v1.Event, scope ...string) (err error) {
+func (txn *Transaction) AppendEvents(events []v1.Event, scope ...string) (err error) {
 	defer func() {
 		err = mapErr(err)
 	}()
@@ -26,6 +26,7 @@ func (txn *Transaction) AppendEvent(event v1.Event, scope ...string) (err error)
 		if err != nil {
 			return err
 		}
+		//nolint:gosec
 		eventUID := fmt.Sprintf("/%d-%d-%d",
 			event.Timestamp,
 			index,         // to preserve order in case a batch of events has some events with the same timestamp

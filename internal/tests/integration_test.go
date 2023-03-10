@@ -1,7 +1,8 @@
-package tests
+package tests_test
 
 import (
 	"context"
+	"errors"
 	"github.com/cirruslabs/orchard/internal/command/dev"
 	"github.com/cirruslabs/orchard/pkg/client"
 	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
@@ -87,18 +88,17 @@ func StartIntegrationTestEnvironment(t *testing.T) *client.Client {
 	t.Cleanup(cancelDevFunc)
 	go func() {
 		err := devController.Run(devContext)
-		if err != nil && err != context.Canceled && err != http.ErrServerClosed {
+		if err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, http.ErrServerClosed) {
 			t.Errorf("dev controller failed: %v", err)
 		}
 	}()
 	go func() {
 		err := devWorker.Run(devContext)
-		if err != nil && err != context.Canceled {
+		if err != nil && !errors.Is(err, context.Canceled) {
 			t.Errorf("dev worker failed: %v", err)
 		}
 	}()
 
-	// todo: find a better way to wait for the controller to start and a worker to register
 	time.Sleep(5 * time.Second)
 
 	devClient, err := client.New()
