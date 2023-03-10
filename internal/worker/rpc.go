@@ -17,7 +17,7 @@ import (
 	"net"
 )
 
-func (worker *Worker) pollRPC(ctx context.Context) error {
+func (worker *Worker) watchRPC(ctx context.Context) error {
 	conn, err := grpc.Dial(worker.client.GRPCTarget(),
 		grpc.WithTransportCredentials(worker.client.GRPCTransportCredentials()),
 		grpc.WithKeepaliveParams(keepalive.ClientParameters{
@@ -32,14 +32,14 @@ func (worker *Worker) pollRPC(ctx context.Context) error {
 
 	ctxWithMetadata := metadata.NewOutgoingContext(ctx, worker.client.GPRCMetadata())
 
-	stream, err := client.Poll(ctxWithMetadata)
+	stream, err := client.Watch(ctxWithMetadata)
 	if err != nil {
 		return err
 	}
 
-	if err := stream.Send(&rpc.PollFromWorker{
-		Action: &rpc.PollFromWorker_InitAction{
-			InitAction: &rpc.PollFromWorker_Init{
+	if err := stream.Send(&rpc.WatchFromWorker{
+		Action: &rpc.WatchFromWorker_InitAction{
+			InitAction: &rpc.WatchFromWorker_Init{
 				WorkerUid: worker.name,
 			},
 		},
@@ -48,12 +48,12 @@ func (worker *Worker) pollRPC(ctx context.Context) error {
 	}
 
 	for {
-		pollFromController, err := stream.Recv()
+		watchFromController, err := stream.Recv()
 		if err != nil {
 			return err
 		}
 
-		portForwardAction, ok := pollFromController.Action.(*rpc.PollFromController_PortForwardAction)
+		portForwardAction, ok := watchFromController.Action.(*rpc.WatchFromController_PortForwardAction)
 		if !ok {
 			continue
 		}
@@ -65,7 +65,7 @@ func (worker *Worker) pollRPC(ctx context.Context) error {
 func (worker *Worker) handlePortForward(
 	ctx context.Context,
 	client rpc.ControllerClient,
-	portForwardAction *rpc.PollFromController_PortForward,
+	portForwardAction *rpc.WatchFromController_PortForward,
 ) {
 	subCtx, cancel := context.WithCancel(ctx)
 	defer cancel()

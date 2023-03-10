@@ -3,11 +3,11 @@ syntax = "proto3";
 option go_package = "github.com/cirruslabs/orchard/rpc";
 
 service Controller {
-  rpc Poll(stream PollFromWorker) returns (stream PollFromController);
+  rpc Watch(stream WatchFromWorker) returns (stream WatchFromController);
   rpc PortForward(stream PortForwardFromWorker) returns (stream PortForwardFromController);
 }
 
-message PollFromWorker {
+message WatchFromWorker {
   message Init {
     string worker_uid = 1;
   }
@@ -17,7 +17,7 @@ message PollFromWorker {
   }
 }
 
-message PollFromController {
+message WatchFromController {
   message PortForward {
     string token = 1;
     string vm_uid = 2;

@@ -19,7 +19,7 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	Controller_Poll_FullMethodName        = "/Controller/Poll"
+	Controller_Watch_FullMethodName       = "/Controller/Watch"
 	Controller_PortForward_FullMethodName = "/Controller/PortForward"
 )
 
@@ -27,7 +27,7 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type ControllerClient interface {
-	Poll(ctx context.Context, opts ...grpc.CallOption) (Controller_PollClient, error)
+	Watch(ctx context.Context, opts ...grpc.CallOption) (Controller_WatchClient, error)
 	PortForward(ctx context.Context, opts ...grpc.CallOption) (Controller_PortForwardClient, error)
 }
 
@@ -39,31 +39,31 @@ func NewControllerClient(cc grpc.ClientConnInterface) ControllerClient {
 	return &controllerClient{cc}
 }
 
-func (c *controllerClient) Poll(ctx context.Context, opts ...grpc.CallOption) (Controller_PollClient, error) {
-	stream, err := c.cc.NewStream(ctx, &Controller_ServiceDesc.Streams[0], Controller_Poll_FullMethodName, opts...)
+func (c *controllerClient) Watch(ctx context.Context, opts ...grpc.CallOption) (Controller_WatchClient, error) {
+	stream, err := c.cc.NewStream(ctx, &Controller_ServiceDesc.Streams[0], Controller_Watch_FullMethodName, opts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &controllerPollClient{stream}
+	x := &controllerWatchClient{stream}
 	return x, nil
 }
 
-type Controller_PollClient interface {
-	Send(*PollFromWorker) error
-	Recv() (*PollFromController, error)
+type Controller_WatchClient interface {
+	Send(*WatchFromWorker) error
+	Recv() (*WatchFromController, error)
 	grpc.ClientStream
 }
 
-type controllerPollClient struct {
+type controllerWatchClient struct {
 	grpc.ClientStream
 }
 
-func (x *controllerPollClient) Send(m *PollFromWorker) error {
+func (x *controllerWatchClient) Send(m *WatchFromWorker) error {
 	return x.ClientStream.SendMsg(m)
 }
 
-func (x *controllerPollClient) Recv() (*PollFromController, error) {
-	m := new(PollFromController)
+func (x *controllerWatchClient) Recv() (*WatchFromController, error) {
+	m := new(WatchFromController)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
@@ -105,7 +105,7 @@ func (x *controllerPortForwardClient) Recv() (*PortForwardFromController, error)
 // All implementations must embed UnimplementedControllerServer
 // for forward compatibility
 type ControllerServer interface {
-	Poll(Controller_PollServer) error
+	Watch(Controller_WatchServer) error
 	PortForward(Controller_PortForwardServer) error
 	mustEmbedUnimplementedControllerServer()
 }
@@ -114,8 +114,8 @@ type ControllerServer interface {
 type UnimplementedControllerServer struct {
 }
 
-func (UnimplementedControllerServer) Poll(Controller_PollServer) error {
-	return status.Errorf(codes.Unimplemented, "method Poll not implemented")
+func (UnimplementedControllerServer) Watch(Controller_WatchServer) error {
+	return status.Errorf(codes.Unimplemented, "method Watch not implemented")
 }
 func (UnimplementedControllerServer) PortForward(Controller_PortForwardServer) error {
 	return status.Errorf(codes.Unimplemented, "method PortForward not implemented")
@@ -133,26 +133,26 @@ func RegisterControllerServer(s grpc.ServiceRegistrar, srv ControllerServer) {
 	s.RegisterService(&Controller_ServiceDesc, srv)
 }
 
-func _Controller_Poll_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(ControllerServer).Poll(&controllerPollServer{stream})
+func _Controller_Watch_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(ControllerServer).Watch(&controllerWatchServer{stream})
 }
 
-type Controller_PollServer interface {
-	Send(*PollFromController) error
-	Recv() (*PollFromWorker, error)
+type Controller_WatchServer interface {
+	Send(*WatchFromController) error
+	Recv() (*WatchFromWorker, error)
 	grpc.ServerStream
 }
 
-type controllerPollServer struct {
+type controllerWatchServer struct {
 	grpc.ServerStream
 }
 
-func (x *controllerPollServer) Send(m *PollFromController) error {
+func (x *controllerWatchServer) Send(m *WatchFromController) error {
 	return x.ServerStream.SendMsg(m)
 }
 
-func (x *controllerPollServer) Recv() (*PollFromWorker, error) {
-	m := new(PollFromWorker)
+func (x *controllerWatchServer) Recv() (*WatchFromWorker, error) {
+	m := new(WatchFromWorker)
 	if err := x.ServerStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
@@ -194,8 +194,8 @@ var Controller_ServiceDesc = grpc.ServiceDesc{
 	Methods:     []grpc.MethodDesc{},
 	Streams: []grpc.StreamDesc{
 		{
-			StreamName:    "Poll",
-			Handler:       _Controller_Poll_Handler,
+			StreamName:    "Watch",
+			Handler:       _Controller_Watch_Handler,
 			ServerStreams: true,
 			ClientStreams: true,
 		},

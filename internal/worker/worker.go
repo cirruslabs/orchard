@@ -65,9 +65,9 @@ func (worker *Worker) Run(ctx context.Context) error {
 
 	go func() {
 		_ = retry.Do(func() error {
-			return worker.pollRPC(ctx)
+			return worker.watchRPC(ctx)
 		}, retry.OnRetry(func(n uint, err error) {
-			worker.logger.Warnf("failed to poll RPC: %v", err)
+			worker.logger.Warnf("failed to watch RPC: %v", err)
 		}), retry.Context(ctx), retry.Attempts(0))
 	}()
 

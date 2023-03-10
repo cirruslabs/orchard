@@ -10,18 +10,18 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func (controller *Controller) Poll(stream rpc.Controller_PollServer) error {
+func (controller *Controller) Watch(stream rpc.Controller_WatchServer) error {
 	if !controller.authorizeGRPC(stream.Context(), v1pkg.ServiceAccountRoleWorker) {
 		return status.Errorf(codes.Unauthenticated, "auth failed")
 	}
 
 	// The first message is always an initialization
-	pollFromWorker, err := stream.Recv()
+	watchFromWorker, err := stream.Recv()
 	if err != nil {
 		return err
 	}
 
-	initAction, ok := pollFromWorker.Action.(*rpc.PollFromWorker_InitAction)
+	initAction, ok := watchFromWorker.Action.(*rpc.WatchFromWorker_InitAction)
 	if !ok {
 		return status.Errorf(codes.FailedPrecondition, "expected an initialization message")
 	}
@@ -35,9 +35,9 @@ func (controller *Controller) Poll(stream rpc.Controller_PollServer) error {
 		case request := <-requestsCh:
 			// New rendez-vous request, tell the worker to establish
 			// a new connection to us via the PortForward() RPC
-			if err := stream.Send(&rpc.PollFromController{
-				Action: &rpc.PollFromController_PortForwardAction{
-					PortForwardAction: &rpc.PollFromController_PortForward{
+			if err := stream.Send(&rpc.WatchFromController{
+				Action: &rpc.WatchFromController_PortForwardAction{
+					PortForwardAction: &rpc.WatchFromController_PortForward{
 						Token:  request.Token,
 						VmUid:  request.Details.VMUID,
 						VmPort: uint32(request.Details.VMPort),
