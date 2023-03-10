@@ -17,7 +17,7 @@ type PortForwardDetails struct {
 }
 
 func (controller *Controller) portForwardVM(ctx *gin.Context) responder.Responder {
-	if !controller.authorize(ctx, v1.ServiceAccountRoleComputeRead) {
+	if !controller.authorize(ctx, v1.ServiceAccountRoleComputeWrite) {
 		return responder.Code(http.StatusUnauthorized)
 	}
 
