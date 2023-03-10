@@ -23,7 +23,7 @@ type Transaction interface {
 	DeleteServiceAccount(name string) (err error)
 	ListServiceAccounts() (result []*v1.ServiceAccount, err error)
 
-	AppendEvent(event v1.Event, scope ...string) (err error)
+	AppendEvents(event []v1.Event, scope ...string) (err error)
 	ListEvents(scope ...string) (result []v1.Event, err error)
 	DeleteEvents(scope ...string) (err error)
 }

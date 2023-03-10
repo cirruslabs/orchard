@@ -156,10 +156,8 @@ func (controller *Controller) appendVMEvents(ctx *gin.Context) responder.Respond
 		if err != nil {
 			return responder.Error(err)
 		}
-		for _, event := range events {
-			if err := txn.AppendEvent(event, "vms", vm.UID); err != nil {
-				return responder.Error(err)
-			}
+		if err := txn.AppendEvents(events, "vms", vm.UID); err != nil {
+			return responder.Error(err)
 		}
 
 		return responder.Code(http.StatusOK)
