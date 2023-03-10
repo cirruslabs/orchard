@@ -11,7 +11,7 @@ import (
 
 const SpaceEvents = "/events"
 
-func ScopePrefix(scope []string) []byte {
+func scopePrefix(scope []string) []byte {
 	keyParts := []string{SpaceEvents}
 	keyParts = append(keyParts, scope...)
 	return []byte(path.Join(keyParts...))
@@ -33,7 +33,7 @@ func (txn *Transaction) AppendEvents(events []v1.Event, scope ...string) (err er
 			rand.Uint32(), // extra cautions to avoid collisions in case several batches of events are appended at the same time
 		)
 
-		eventKey := ScopePrefix(scope)
+		eventKey := scopePrefix(scope)
 		eventKey = append(eventKey, []byte(eventUID)...)
 
 		err = txn.badgerTxn.Set(eventKey, valueBytes)
@@ -50,7 +50,7 @@ func (txn *Transaction) ListEvents(scope ...string) (result []v1.Event, err erro
 	}()
 
 	it := txn.badgerTxn.NewIterator(badger.IteratorOptions{
-		Prefix: ScopePrefix(scope),
+		Prefix: scopePrefix(scope),
 	})
 	defer it.Close()
 
@@ -80,7 +80,7 @@ func (txn *Transaction) DeleteEvents(scope ...string) (err error) {
 	}()
 
 	it := txn.badgerTxn.NewIterator(badger.IteratorOptions{
-		Prefix:         ScopePrefix(scope),
+		Prefix:         scopePrefix(scope),
 		AllVersions:    false,
 		PrefetchValues: false, // only need keys
 	})
