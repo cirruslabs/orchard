@@ -11,7 +11,7 @@ import (
 
 const SpaceEvents = "/events"
 
-func NewEventKey(event v1.Event, scope ...string) []byte {
+func newEventKey(event v1.Event, scope ...string) []byte {
 	key := ScopePrefix(scope)
 	timestampBytes := make([]byte, 8+4)
 	binary.BigEndian.PutUint64(timestampBytes, event.Timestamp)
@@ -33,7 +33,7 @@ func (txn *Transaction) AppendEvent(event v1.Event, scope ...string) (err error)
 		err = mapErr(err)
 	}()
 
-	key := NewEventKey(event, scope...)
+	key := newEventKey(event, scope...)
 
 	valueBytes, err := json.Marshal(event)
 	if err != nil {
