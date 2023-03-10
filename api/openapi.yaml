@@ -207,7 +207,7 @@ paths:
                 $ref: '#components/schemas/Events'
         '404':
           description: VM resource with the given name doesn't exist
-    put:
+    post:
       summary: "Add new events to a VM"
       tags:
         - vms
