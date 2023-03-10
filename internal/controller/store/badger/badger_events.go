@@ -27,6 +27,7 @@ func ScopePrefix(scope []string) []byte {
 	keyParts = append(keyParts, scope...)
 	return []byte(path.Join(keyParts...))
 }
+
 func (txn *Transaction) AppendEvent(event v1.Event, scope ...string) (err error) {
 	defer func() {
 		err = mapErr(err)

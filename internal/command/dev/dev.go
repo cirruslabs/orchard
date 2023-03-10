@@ -84,5 +84,6 @@ func CreateDevControllerAndWorker(devDataDirPath string) (*controller.Controller
 	if err != nil {
 		return nil, nil, err
 	}
+
 	return devController, devWorker, nil
 }
