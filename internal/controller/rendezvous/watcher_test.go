@@ -25,11 +25,11 @@ func TestWatcher(t *testing.T) {
 	wg.Add(1)
 
 	go func() {
-		require.NoError(t, watcher.Notify(ctx, topic, &rendezvous.WorkerMessage{}))
+		require.NoError(t, watcher.Notify(ctx, topic, nil))
 
 		time.Sleep(time.Second)
 
-		require.NoError(t, watcher.Notify(ctx, topic, &rendezvous.WorkerMessage{}))
+		require.NoError(t, watcher.Notify(ctx, topic, nil))
 
 		wg.Done()
 	}()
