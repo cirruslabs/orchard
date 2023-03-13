@@ -70,15 +70,16 @@ func (controller *Controller) portForwardVM(ctx *gin.Context) responder.Responde
 		return responder.Code(http.StatusServiceUnavailable)
 	}
 
-	rendezvousConn := <-rendezvousConnCh
+	select {
+	case rendezvousConn := <-rendezvousConnCh:
+		websocket.Handler(func(wsConn *websocket.Conn) {
+			if err := proxy.Connections(wsConn, rendezvousConn); err != nil {
+				controller.logger.Warnf("failed to port-forward: %v", err)
+			}
+		}).ServeHTTP(ctx.Writer, ctx.Request)
 
-	websocket.Handler(func(wsConn *websocket.Conn) {
-		if err := proxy.Connections(wsConn, rendezvousConn); err != nil {
-			controller.logger.Warnf("failed to port-forward: %v", err)
-		}
-	}).ServeHTTP(ctx.Writer, ctx.Request)
-
-	controller.logger.Infof("port-forward done!")
-
-	return responder.Empty()
+		return responder.Empty()
+	case <-ctx.Done():
+		return responder.Error(ctx.Err())
+	}
 }
