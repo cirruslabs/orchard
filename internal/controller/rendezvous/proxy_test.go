@@ -19,7 +19,8 @@ func TestProxy(t *testing.T) {
 
 	token := uuid.New().String()
 
-	connCh := proxy.Request(ctx, token)
+	connCh, cancel := proxy.Request(ctx, token)
+	defer cancel()
 
 	var wg sync.WaitGroup
 	wg.Add(1)

@@ -52,7 +52,8 @@ func (controller *Controller) portForwardVM(ctx *gin.Context) responder.Responde
 	// Request and wait for a rendez-vous with a worker
 	token := uuid.New().String()
 
-	rendezvousConnCh := controller.proxy.Request(ctx, token)
+	rendezvousConnCh, cancel := controller.proxy.Request(ctx, token)
+	defer cancel()
 
 	err = controller.watcher.Notify(ctx, vm.Worker, &rendezvous.TopicMessage{
 		Token:  token,

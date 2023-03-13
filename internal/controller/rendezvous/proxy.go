@@ -24,7 +24,7 @@ func NewProxy() *Proxy {
 	}
 }
 
-func (proxy *Proxy) Request(ctx context.Context, token string) chan net.Conn {
+func (proxy *Proxy) Request(ctx context.Context, token string) (chan net.Conn, func()) {
 	tokenSlot := &TokenSlot{
 		ctx: ctx,
 		ch:  make(chan net.Conn),
@@ -32,7 +32,9 @@ func (proxy *Proxy) Request(ctx context.Context, token string) chan net.Conn {
 
 	proxy.tokens.Store(token, tokenSlot)
 
-	return tokenSlot.ch
+	return tokenSlot.ch, func() {
+		proxy.tokens.Delete(token)
+	}
 }
 
 func (proxy *Proxy) Respond(token string, conn net.Conn) (context.Context, error) {
