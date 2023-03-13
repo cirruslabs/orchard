@@ -37,14 +37,16 @@ type Controller struct {
 	store                storepkg.Store
 	logger               *zap.SugaredLogger
 	grpcServer           *grpc.Server
-	rendezvous           *rendezvous.Rendezvous[net.Conn, PortForwardDetails]
+	watcher              *rendezvous.Watcher
+	proxy                *rendezvous.Proxy
 
 	rpc.UnimplementedControllerServer
 }
 
 func New(opts ...Option) (*Controller, error) {
 	controller := &Controller{
-		rendezvous: rendezvous.NewRendezvous[net.Conn, PortForwardDetails](),
+		watcher: rendezvous.NewWatcher(),
+		proxy:   rendezvous.NewProxy(),
 	}
 
 	// Apply options

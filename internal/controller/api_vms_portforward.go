@@ -1,20 +1,17 @@
 package controller
 
 import (
+	"github.com/cirruslabs/orchard/internal/controller/rendezvous"
 	storepkg "github.com/cirruslabs/orchard/internal/controller/store"
 	"github.com/cirruslabs/orchard/internal/proxy"
 	"github.com/cirruslabs/orchard/internal/responder"
 	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"golang.org/x/net/websocket"
 	"net/http"
 	"strconv"
 )
-
-type PortForwardDetails struct {
-	VMUID  string
-	VMPort uint16
-}
 
 func (controller *Controller) portForwardVM(ctx *gin.Context) responder.Responder {
 	if !controller.authorize(ctx, v1.ServiceAccountRoleComputeWrite) {
@@ -53,7 +50,12 @@ func (controller *Controller) portForwardVM(ctx *gin.Context) responder.Responde
 	}
 
 	// Request and wait for a rendez-vous with a worker
-	rendezvousConn, err := controller.rendezvous.Request(ctx, vm.Worker, PortForwardDetails{
+	token := uuid.New().String()
+
+	rendezvousConnCh := controller.proxy.Request(ctx, token)
+
+	err = controller.watcher.Notify(ctx, vm.Worker, &rendezvous.TopicMessage{
+		Token:  token,
 		VMUID:  vm.UID,
 		VMPort: uint16(port),
 	})
@@ -62,6 +64,8 @@ func (controller *Controller) portForwardVM(ctx *gin.Context) responder.Responde
 
 		return responder.Code(http.StatusServiceUnavailable)
 	}
+
+	rendezvousConn := <-rendezvousConnCh
 
 	websocket.Handler(func(wsConn *websocket.Conn) {
 		if err := proxy.Connections(wsConn, rendezvousConn); err != nil {

@@ -27,7 +27,7 @@ func (controller *Controller) Watch(stream rpc.Controller_WatchServer) error {
 	}
 
 	// Subscribe to rendez-vous requests from the API for this worker
-	requestsCh, cancel := controller.rendezvous.WatchRequests(initAction.InitAction.WorkerUid)
+	requestsCh, cancel := controller.watcher.Subscribe(stream.Context(), initAction.InitAction.WorkerUid)
 	defer cancel()
 
 	for {
@@ -39,8 +39,8 @@ func (controller *Controller) Watch(stream rpc.Controller_WatchServer) error {
 				Action: &rpc.WatchFromController_PortForwardAction{
 					PortForwardAction: &rpc.WatchFromController_PortForward{
 						Token:  request.Token,
-						VmUid:  request.Details.VMUID,
-						VmPort: uint32(request.Details.VMPort),
+						VmUid:  request.VMUID,
+						VmPort: uint32(request.VMPort),
 					},
 				},
 			}); err != nil {
@@ -89,14 +89,14 @@ func (controller *Controller) PortForward(stream rpc.Controller_PortForwardServe
 		}),
 	}
 
-	rendezvousCtx, err := controller.rendezvous.Respond(initAction.InitAction.Token, conn)
+	proxyCtx, err := controller.proxy.Respond(initAction.InitAction.Token, conn)
 	if err != nil {
 		return err
 	}
 
 	select {
-	case <-rendezvousCtx.Done():
-		return rendezvousCtx.Err()
+	case <-proxyCtx.Done():
+		return proxyCtx.Err()
 	case <-stream.Context().Done():
 		return stream.Context().Err()
 	}
