@@ -5,50 +5,45 @@ import (
 	"errors"
 	"fmt"
 	"github.com/cirruslabs/orchard/internal/controller/rendezvous/concurrentmap"
+	"github.com/cirruslabs/orchard/rpc"
 )
 
-var ErrNoTopic = errors.New("no watcher topic registered with this name")
+var ErrNoWorker = errors.New("no worker registered with this name")
 
 type Watcher struct {
-	topics *concurrentmap.ConcurrentMap[*TopicSlot]
+	workers *concurrentmap.ConcurrentMap[*WorkerSlot]
 }
 
-type TopicSlot struct {
+type WorkerSlot struct {
 	ctx context.Context
-	ch  chan *TopicMessage
-}
-
-type TopicMessage struct {
-	Token  string
-	VMUID  string
-	VMPort uint16
+	ch  chan *rpc.WatchFromController
 }
 
 func NewWatcher() *Watcher {
 	return &Watcher{
-		topics: concurrentmap.NewConcurrentMap[*TopicSlot](),
+		workers: concurrentmap.NewConcurrentMap[*WorkerSlot](),
 	}
 }
 
-func (watcher *Watcher) Subscribe(ctx context.Context, topic string) (chan *TopicMessage, func()) {
+func (watcher *Watcher) Subscribe(ctx context.Context, worker string) (chan *rpc.WatchFromController, func()) {
 	subCtx, cancel := context.WithCancel(ctx)
-	topicCh := make(chan *TopicMessage)
+	workerCh := make(chan *rpc.WatchFromController)
 
-	watcher.topics.Store(topic, &TopicSlot{
+	watcher.workers.Store(worker, &WorkerSlot{
 		ctx: subCtx,
-		ch:  topicCh,
+		ch:  workerCh,
 	})
 
-	return topicCh, func() {
-		watcher.topics.Delete(topic)
+	return workerCh, func() {
+		watcher.workers.Delete(worker)
 		cancel()
 	}
 }
 
-func (watcher *Watcher) Notify(ctx context.Context, topic string, msg *TopicMessage) error {
-	slot, ok := watcher.topics.Load(topic)
+func (watcher *Watcher) Notify(ctx context.Context, topic string, msg *rpc.WatchFromController) error {
+	slot, ok := watcher.workers.Load(topic)
 	if !ok {
-		return fmt.Errorf("%w: %s", ErrNoTopic, topic)
+		return fmt.Errorf("%w: %s", ErrNoWorker, topic)
 	}
 
 	select {
