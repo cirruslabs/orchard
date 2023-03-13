@@ -122,10 +122,65 @@ func (controller *Controller) deleteVM(ctx *gin.Context) responder.Responder {
 	name := ctx.Param("name")
 
 	return controller.storeUpdate(func(txn storepkg.Transaction) responder.Responder {
-		if err := txn.DeleteVM(name); err != nil {
+		vm, err := txn.GetVM(name)
+		if err != nil {
+			return responder.Error(err)
+		}
+		err = txn.DeleteVM(name)
+		if err != nil {
+			return responder.Error(err)
+		}
+		err = txn.DeleteEvents("vms", vm.UID)
+		if err != nil {
 			return responder.Error(err)
 		}
 
 		return responder.Code(http.StatusOK)
+	})
+}
+func (controller *Controller) appendVMEvents(ctx *gin.Context) responder.Responder {
+	if !controller.authorize(ctx, v1.ServiceAccountRoleComputeWrite) {
+		return responder.Code(http.StatusUnauthorized)
+	}
+
+	var events []v1.Event
+
+	if err := ctx.ShouldBindJSON(&events); err != nil {
+		return responder.Code(http.StatusBadRequest)
+	}
+
+	name := ctx.Param("name")
+
+	return controller.storeUpdate(func(txn storepkg.Transaction) responder.Responder {
+		vm, err := txn.GetVM(name)
+		if err != nil {
+			return responder.Error(err)
+		}
+		if err := txn.AppendEvents(events, "vms", vm.UID); err != nil {
+			return responder.Error(err)
+		}
+
+		return responder.Code(http.StatusOK)
+	})
+}
+
+func (controller *Controller) listVMEvents(ctx *gin.Context) responder.Responder {
+	if !controller.authorize(ctx, v1.ServiceAccountRoleComputeRead) {
+		return responder.Code(http.StatusUnauthorized)
+	}
+
+	name := ctx.Param("name")
+
+	return controller.storeView(func(txn storepkg.Transaction) responder.Responder {
+		vm, err := txn.GetVM(name)
+		if err != nil {
+			return responder.Error(err)
+		}
+		events, err := txn.ListEvents("vms", vm.UID)
+		if err != nil {
+			return responder.Error(err)
+		}
+
+		return responder.JSON(http.StatusOK, events)
 	})
 }

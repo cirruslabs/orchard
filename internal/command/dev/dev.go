@@ -26,17 +26,6 @@ func NewCommand() *cobra.Command {
 }
 
 func runDev(cmd *cobra.Command, args []string) error {
-	// Initialize the logger
-	logger, err := zap.NewDevelopment()
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if syncErr := logger.Sync(); syncErr != nil && err == nil {
-			err = syncErr
-		}
-	}()
-
 	if !filepath.IsAbs(devDataDirPath) {
 		pwd, err := os.Getwd()
 		if err != nil {
@@ -45,18 +34,8 @@ func runDev(cmd *cobra.Command, args []string) error {
 		devDataDirPath = path.Join(pwd, devDataDirPath)
 	}
 
-	dataDir, err := controller.NewDataDir(devDataDirPath)
-	if err != nil {
-		return err
-	}
+	devController, devWorker, err := CreateDevControllerAndWorker(devDataDirPath)
 
-	controller, err := controller.New(controller.WithDataDir(dataDir),
-		controller.WithInsecureAuthDisabled(), controller.WithLogger(logger))
-	if err != nil {
-		return err
-	}
-
-	worker, err := worker.New(worker.WithDataDirPath(devDataDirPath), worker.WithLogger(logger))
 	if err != nil {
 		return err
 	}
@@ -64,16 +43,47 @@ func runDev(cmd *cobra.Command, args []string) error {
 	errChan := make(chan error, 2)
 
 	go func() {
-		if err := controller.Run(cmd.Context()); err != nil {
+		if err := devController.Run(cmd.Context()); err != nil {
 			errChan <- err
 		}
 	}()
 
 	go func() {
-		if err := worker.Run(cmd.Context()); err != nil {
+		if err := devWorker.Run(cmd.Context()); err != nil {
 			errChan <- err
 		}
 	}()
 
 	return <-errChan
+}
+
+func CreateDevControllerAndWorker(devDataDirPath string) (*controller.Controller, *worker.Worker, error) {
+	// Initialize the logger
+	logger, err := zap.NewDevelopment()
+	if err != nil {
+		return nil, nil, err
+	}
+	defer func() {
+		if syncErr := logger.Sync(); syncErr != nil && err == nil {
+			err = syncErr
+		}
+	}()
+
+	dataDir, err := controller.NewDataDir(devDataDirPath)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	devController, err := controller.New(controller.WithDataDir(dataDir),
+		controller.WithInsecureAuthDisabled(), controller.WithLogger(logger))
+	if err != nil {
+		return nil, nil, err
+	}
+
+	devWorker, err := worker.New(worker.WithDataDirPath(devDataDirPath), worker.WithLogger(logger))
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return devController, devWorker, nil
 }

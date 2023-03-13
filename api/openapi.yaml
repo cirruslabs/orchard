@@ -193,6 +193,33 @@ paths:
           description: VM resource was successfully deleted
         '404':
           description: VM resource with the given name doesn't exist
+  /vms/{name}/events:
+    get:
+      summary: "Retrieve events for a given VM"
+      tags:
+        - vms
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#components/schemas/Events'
+        '404':
+          description: VM resource with the given name doesn't exist
+    post:
+      summary: "Add new events to a VM"
+      tags:
+        - vms
+      responses:
+        '200':
+          description: Events were successfully added
+          content:
+            application/json:
+              schema:
+                $ref: '#components/schemas/Events'
+        '404':
+          description: VM resource with the given name doesn't exist
 components:
   schemas:
     Worker:
@@ -209,6 +236,24 @@ components:
         name:
           type: string
           description: VM name
+    Events:
+      title: Events
+      type: object
+      items:
+        $ref: '#components/schemas/Event'
+    Event:
+      title: Generic Resource Event
+      type: object
+      properties:
+        kind:
+          type: string
+          description: Kind of the event
+        payload:
+          type: string
+          description: Payload of the event
+        timestamp:
+          type: integer
+          description: Unix timestamp of the event
     ServiceAccount:
       title: Service Account
       type: object
