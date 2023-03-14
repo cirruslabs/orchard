@@ -103,3 +103,22 @@ func (service *VMsService) PortForward(ctx context.Context, name string, port ui
 	return service.client.wsRequest(ctx, fmt.Sprintf("vms/%s/port-forward", name),
 		map[string]string{"port": strconv.FormatUint(uint64(port), 10)})
 }
+
+func (service *VMsService) StreamEvents(name string) *EventStreamer {
+	return NewEventStreamer(service.client, fmt.Sprintf("vms/%s/events", name))
+}
+
+func (service *VMsService) Logs(ctx context.Context, name string) (lines []string, err error) {
+	var events []v1.Event
+	err = service.client.request(ctx, http.MethodGet, fmt.Sprintf("vms/%s/events", name),
+		nil, &events, nil)
+	if err != nil {
+		return
+	}
+	for _, event := range events {
+		if event.Kind == v1.EventKindLogLine {
+			lines = append(lines, event.Payload)
+		}
+	}
+	return
+}

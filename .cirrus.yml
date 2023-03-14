@@ -3,5 +3,11 @@ task:
   persistent_worker:
     labels:
       name: dev-mini
+  pull_script:
+    - tart pull ghcr.io/cirruslabs/macos-ventura-base:latest
   test_script:
     - go test -v ./...
+  always:
+    cleanup_script:
+      - tart list
+      - rm -rf ~/.tart/vms/orchard-*

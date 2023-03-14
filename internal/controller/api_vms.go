@@ -72,6 +72,7 @@ func (controller *Controller) updateVM(ctx *gin.Context) responder.Responder {
 		}
 
 		dbVM.Status = userVM.Status
+		dbVM.StatusMessage = userVM.StatusMessage
 		dbVM.Generation++
 
 		if err := txn.SetVM(*dbVM); err != nil {
