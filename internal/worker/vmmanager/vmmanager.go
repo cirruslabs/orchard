@@ -1,6 +1,7 @@
 package vmmanager
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
@@ -34,12 +35,15 @@ func (vmm *VMManager) Get(vmResource v1.VM) (*VM, error) {
 	return managedVM, nil
 }
 
-func (vmm *VMManager) Create(vmResource v1.VM, logger *zap.SugaredLogger) (*VM, error) {
+func (vmm *VMManager) Create(ctx context.Context, vmResource v1.VM, logger *zap.SugaredLogger) (*VM, error) {
 	if _, ok := vmm.vms[vmResource.UID]; ok {
 		return nil, fmt.Errorf("%w: VM already exists", ErrFailed)
 	}
 
-	managedVM := NewVM(vmResource, logger)
+	managedVM, err := NewVM(ctx, vmResource, logger)
+	if err != nil {
+		return nil, err
+	}
 
 	vmm.vms[vmResource.UID] = managedVM
 

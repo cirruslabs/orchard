@@ -44,18 +44,35 @@ type VM struct {
 	Headless bool   `json:"headless"`
 
 	// Status field is used to track the lifecycle of the VM associated with this resource.
-	Status VMStatus `json:"status"`
+	Status        VMStatus `json:"status"`
+	StatusMessage string   `json:"status_message"`
 
 	// Worker field is set by the Controller to assign this VM to a specific Worker.
 	Worker string `json:"worker"`
+
+	Username       string    `json:"username"`
+	Password       string    `json:"password"`
+	StartupScript  *VMScript `json:"startup_script"`
+	ShutdownScript *VMScript `json:"shutdown_script"`
 
 	Meta
 }
 
 type Event struct {
-	Kind      string `json:"kind"`
-	Timestamp uint64 `json:"timestamp"`
-	Payload   string `json:"payload"`
+	Kind      EventKind `json:"kind"`
+	Timestamp int64     `json:"timestamp"`
+	Payload   string    `json:"payload"`
+}
+
+type EventKind string
+
+const (
+	EventKindLogLine EventKind = "log_line"
+)
+
+type VMScript struct {
+	ScriptContent string            `json:"script_content"`
+	Env           map[string]string `json:"env"`
 }
 
 func (vm VM) TerminalState() bool {
