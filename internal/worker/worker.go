@@ -240,7 +240,7 @@ func (worker *Worker) createVM(ctx context.Context, vmResource v1.VM) error {
 	vm, err := worker.vmm.Create(ctx, vmResource, worker.logger)
 	if err != nil {
 		vmResource.Status = v1.VMStatusFailed
-		vmResource.StatusMessage = fmt.Sprintf("failed to run script: %v", err)
+		vmResource.StatusMessage = fmt.Sprintf("VM creation failed: %v", err)
 		_, updateErr := worker.client.VMs().Update(context.Background(), vmResource)
 		if updateErr != nil {
 			worker.logger.Errorf("failed to update VM %s (%s) remotely: %s", vmResource.Name, vmResource.UID, updateErr.Error())
