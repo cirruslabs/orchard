@@ -1,16 +1,22 @@
 package controller
 
 import (
+	"context"
 	"crypto/subtle"
+	"errors"
 	storepkg "github.com/cirruslabs/orchard/internal/controller/store"
 	"github.com/cirruslabs/orchard/internal/responder"
+	"github.com/cirruslabs/orchard/pkg/client"
 	v1pkg "github.com/cirruslabs/orchard/pkg/resource/v1"
 	"github.com/deckarep/golang-set/v2"
 	"github.com/gin-gonic/gin"
+	"google.golang.org/grpc/metadata"
 	"net/http"
 )
 
 const ctxServiceAccountKey = "service-account"
+
+var ErrUnauthorized = errors.New("unauthorized")
 
 func (controller *Controller) initAPI() *gin.Engine {
 	gin.SetMode(gin.DebugMode)
@@ -74,6 +80,9 @@ func (controller *Controller) initAPI() *gin.Engine {
 	v1.GET("/vms", func(c *gin.Context) {
 		controller.listVMs(c).Respond(c)
 	})
+	v1.GET("/vms/:name/port-forward", func(c *gin.Context) {
+		controller.portForwardVM(c).Respond(c)
+	})
 	v1.DELETE("/vms/:name", func(c *gin.Context) {
 		controller.deleteVM(c).Respond(c)
 	})
@@ -87,6 +96,33 @@ func (controller *Controller) initAPI() *gin.Engine {
 	return ginEngine
 }
 
+func (controller *Controller) fetchServiceAccount(name string, token string) (*v1pkg.ServiceAccount, error) {
+	var serviceAccount *v1pkg.ServiceAccount
+	var err error
+
+	err = controller.store.View(func(txn storepkg.Transaction) error {
+		serviceAccount, err = txn.GetServiceAccount(name)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
+	if err != nil {
+		if errors.Is(err, storepkg.ErrNotFound) {
+			return nil, ErrUnauthorized
+		}
+
+		return nil, err
+	}
+
+	if subtle.ConstantTimeCompare([]byte(serviceAccount.Token), []byte(token)) == 0 {
+		return nil, ErrUnauthorized
+	}
+
+	return serviceAccount, nil
+}
+
 func (controller *Controller) authenticateMiddleware(c *gin.Context) {
 	// Retrieve presented credentials (if any)
 	user, password, ok := c.Request.BasicAuth()
@@ -96,34 +132,13 @@ func (controller *Controller) authenticateMiddleware(c *gin.Context) {
 		return
 	}
 
-	// Authenticate
-	var serviceAccount *v1pkg.ServiceAccount
-	var err error
-
-	err = controller.store.View(func(txn storepkg.Transaction) error {
-		serviceAccount, err = txn.GetServiceAccount(user)
-		if err != nil {
-			return err
-		}
-
-		return nil
-	})
+	serviceAccount, err := controller.fetchServiceAccount(user, password)
 	if err != nil {
-		responder.Error(err).Respond(c)
-
-		return
-	}
-
-	// No such service account found
-	if serviceAccount == nil {
-		responder.Code(http.StatusUnauthorized).Respond(c)
-
-		return
-	}
-
-	// Service account's token provided is not valid
-	if subtle.ConstantTimeCompare([]byte(serviceAccount.Token), []byte(password)) == 0 {
-		responder.Code(http.StatusUnauthorized).Respond(c)
+		if errors.Is(err, ErrUnauthorized) {
+			responder.Code(http.StatusUnauthorized).Respond(c)
+		} else {
+			responder.Error(err).Respond(c)
+		}
 
 		return
 	}
@@ -145,6 +160,28 @@ func (controller *Controller) authorize(ctx *gin.Context, scopes ...v1pkg.Servic
 	}
 
 	serviceAccount := serviceAccountUntyped.(*v1pkg.ServiceAccount)
+
+	return mapset.NewSet[v1pkg.ServiceAccountRole](serviceAccount.Roles...).Contains(scopes...)
+}
+
+func (controller *Controller) authorizeGRPC(ctx context.Context, scopes ...v1pkg.ServiceAccountRole) bool {
+	if controller.insecureAuthDisabled {
+		return true
+	}
+
+	name := metadata.ValueFromIncomingContext(ctx, client.MetadataServiceAccountNameKey)
+	if len(name) != 1 {
+		return false
+	}
+	token := metadata.ValueFromIncomingContext(ctx, client.MetadataServiceAccountTokenKey)
+	if len(token) != 1 {
+		return false
+	}
+
+	serviceAccount, err := controller.fetchServiceAccount(name[0], token[0])
+	if err != nil {
+		return false
+	}
 
 	return mapset.NewSet[v1pkg.ServiceAccountRole](serviceAccount.Roles...).Contains(scopes...)
 }

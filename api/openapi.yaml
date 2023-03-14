@@ -220,6 +220,35 @@ paths:
                 $ref: '#components/schemas/Events'
         '404':
           description: VM resource with the given name doesn't exist
+  /vms/{name}/port-forward:
+    get:
+      summary: "Port-forward to a VM using WebSocket protocol"
+      tags:
+        - vms
+      parameters:
+        - in: query
+          name: port
+          description: VM's TCP port number to connect to
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 65535
+          required: true
+        - in: header
+          name: Connection
+          description: WebSocket protocol required header
+          required: true
+        - in: header
+          name: Upgrade
+          description: WebSocket protocol required header
+          required: true
+      responses:
+        '400':
+          description: Invalid port specified
+        '404':
+          description: VM resource with the given name doesn't exist
+        '503':
+          description: Failed to establish connection with the worker responsible for the specified VM
 components:
   schemas:
     Worker:

@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"github.com/cirruslabs/orchard/internal/bootstraptoken"
 	"github.com/cirruslabs/orchard/internal/config"
-	"github.com/cirruslabs/orchard/internal/controller"
+	"github.com/cirruslabs/orchard/internal/netconstants"
 	"github.com/cirruslabs/orchard/pkg/client"
 	"github.com/manifoldco/promptui"
 	"github.com/spf13/cobra"
@@ -60,7 +60,7 @@ func runCreate(cmd *cobra.Command, args []string) error {
 	}
 
 	if controllerURL.Port() == "" {
-		controllerURL.Host += fmt.Sprintf(":%d", controller.DefaultPort)
+		controllerURL.Host += fmt.Sprintf(":%d", netconstants.DefaultControllerPort)
 	}
 
 	// Establish trust
@@ -89,7 +89,7 @@ func runCreate(cmd *cobra.Command, args []string) error {
 	tlsConfig := &tls.Config{
 		MinVersion: tls.VersionTLS13,
 		RootCAs:    privatePool,
-		ServerName: controller.DefaultServerName,
+		ServerName: netconstants.DefaultControllerServerName,
 	}
 
 	client, err := client.New(
@@ -131,7 +131,7 @@ func probeControllerCertificate(controllerURL *url.URL) (*x509.Certificate, erro
 	insecureTLSConfig := &tls.Config{
 		MinVersion:         tls.VersionTLS13,
 		RootCAs:            emptyPool,
-		ServerName:         controller.DefaultServerName,
+		ServerName:         netconstants.DefaultControllerServerName,
 		InsecureSkipVerify: true,
 	}
 
@@ -153,7 +153,7 @@ func probeControllerCertificate(controllerURL *url.URL) (*x509.Certificate, erro
 		formattedControllerCertFingerprint := formatFingerprint(controllerCertFingerprint[:])
 
 		shortControllerName := controllerURL.Hostname()
-		if controllerURL.Port() != strconv.FormatUint(controller.DefaultPort, 10) {
+		if controllerURL.Port() != strconv.FormatUint(netconstants.DefaultControllerPort, 10) {
 			shortControllerName += ":" + controllerURL.Port()
 		}
 

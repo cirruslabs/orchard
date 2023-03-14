@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/cirruslabs/orchard/internal/controller"
+	"github.com/cirruslabs/orchard/internal/netconstants"
 	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
 	"github.com/spf13/cobra"
 	"math/big"
@@ -142,7 +143,7 @@ func GenerateSelfSignedControllerCertificate() (tls.Certificate, error) {
 		BasicConstraintsValid: true,
 		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
 		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
-		DNSNames:              []string{controller.DefaultServerName},
+		DNSNames:              []string{netconstants.DefaultControllerServerName},
 	}
 
 	certBytes, err := x509.CreateCertificate(cryptorand.Reader, cert, cert, privateKey.Public(), privateKey)

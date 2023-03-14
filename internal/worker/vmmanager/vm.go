@@ -6,6 +6,7 @@ import (
 	"github.com/cirruslabs/orchard/pkg/resource/v1"
 	"go.uber.org/zap"
 	"strconv"
+	"strings"
 	"sync"
 )
 
@@ -87,6 +88,15 @@ func (vm *VM) run(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func (vm *VM) IP(ctx context.Context) (string, error) {
+	stdout, _, err := Tart(ctx, "ip", vm.id)
+	if err != nil {
+		return "", err
+	}
+
+	return strings.TrimSpace(stdout), nil
 }
 
 func (vm *VM) Stop() error {
