@@ -106,7 +106,7 @@ func (vm *VM) run(ctx context.Context) error {
 }
 
 func (vm *VM) IP(ctx context.Context) (string, error) {
-	stdout, _, err := Tart(ctx, "ip", vm.id)
+	stdout, _, err := vm.tart(ctx, "ip", "--wait", "60", vm.id)
 	if err != nil {
 		return "", err
 	}
@@ -133,15 +133,6 @@ func (vm *VM) Delete() error {
 	return nil
 }
 
-func (vm *VM) IP() (string, error) {
-	stdout, _, err := vm.tart(vm.ctx, "ip", "--wait", "60", vm.id)
-	if err != nil {
-		return "", fmt.Errorf("%w: failed to get VM's IP %s: %v", ErrFailed, vm.id, err)
-	}
-
-	return strings.TrimSpace(stdout), nil
-}
-
 func (vm *VM) Shell(
 	ctx context.Context,
 	sshUser string,
@@ -150,7 +141,7 @@ func (vm *VM) Shell(
 	env map[string]string,
 	consumeLine func(line string),
 ) error {
-	ip, err := vm.IP()
+	ip, err := vm.IP(ctx)
 	if err != nil {
 		return fmt.Errorf("%w to get IP", ErrVMFailed)
 	}
