@@ -47,8 +47,8 @@ type VM struct {
 	Status        VMStatus `json:"status"`
 	StatusMessage string   `json:"status_message"`
 
-	// Worker field is set by the Controller to assign this VM to a specific Worker.
-	Worker string `json:"worker"`
+	// WorkerUID field is set by the Controller to assign this VM to a specific WorkerUID.
+	WorkerUID string `json:"worker"`
 
 	Username       string    `json:"username"`
 	Password       string    `json:"password"`

@@ -5,7 +5,8 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"github.com/cirruslabs/orchard/internal/controller/rendezvous"
+	"github.com/cirruslabs/orchard/internal/controller/notifier"
+	"github.com/cirruslabs/orchard/internal/controller/proxy"
 	storepkg "github.com/cirruslabs/orchard/internal/controller/store"
 	"github.com/cirruslabs/orchard/internal/controller/store/badger"
 	"github.com/cirruslabs/orchard/internal/netconstants"
@@ -37,16 +38,16 @@ type Controller struct {
 	store                storepkg.Store
 	logger               *zap.SugaredLogger
 	grpcServer           *grpc.Server
-	watcher              *rendezvous.Watcher
-	proxy                *rendezvous.Proxy
+	workerNotifier       *notifier.Notifier
+	proxy                *proxy.Proxy
 
 	rpc.UnimplementedControllerServer
 }
 
 func New(opts ...Option) (*Controller, error) {
 	controller := &Controller{
-		watcher: rendezvous.NewWatcher(),
-		proxy:   rendezvous.NewProxy(),
+		workerNotifier: notifier.NewNotifier(),
+		proxy:          proxy.NewProxy(),
 	}
 
 	// Apply options
@@ -129,7 +130,7 @@ func (controller *Controller) EnsureServiceAccount(serviceAccount *v1.ServiceAcc
 
 func (controller *Controller) Run(ctx context.Context) error {
 	// Run the scheduler so that each VM will eventually
-	// be assigned to a specific Worker
+	// be assigned to a specific WorkerUID
 	go func() {
 		err := runScheduler(controller.store)
 		if err != nil {

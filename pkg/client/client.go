@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/cirruslabs/orchard/internal/config"
+	"github.com/cirruslabs/orchard/rpc"
 	"golang.org/x/net/websocket"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
@@ -17,11 +18,6 @@ import (
 	"net/http"
 	"net/url"
 )
-
-const MetadataServiceAccountNameKey = "x-orchard-service-account-name"
-
-//nolint:gosec // G101 check yields a false-positive here, this is not a hard-coded credential
-const MetadataServiceAccountTokenKey = "x-orchard-service-account-token"
 
 var (
 	ErrFailed       = errors.New("API client failed")
@@ -121,8 +117,8 @@ func (client *Client) GPRCMetadata() metadata.MD {
 
 	if client.serviceAccountName != "" && client.serviceAccountToken != "" {
 		result = map[string]string{
-			MetadataServiceAccountNameKey:  client.serviceAccountName,
-			MetadataServiceAccountTokenKey: client.serviceAccountToken,
+			rpc.MetadataServiceAccountNameKey:  client.serviceAccountName,
+			rpc.MetadataServiceAccountTokenKey: client.serviceAccountToken,
 		}
 	}
 

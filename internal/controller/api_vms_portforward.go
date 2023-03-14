@@ -45,35 +45,36 @@ func (controller *Controller) portForwardVM(ctx *gin.Context) responder.Responde
 	}
 
 	// Sanity-check
-	if vm.Worker == "" {
+	if vm.WorkerUID == "" {
 		return responder.Code(http.StatusServiceUnavailable)
 	}
 
-	// Request and wait for a rendez-vous with a worker
-	token := uuid.New().String()
-
-	rendezvousConnCh, cancel := controller.proxy.Request(ctx, token)
+	// Request and wait for a connection with a worker
+	session := uuid.New().String()
+	boomerangConnCh, cancel := controller.proxy.Request(ctx, session)
 	defer cancel()
 
-	err = controller.watcher.Notify(ctx, vm.Worker, &rpc.WatchFromController{
-		Action: &rpc.WatchFromController_PortForwardAction{
-			PortForwardAction: &rpc.WatchFromController_PortForward{
-				Token:  token,
-				VmUid:  vm.UID,
-				VmPort: uint32(port),
+	// send request to worker to initiate port-forwarding connection back to us
+	err = controller.workerNotifier.Notify(ctx, vm.WorkerUID, &rpc.WatchInstruction{
+		Action: &rpc.WatchInstruction_PortForwardAction{
+			PortForwardAction: &rpc.WatchInstruction_PortForward{
+				Session: session,
+				VmUid:   vm.UID,
+				VmPort:  uint32(port),
 			},
 		},
 	})
 	if err != nil {
-		controller.logger.Warnf("failed to rendez-vous with the worker %s: %v", vm.Worker, err)
+		controller.logger.Warnf("failed to request port-forwarding from the worker %s: %v", vm.WorkerUID, err)
 
 		return responder.Code(http.StatusServiceUnavailable)
 	}
 
+	// worker will asynchronously start port-forwarding so we wait
 	select {
-	case rendezvousConn := <-rendezvousConnCh:
+	case fromWorkerConnection := <-boomerangConnCh:
 		websocket.Handler(func(wsConn *websocket.Conn) {
-			if err := proxy.Connections(wsConn, rendezvousConn); err != nil {
+			if err := proxy.Connections(wsConn, fromWorkerConnection); err != nil {
 				controller.logger.Warnf("failed to port-forward: %v", err)
 			}
 		}).ServeHTTP(ctx.Writer, ctx.Request)

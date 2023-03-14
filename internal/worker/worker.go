@@ -8,8 +8,10 @@ import (
 	"github.com/cirruslabs/orchard/internal/worker/vmmanager"
 	"github.com/cirruslabs/orchard/pkg/client"
 	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
+	"github.com/cirruslabs/orchard/rpc"
 	"github.com/hashicorp/go-multierror"
 	"go.uber.org/zap"
+	"google.golang.org/grpc/metadata"
 	"os"
 	"time"
 )
@@ -165,7 +167,7 @@ func (worker *Worker) updateWorker(ctx context.Context) error {
 }
 
 func (worker *Worker) syncVMs(ctx context.Context) error {
-	remoteVMs, err := worker.client.VMs().FindForWorker(ctx, worker.name)
+	remoteVMs, err := worker.client.VMs().FindForWorker(ctx, worker.uid)
 	if err != nil {
 		return err
 	}
@@ -344,4 +346,12 @@ func (worker *Worker) DeleteAllVMs() error {
 		}
 	}
 	return result
+}
+
+func (worker *Worker) GPRCMetadata() metadata.MD {
+	return metadata.Join(
+		worker.client.GPRCMetadata(),
+		metadata.Pairs(rpc.MetadataWorkerNameKey, worker.name),
+		metadata.Pairs(rpc.MetadataWorkerUIDKey, worker.uid),
+	)
 }
