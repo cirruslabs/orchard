@@ -232,7 +232,7 @@ func (vm *VM) Shell(
 
 	_, err = stdinBuf.Write([]byte(scriptBuilder.String()))
 	if err != nil {
-		return fmt.Errorf("%w: failed to start agent: %v", ErrFailed, err)
+		return fmt.Errorf("%w: failed to start script: %v", ErrFailed, err)
 	}
 	outputReaderWG.Wait()
 	return sess.Wait()
