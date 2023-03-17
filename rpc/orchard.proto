@@ -1,25 +1,23 @@
 syntax = "proto3";
 
+import "google/protobuf/empty.proto";
+
 option go_package = "github.com/cirruslabs/orchard/rpc";
 
 service Controller {
-  rpc Watch(stream WatchFromWorker) returns (stream WatchFromController);
-  rpc PortForward(stream PortForwardFromWorker) returns (stream PortForwardFromController);
+  // message bus between the controller and a worker
+  rpc Watch(google.protobuf.Empty) returns (stream WatchInstruction);
+
+  // single purpose method when a port forward is requested and running
+  // session information is passed in the requests metadata
+  rpc PortForward(stream PortForwardData) returns (stream PortForwardData);
 }
 
-message WatchFromWorker {
-  message Init {
-    string worker_uid = 1;
-  }
-
-  oneof action {
-    Init init_action = 1;
-  }
-}
-
-message WatchFromController {
+message WatchInstruction {
   message PortForward {
-    string token = 1;
+    // we can have multiple port forwards for the same vm/port pair
+    // let's distinguish them by a unique session
+    string session = 1;
     string vm_uid = 2;
     uint32 vm_port = 3;
   }
@@ -29,27 +27,6 @@ message WatchFromController {
   }
 }
 
-message PortForwardFromWorker {
-  message Init {
-    string token = 1;
-  }
-
-  message Data {
-    bytes data = 1;
-  }
-
-  oneof action {
-    Init init_action = 1;
-    Data data_action = 2;
-  }
-}
-
-message PortForwardFromController {
-  message Data {
-    bytes data = 1;
-  }
-
-  oneof action {
-    Data data_action = 1;
-  }
+message PortForwardData {
+  bytes data = 1;
 }

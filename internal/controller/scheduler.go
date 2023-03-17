@@ -51,7 +51,7 @@ func runSchedulerInner(store storepkg.Store) error {
 	for _, vm := range vms {
 		vm := vm
 
-		if vm.Worker != "" {
+		if vm.WorkerUID != "" {
 			continue
 		}
 
@@ -59,7 +59,7 @@ func runSchedulerInner(store storepkg.Store) error {
 		for _, worker := range workers {
 			worker := worker
 
-			vm.Worker = worker.Name
+			vm.WorkerUID = worker.UID
 
 			err := store.Update(func(txn storepkg.Transaction) error {
 				return txn.SetVM(vm)

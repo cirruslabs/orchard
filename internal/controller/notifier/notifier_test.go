@@ -1,9 +1,9 @@
-package rendezvous_test
+package notifier_test
 
 import (
 	"context"
 	"fmt"
-	"github.com/cirruslabs/orchard/internal/controller/rendezvous"
+	"github.com/cirruslabs/orchard/internal/controller/notifier"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"sync"
@@ -11,25 +11,25 @@ import (
 	"time"
 )
 
-func TestWatcher(t *testing.T) {
+func TestNotifier(t *testing.T) {
 	ctx := context.Background()
 
-	watcher := rendezvous.NewWatcher()
+	notifier := notifier.NewNotifier()
 
 	var topic = uuid.New().String()
 
-	msgCh, cancel := watcher.Subscribe(context.Background(), topic)
+	msgCh, cancel := notifier.Register(context.Background(), topic)
 	defer cancel()
 
 	var wg sync.WaitGroup
 	wg.Add(1)
 
 	go func() {
-		require.NoError(t, watcher.Notify(ctx, topic, nil))
+		require.NoError(t, notifier.Notify(ctx, topic, nil))
 
 		time.Sleep(time.Second)
 
-		require.NoError(t, watcher.Notify(ctx, topic, nil))
+		require.NoError(t, notifier.Notify(ctx, topic, nil))
 
 		wg.Done()
 	}()

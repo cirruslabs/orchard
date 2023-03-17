@@ -7,6 +7,7 @@ import (
 	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
 	"github.com/cirruslabs/orchard/rpc"
 	"google.golang.org/grpc/keepalive"
+	"google.golang.org/protobuf/types/known/emptypb"
 	"time"
 
 	//nolint:staticcheck // https://github.com/mitchellh/go-grpc-net-conn/pull/1
@@ -30,20 +31,10 @@ func (worker *Worker) watchRPC(ctx context.Context) error {
 
 	client := rpc.NewControllerClient(conn)
 
-	ctxWithMetadata := metadata.NewOutgoingContext(ctx, worker.client.GPRCMetadata())
+	ctxWithMetadata := metadata.NewOutgoingContext(ctx, worker.GPRCMetadata())
 
-	stream, err := client.Watch(ctxWithMetadata)
+	stream, err := client.Watch(ctxWithMetadata, &emptypb.Empty{})
 	if err != nil {
-		return err
-	}
-
-	if err := stream.Send(&rpc.WatchFromWorker{
-		Action: &rpc.WatchFromWorker_InitAction{
-			InitAction: &rpc.WatchFromWorker_Init{
-				WorkerUid: worker.name,
-			},
-		},
-	}); err != nil {
 		return err
 	}
 
@@ -53,7 +44,7 @@ func (worker *Worker) watchRPC(ctx context.Context) error {
 			return err
 		}
 
-		portForwardAction, ok := watchFromController.Action.(*rpc.WatchFromController_PortForwardAction)
+		portForwardAction, ok := watchFromController.Action.(*rpc.WatchInstruction_PortForwardAction)
 		if !ok {
 			continue
 		}
@@ -65,25 +56,20 @@ func (worker *Worker) watchRPC(ctx context.Context) error {
 func (worker *Worker) handlePortForward(
 	ctx context.Context,
 	client rpc.ControllerClient,
-	portForwardAction *rpc.WatchFromController_PortForward,
+	portForwardAction *rpc.WatchInstruction_PortForward,
 ) {
 	subCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	stream, err := client.PortForward(subCtx)
+	grpcMetadata := metadata.Join(
+		worker.GPRCMetadata(),
+		metadata.Pairs(rpc.MetadataWorkerPortForwardingSessionKey, portForwardAction.Session),
+	)
+	ctxWithMetadata := metadata.NewOutgoingContext(subCtx, grpcMetadata)
+	stream, err := client.PortForward(ctxWithMetadata)
 	if err != nil {
 		worker.logger.Warnf("port forwarding failed: failed to call PortForward() RPC method: %v", err)
 
-		return
-	}
-
-	if err := stream.Send(&rpc.PortForwardFromWorker{
-		Action: &rpc.PortForwardFromWorker_InitAction{
-			InitAction: &rpc.PortForwardFromWorker_Init{
-				Token: portForwardAction.Token,
-			},
-		},
-	}); err != nil {
 		return
 	}
 
@@ -117,22 +103,14 @@ func (worker *Worker) handlePortForward(
 
 	// Proxy bytes
 	grpcConn := &grpc_net_conn.Conn{
-		Stream: stream,
-		Request: &rpc.PortForwardFromWorker{
-			Action: &rpc.PortForwardFromWorker_DataAction{
-				DataAction: &rpc.PortForwardFromWorker_Data{},
-			},
-		},
-		Response: &rpc.PortForwardFromController{
-			Action: &rpc.PortForwardFromController_DataAction{
-				DataAction: &rpc.PortForwardFromController_Data{},
-			},
-		},
+		Stream:   stream,
+		Request:  &rpc.PortForwardData{},
+		Response: &rpc.PortForwardData{},
 		Encode: grpc_net_conn.SimpleEncoder(func(message proto.Message) *[]byte {
-			return &message.(*rpc.PortForwardFromWorker).Action.(*rpc.PortForwardFromWorker_DataAction).DataAction.Data
+			return &message.(*rpc.PortForwardData).Data
 		}),
 		Decode: grpc_net_conn.SimpleDecoder(func(message proto.Message) *[]byte {
-			return &message.(*rpc.PortForwardFromController).Action.(*rpc.PortForwardFromController_DataAction).DataAction.Data
+			return &message.(*rpc.PortForwardData).Data
 		}),
 	}
 

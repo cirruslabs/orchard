@@ -6,8 +6,8 @@ import (
 	"errors"
 	storepkg "github.com/cirruslabs/orchard/internal/controller/store"
 	"github.com/cirruslabs/orchard/internal/responder"
-	"github.com/cirruslabs/orchard/pkg/client"
 	v1pkg "github.com/cirruslabs/orchard/pkg/resource/v1"
+	"github.com/cirruslabs/orchard/rpc"
 	"github.com/deckarep/golang-set/v2"
 	"github.com/gin-gonic/gin"
 	"google.golang.org/grpc/metadata"
@@ -169,11 +169,11 @@ func (controller *Controller) authorizeGRPC(ctx context.Context, scopes ...v1pkg
 		return true
 	}
 
-	name := metadata.ValueFromIncomingContext(ctx, client.MetadataServiceAccountNameKey)
+	name := metadata.ValueFromIncomingContext(ctx, rpc.MetadataServiceAccountNameKey)
 	if len(name) != 1 {
 		return false
 	}
-	token := metadata.ValueFromIncomingContext(ctx, client.MetadataServiceAccountTokenKey)
+	token := metadata.ValueFromIncomingContext(ctx, rpc.MetadataServiceAccountTokenKey)
 	if len(token) != 1 {
 		return false
 	}

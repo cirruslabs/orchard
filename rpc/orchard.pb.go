@@ -9,6 +9,7 @@ package rpc
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	reflect "reflect"
 	sync "sync"
 )
@@ -20,19 +21,19 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-type WatchFromWorker struct {
+type WatchInstruction struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
 	// Types that are assignable to Action:
 	//
-	//	*WatchFromWorker_InitAction
-	Action isWatchFromWorker_Action `protobuf_oneof:"action"`
+	//	*WatchInstruction_PortForwardAction
+	Action isWatchInstruction_Action `protobuf_oneof:"action"`
 }
 
-func (x *WatchFromWorker) Reset() {
-	*x = WatchFromWorker{}
+func (x *WatchInstruction) Reset() {
+	*x = WatchInstruction{}
 	if protoimpl.UnsafeEnabled {
 		mi := &file_orchard_proto_msgTypes[0]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -40,13 +41,13 @@ func (x *WatchFromWorker) Reset() {
 	}
 }
 
-func (x *WatchFromWorker) String() string {
+func (x *WatchInstruction) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*WatchFromWorker) ProtoMessage() {}
+func (*WatchInstruction) ProtoMessage() {}
 
-func (x *WatchFromWorker) ProtoReflect() protoreflect.Message {
+func (x *WatchInstruction) ProtoReflect() protoreflect.Message {
 	mi := &file_orchard_proto_msgTypes[0]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -58,48 +59,45 @@ func (x *WatchFromWorker) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use WatchFromWorker.ProtoReflect.Descriptor instead.
-func (*WatchFromWorker) Descriptor() ([]byte, []int) {
+// Deprecated: Use WatchInstruction.ProtoReflect.Descriptor instead.
+func (*WatchInstruction) Descriptor() ([]byte, []int) {
 	return file_orchard_proto_rawDescGZIP(), []int{0}
 }
 
-func (m *WatchFromWorker) GetAction() isWatchFromWorker_Action {
+func (m *WatchInstruction) GetAction() isWatchInstruction_Action {
 	if m != nil {
 		return m.Action
 	}
 	return nil
 }
 
-func (x *WatchFromWorker) GetInitAction() *WatchFromWorker_Init {
-	if x, ok := x.GetAction().(*WatchFromWorker_InitAction); ok {
-		return x.InitAction
+func (x *WatchInstruction) GetPortForwardAction() *WatchInstruction_PortForward {
+	if x, ok := x.GetAction().(*WatchInstruction_PortForwardAction); ok {
+		return x.PortForwardAction
 	}
 	return nil
 }
 
-type isWatchFromWorker_Action interface {
-	isWatchFromWorker_Action()
+type isWatchInstruction_Action interface {
+	isWatchInstruction_Action()
 }
 
-type WatchFromWorker_InitAction struct {
-	InitAction *WatchFromWorker_Init `protobuf:"bytes,1,opt,name=init_action,json=initAction,proto3,oneof"`
+type WatchInstruction_PortForwardAction struct {
+	PortForwardAction *WatchInstruction_PortForward `protobuf:"bytes,1,opt,name=port_forward_action,json=portForwardAction,proto3,oneof"`
 }
 
-func (*WatchFromWorker_InitAction) isWatchFromWorker_Action() {}
+func (*WatchInstruction_PortForwardAction) isWatchInstruction_Action() {}
 
-type WatchFromController struct {
+type PortForwardData struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// Types that are assignable to Action:
-	//
-	//	*WatchFromController_PortForwardAction
-	Action isWatchFromController_Action `protobuf_oneof:"action"`
+	Data []byte `protobuf:"bytes,1,opt,name=data,proto3" json:"data,omitempty"`
 }
 
-func (x *WatchFromController) Reset() {
-	*x = WatchFromController{}
+func (x *PortForwardData) Reset() {
+	*x = PortForwardData{}
 	if protoimpl.UnsafeEnabled {
 		mi := &file_orchard_proto_msgTypes[1]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -107,13 +105,13 @@ func (x *WatchFromController) Reset() {
 	}
 }
 
-func (x *WatchFromController) String() string {
+func (x *PortForwardData) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*WatchFromController) ProtoMessage() {}
+func (*PortForwardData) ProtoMessage() {}
 
-func (x *WatchFromController) ProtoReflect() protoreflect.Message {
+func (x *PortForwardData) ProtoReflect() protoreflect.Message {
 	mi := &file_orchard_proto_msgTypes[1]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -125,49 +123,32 @@ func (x *WatchFromController) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use WatchFromController.ProtoReflect.Descriptor instead.
-func (*WatchFromController) Descriptor() ([]byte, []int) {
+// Deprecated: Use PortForwardData.ProtoReflect.Descriptor instead.
+func (*PortForwardData) Descriptor() ([]byte, []int) {
 	return file_orchard_proto_rawDescGZIP(), []int{1}
 }
 
-func (m *WatchFromController) GetAction() isWatchFromController_Action {
-	if m != nil {
-		return m.Action
+func (x *PortForwardData) GetData() []byte {
+	if x != nil {
+		return x.Data
 	}
 	return nil
 }
 
-func (x *WatchFromController) GetPortForwardAction() *WatchFromController_PortForward {
-	if x, ok := x.GetAction().(*WatchFromController_PortForwardAction); ok {
-		return x.PortForwardAction
-	}
-	return nil
-}
-
-type isWatchFromController_Action interface {
-	isWatchFromController_Action()
-}
-
-type WatchFromController_PortForwardAction struct {
-	PortForwardAction *WatchFromController_PortForward `protobuf:"bytes,1,opt,name=port_forward_action,json=portForwardAction,proto3,oneof"`
-}
-
-func (*WatchFromController_PortForwardAction) isWatchFromController_Action() {}
-
-type PortForwardFromWorker struct {
+type WatchInstruction_PortForward struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// Types that are assignable to Action:
-	//
-	//	*PortForwardFromWorker_InitAction
-	//	*PortForwardFromWorker_DataAction
-	Action isPortForwardFromWorker_Action `protobuf_oneof:"action"`
+	// we can have multiple port forwards for the same vm/port pair
+	// let's distinguish them by a unique session
+	Session string `protobuf:"bytes,1,opt,name=session,proto3" json:"session,omitempty"`
+	VmUid   string `protobuf:"bytes,2,opt,name=vm_uid,json=vmUid,proto3" json:"vm_uid,omitempty"`
+	VmPort  uint32 `protobuf:"varint,3,opt,name=vm_port,json=vmPort,proto3" json:"vm_port,omitempty"`
 }
 
-func (x *PortForwardFromWorker) Reset() {
-	*x = PortForwardFromWorker{}
+func (x *WatchInstruction_PortForward) Reset() {
+	*x = WatchInstruction_PortForward{}
 	if protoimpl.UnsafeEnabled {
 		mi := &file_orchard_proto_msgTypes[2]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -175,13 +156,13 @@ func (x *PortForwardFromWorker) Reset() {
 	}
 }
 
-func (x *PortForwardFromWorker) String() string {
+func (x *WatchInstruction_PortForward) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*PortForwardFromWorker) ProtoMessage() {}
+func (*WatchInstruction_PortForward) ProtoMessage() {}
 
-func (x *PortForwardFromWorker) ProtoReflect() protoreflect.Message {
+func (x *WatchInstruction_PortForward) ProtoReflect() protoreflect.Message {
 	mi := &file_orchard_proto_msgTypes[2]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -193,425 +174,64 @@ func (x *PortForwardFromWorker) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use PortForwardFromWorker.ProtoReflect.Descriptor instead.
-func (*PortForwardFromWorker) Descriptor() ([]byte, []int) {
-	return file_orchard_proto_rawDescGZIP(), []int{2}
-}
-
-func (m *PortForwardFromWorker) GetAction() isPortForwardFromWorker_Action {
-	if m != nil {
-		return m.Action
-	}
-	return nil
-}
-
-func (x *PortForwardFromWorker) GetInitAction() *PortForwardFromWorker_Init {
-	if x, ok := x.GetAction().(*PortForwardFromWorker_InitAction); ok {
-		return x.InitAction
-	}
-	return nil
-}
-
-func (x *PortForwardFromWorker) GetDataAction() *PortForwardFromWorker_Data {
-	if x, ok := x.GetAction().(*PortForwardFromWorker_DataAction); ok {
-		return x.DataAction
-	}
-	return nil
-}
-
-type isPortForwardFromWorker_Action interface {
-	isPortForwardFromWorker_Action()
-}
-
-type PortForwardFromWorker_InitAction struct {
-	InitAction *PortForwardFromWorker_Init `protobuf:"bytes,1,opt,name=init_action,json=initAction,proto3,oneof"`
-}
-
-type PortForwardFromWorker_DataAction struct {
-	DataAction *PortForwardFromWorker_Data `protobuf:"bytes,2,opt,name=data_action,json=dataAction,proto3,oneof"`
-}
-
-func (*PortForwardFromWorker_InitAction) isPortForwardFromWorker_Action() {}
-
-func (*PortForwardFromWorker_DataAction) isPortForwardFromWorker_Action() {}
-
-type PortForwardFromController struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
-	unknownFields protoimpl.UnknownFields
-
-	// Types that are assignable to Action:
-	//
-	//	*PortForwardFromController_DataAction
-	Action isPortForwardFromController_Action `protobuf_oneof:"action"`
-}
-
-func (x *PortForwardFromController) Reset() {
-	*x = PortForwardFromController{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_orchard_proto_msgTypes[3]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
-	}
-}
-
-func (x *PortForwardFromController) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*PortForwardFromController) ProtoMessage() {}
-
-func (x *PortForwardFromController) ProtoReflect() protoreflect.Message {
-	mi := &file_orchard_proto_msgTypes[3]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use PortForwardFromController.ProtoReflect.Descriptor instead.
-func (*PortForwardFromController) Descriptor() ([]byte, []int) {
-	return file_orchard_proto_rawDescGZIP(), []int{3}
-}
-
-func (m *PortForwardFromController) GetAction() isPortForwardFromController_Action {
-	if m != nil {
-		return m.Action
-	}
-	return nil
-}
-
-func (x *PortForwardFromController) GetDataAction() *PortForwardFromController_Data {
-	if x, ok := x.GetAction().(*PortForwardFromController_DataAction); ok {
-		return x.DataAction
-	}
-	return nil
-}
-
-type isPortForwardFromController_Action interface {
-	isPortForwardFromController_Action()
-}
-
-type PortForwardFromController_DataAction struct {
-	DataAction *PortForwardFromController_Data `protobuf:"bytes,1,opt,name=data_action,json=dataAction,proto3,oneof"`
-}
-
-func (*PortForwardFromController_DataAction) isPortForwardFromController_Action() {}
-
-type WatchFromWorker_Init struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
-	unknownFields protoimpl.UnknownFields
-
-	WorkerUid string `protobuf:"bytes,1,opt,name=worker_uid,json=workerUid,proto3" json:"worker_uid,omitempty"`
-}
-
-func (x *WatchFromWorker_Init) Reset() {
-	*x = WatchFromWorker_Init{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_orchard_proto_msgTypes[4]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
-	}
-}
-
-func (x *WatchFromWorker_Init) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*WatchFromWorker_Init) ProtoMessage() {}
-
-func (x *WatchFromWorker_Init) ProtoReflect() protoreflect.Message {
-	mi := &file_orchard_proto_msgTypes[4]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use WatchFromWorker_Init.ProtoReflect.Descriptor instead.
-func (*WatchFromWorker_Init) Descriptor() ([]byte, []int) {
+// Deprecated: Use WatchInstruction_PortForward.ProtoReflect.Descriptor instead.
+func (*WatchInstruction_PortForward) Descriptor() ([]byte, []int) {
 	return file_orchard_proto_rawDescGZIP(), []int{0, 0}
 }
 
-func (x *WatchFromWorker_Init) GetWorkerUid() string {
+func (x *WatchInstruction_PortForward) GetSession() string {
 	if x != nil {
-		return x.WorkerUid
+		return x.Session
 	}
 	return ""
 }
 
-type WatchFromController_PortForward struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
-	unknownFields protoimpl.UnknownFields
-
-	Token  string `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
-	VmUid  string `protobuf:"bytes,2,opt,name=vm_uid,json=vmUid,proto3" json:"vm_uid,omitempty"`
-	VmPort uint32 `protobuf:"varint,3,opt,name=vm_port,json=vmPort,proto3" json:"vm_port,omitempty"`
-}
-
-func (x *WatchFromController_PortForward) Reset() {
-	*x = WatchFromController_PortForward{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_orchard_proto_msgTypes[5]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
-	}
-}
-
-func (x *WatchFromController_PortForward) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*WatchFromController_PortForward) ProtoMessage() {}
-
-func (x *WatchFromController_PortForward) ProtoReflect() protoreflect.Message {
-	mi := &file_orchard_proto_msgTypes[5]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use WatchFromController_PortForward.ProtoReflect.Descriptor instead.
-func (*WatchFromController_PortForward) Descriptor() ([]byte, []int) {
-	return file_orchard_proto_rawDescGZIP(), []int{1, 0}
-}
-
-func (x *WatchFromController_PortForward) GetToken() string {
-	if x != nil {
-		return x.Token
-	}
-	return ""
-}
-
-func (x *WatchFromController_PortForward) GetVmUid() string {
+func (x *WatchInstruction_PortForward) GetVmUid() string {
 	if x != nil {
 		return x.VmUid
 	}
 	return ""
 }
 
-func (x *WatchFromController_PortForward) GetVmPort() uint32 {
+func (x *WatchInstruction_PortForward) GetVmPort() uint32 {
 	if x != nil {
 		return x.VmPort
 	}
 	return 0
 }
 
-type PortForwardFromWorker_Init struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
-	unknownFields protoimpl.UnknownFields
-
-	Token string `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
-}
-
-func (x *PortForwardFromWorker_Init) Reset() {
-	*x = PortForwardFromWorker_Init{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_orchard_proto_msgTypes[6]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
-	}
-}
-
-func (x *PortForwardFromWorker_Init) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*PortForwardFromWorker_Init) ProtoMessage() {}
-
-func (x *PortForwardFromWorker_Init) ProtoReflect() protoreflect.Message {
-	mi := &file_orchard_proto_msgTypes[6]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use PortForwardFromWorker_Init.ProtoReflect.Descriptor instead.
-func (*PortForwardFromWorker_Init) Descriptor() ([]byte, []int) {
-	return file_orchard_proto_rawDescGZIP(), []int{2, 0}
-}
-
-func (x *PortForwardFromWorker_Init) GetToken() string {
-	if x != nil {
-		return x.Token
-	}
-	return ""
-}
-
-type PortForwardFromWorker_Data struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
-	unknownFields protoimpl.UnknownFields
-
-	Data []byte `protobuf:"bytes,1,opt,name=data,proto3" json:"data,omitempty"`
-}
-
-func (x *PortForwardFromWorker_Data) Reset() {
-	*x = PortForwardFromWorker_Data{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_orchard_proto_msgTypes[7]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
-	}
-}
-
-func (x *PortForwardFromWorker_Data) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*PortForwardFromWorker_Data) ProtoMessage() {}
-
-func (x *PortForwardFromWorker_Data) ProtoReflect() protoreflect.Message {
-	mi := &file_orchard_proto_msgTypes[7]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use PortForwardFromWorker_Data.ProtoReflect.Descriptor instead.
-func (*PortForwardFromWorker_Data) Descriptor() ([]byte, []int) {
-	return file_orchard_proto_rawDescGZIP(), []int{2, 1}
-}
-
-func (x *PortForwardFromWorker_Data) GetData() []byte {
-	if x != nil {
-		return x.Data
-	}
-	return nil
-}
-
-type PortForwardFromController_Data struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
-	unknownFields protoimpl.UnknownFields
-
-	Data []byte `protobuf:"bytes,1,opt,name=data,proto3" json:"data,omitempty"`
-}
-
-func (x *PortForwardFromController_Data) Reset() {
-	*x = PortForwardFromController_Data{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_orchard_proto_msgTypes[8]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
-	}
-}
-
-func (x *PortForwardFromController_Data) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*PortForwardFromController_Data) ProtoMessage() {}
-
-func (x *PortForwardFromController_Data) ProtoReflect() protoreflect.Message {
-	mi := &file_orchard_proto_msgTypes[8]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use PortForwardFromController_Data.ProtoReflect.Descriptor instead.
-func (*PortForwardFromController_Data) Descriptor() ([]byte, []int) {
-	return file_orchard_proto_rawDescGZIP(), []int{3, 0}
-}
-
-func (x *PortForwardFromController_Data) GetData() []byte {
-	if x != nil {
-		return x.Data
-	}
-	return nil
-}
-
 var File_orchard_proto protoreflect.FileDescriptor
 
 var file_orchard_proto_rawDesc = []byte{
-	0x0a, 0x0d, 0x6f, 0x72, 0x63, 0x68, 0x61, 0x72, 0x64, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x22,
-	0x7c, 0x0a, 0x0f, 0x57, 0x61, 0x74, 0x63, 0x68, 0x46, 0x72, 0x6f, 0x6d, 0x57, 0x6f, 0x72, 0x6b,
-	0x65, 0x72, 0x12, 0x38, 0x0a, 0x0b, 0x69, 0x6e, 0x69, 0x74, 0x5f, 0x61, 0x63, 0x74, 0x69, 0x6f,
-	0x6e, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x15, 0x2e, 0x57, 0x61, 0x74, 0x63, 0x68, 0x46,
-	0x72, 0x6f, 0x6d, 0x57, 0x6f, 0x72, 0x6b, 0x65, 0x72, 0x2e, 0x49, 0x6e, 0x69, 0x74, 0x48, 0x00,
-	0x52, 0x0a, 0x69, 0x6e, 0x69, 0x74, 0x41, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x1a, 0x25, 0x0a, 0x04,
-	0x49, 0x6e, 0x69, 0x74, 0x12, 0x1d, 0x0a, 0x0a, 0x77, 0x6f, 0x72, 0x6b, 0x65, 0x72, 0x5f, 0x75,
-	0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x09, 0x77, 0x6f, 0x72, 0x6b, 0x65, 0x72,
-	0x55, 0x69, 0x64, 0x42, 0x08, 0x0a, 0x06, 0x61, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x22, 0xc8, 0x01,
-	0x0a, 0x13, 0x57, 0x61, 0x74, 0x63, 0x68, 0x46, 0x72, 0x6f, 0x6d, 0x43, 0x6f, 0x6e, 0x74, 0x72,
-	0x6f, 0x6c, 0x6c, 0x65, 0x72, 0x12, 0x52, 0x0a, 0x13, 0x70, 0x6f, 0x72, 0x74, 0x5f, 0x66, 0x6f,
-	0x72, 0x77, 0x61, 0x72, 0x64, 0x5f, 0x61, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x18, 0x01, 0x20, 0x01,
-	0x28, 0x0b, 0x32, 0x20, 0x2e, 0x57, 0x61, 0x74, 0x63, 0x68, 0x46, 0x72, 0x6f, 0x6d, 0x43, 0x6f,
-	0x6e, 0x74, 0x72, 0x6f, 0x6c, 0x6c, 0x65, 0x72, 0x2e, 0x50, 0x6f, 0x72, 0x74, 0x46, 0x6f, 0x72,
-	0x77, 0x61, 0x72, 0x64, 0x48, 0x00, 0x52, 0x11, 0x70, 0x6f, 0x72, 0x74, 0x46, 0x6f, 0x72, 0x77,
-	0x61, 0x72, 0x64, 0x41, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x1a, 0x53, 0x0a, 0x0b, 0x50, 0x6f, 0x72,
-	0x74, 0x46, 0x6f, 0x72, 0x77, 0x61, 0x72, 0x64, 0x12, 0x14, 0x0a, 0x05, 0x74, 0x6f, 0x6b, 0x65,
-	0x6e, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x05, 0x74, 0x6f, 0x6b, 0x65, 0x6e, 0x12, 0x15,
-	0x0a, 0x06, 0x76, 0x6d, 0x5f, 0x75, 0x69, 0x64, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x05,
-	0x76, 0x6d, 0x55, 0x69, 0x64, 0x12, 0x17, 0x0a, 0x07, 0x76, 0x6d, 0x5f, 0x70, 0x6f, 0x72, 0x74,
-	0x18, 0x03, 0x20, 0x01, 0x28, 0x0d, 0x52, 0x06, 0x76, 0x6d, 0x50, 0x6f, 0x72, 0x74, 0x42, 0x08,
-	0x0a, 0x06, 0x61, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x22, 0xdb, 0x01, 0x0a, 0x15, 0x50, 0x6f, 0x72,
-	0x74, 0x46, 0x6f, 0x72, 0x77, 0x61, 0x72, 0x64, 0x46, 0x72, 0x6f, 0x6d, 0x57, 0x6f, 0x72, 0x6b,
-	0x65, 0x72, 0x12, 0x3e, 0x0a, 0x0b, 0x69, 0x6e, 0x69, 0x74, 0x5f, 0x61, 0x63, 0x74, 0x69, 0x6f,
-	0x6e, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1b, 0x2e, 0x50, 0x6f, 0x72, 0x74, 0x46, 0x6f,
-	0x72, 0x77, 0x61, 0x72, 0x64, 0x46, 0x72, 0x6f, 0x6d, 0x57, 0x6f, 0x72, 0x6b, 0x65, 0x72, 0x2e,
-	0x49, 0x6e, 0x69, 0x74, 0x48, 0x00, 0x52, 0x0a, 0x69, 0x6e, 0x69, 0x74, 0x41, 0x63, 0x74, 0x69,
-	0x6f, 0x6e, 0x12, 0x3e, 0x0a, 0x0b, 0x64, 0x61, 0x74, 0x61, 0x5f, 0x61, 0x63, 0x74, 0x69, 0x6f,
-	0x6e, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1b, 0x2e, 0x50, 0x6f, 0x72, 0x74, 0x46, 0x6f,
-	0x72, 0x77, 0x61, 0x72, 0x64, 0x46, 0x72, 0x6f, 0x6d, 0x57, 0x6f, 0x72, 0x6b, 0x65, 0x72, 0x2e,
-	0x44, 0x61, 0x74, 0x61, 0x48, 0x00, 0x52, 0x0a, 0x64, 0x61, 0x74, 0x61, 0x41, 0x63, 0x74, 0x69,
-	0x6f, 0x6e, 0x1a, 0x1c, 0x0a, 0x04, 0x49, 0x6e, 0x69, 0x74, 0x12, 0x14, 0x0a, 0x05, 0x74, 0x6f,
-	0x6b, 0x65, 0x6e, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x05, 0x74, 0x6f, 0x6b, 0x65, 0x6e,
-	0x1a, 0x1a, 0x0a, 0x04, 0x44, 0x61, 0x74, 0x61, 0x12, 0x12, 0x0a, 0x04, 0x64, 0x61, 0x74, 0x61,
-	0x18, 0x01, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x04, 0x64, 0x61, 0x74, 0x61, 0x42, 0x08, 0x0a, 0x06,
-	0x61, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x22, 0x85, 0x01, 0x0a, 0x19, 0x50, 0x6f, 0x72, 0x74, 0x46,
-	0x6f, 0x72, 0x77, 0x61, 0x72, 0x64, 0x46, 0x72, 0x6f, 0x6d, 0x43, 0x6f, 0x6e, 0x74, 0x72, 0x6f,
-	0x6c, 0x6c, 0x65, 0x72, 0x12, 0x42, 0x0a, 0x0b, 0x64, 0x61, 0x74, 0x61, 0x5f, 0x61, 0x63, 0x74,
-	0x69, 0x6f, 0x6e, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1f, 0x2e, 0x50, 0x6f, 0x72, 0x74,
-	0x46, 0x6f, 0x72, 0x77, 0x61, 0x72, 0x64, 0x46, 0x72, 0x6f, 0x6d, 0x43, 0x6f, 0x6e, 0x74, 0x72,
-	0x6f, 0x6c, 0x6c, 0x65, 0x72, 0x2e, 0x44, 0x61, 0x74, 0x61, 0x48, 0x00, 0x52, 0x0a, 0x64, 0x61,
-	0x74, 0x61, 0x41, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x1a, 0x1a, 0x0a, 0x04, 0x44, 0x61, 0x74, 0x61,
-	0x12, 0x12, 0x0a, 0x04, 0x64, 0x61, 0x74, 0x61, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x04,
-	0x64, 0x61, 0x74, 0x61, 0x42, 0x08, 0x0a, 0x06, 0x61, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x32, 0x88,
-	0x01, 0x0a, 0x0a, 0x43, 0x6f, 0x6e, 0x74, 0x72, 0x6f, 0x6c, 0x6c, 0x65, 0x72, 0x12, 0x33, 0x0a,
-	0x05, 0x57, 0x61, 0x74, 0x63, 0x68, 0x12, 0x10, 0x2e, 0x57, 0x61, 0x74, 0x63, 0x68, 0x46, 0x72,
-	0x6f, 0x6d, 0x57, 0x6f, 0x72, 0x6b, 0x65, 0x72, 0x1a, 0x14, 0x2e, 0x57, 0x61, 0x74, 0x63, 0x68,
-	0x46, 0x72, 0x6f, 0x6d, 0x43, 0x6f, 0x6e, 0x74, 0x72, 0x6f, 0x6c, 0x6c, 0x65, 0x72, 0x28, 0x01,
-	0x30, 0x01, 0x12, 0x45, 0x0a, 0x0b, 0x50, 0x6f, 0x72, 0x74, 0x46, 0x6f, 0x72, 0x77, 0x61, 0x72,
-	0x64, 0x12, 0x16, 0x2e, 0x50, 0x6f, 0x72, 0x74, 0x46, 0x6f, 0x72, 0x77, 0x61, 0x72, 0x64, 0x46,
-	0x72, 0x6f, 0x6d, 0x57, 0x6f, 0x72, 0x6b, 0x65, 0x72, 0x1a, 0x1a, 0x2e, 0x50, 0x6f, 0x72, 0x74,
-	0x46, 0x6f, 0x72, 0x77, 0x61, 0x72, 0x64, 0x46, 0x72, 0x6f, 0x6d, 0x43, 0x6f, 0x6e, 0x74, 0x72,
-	0x6f, 0x6c, 0x6c, 0x65, 0x72, 0x28, 0x01, 0x30, 0x01, 0x42, 0x23, 0x5a, 0x21, 0x67, 0x69, 0x74,
-	0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x63, 0x69, 0x72, 0x72, 0x75, 0x73, 0x6c, 0x61,
-	0x62, 0x73, 0x2f, 0x6f, 0x72, 0x63, 0x68, 0x61, 0x72, 0x64, 0x2f, 0x72, 0x70, 0x63, 0x62, 0x06,
-	0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x0a, 0x0d, 0x6f, 0x72, 0x63, 0x68, 0x61, 0x72, 0x64, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x1a,
+	0x1b, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66,
+	0x2f, 0x65, 0x6d, 0x70, 0x74, 0x79, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x22, 0xc6, 0x01, 0x0a,
+	0x10, 0x57, 0x61, 0x74, 0x63, 0x68, 0x49, 0x6e, 0x73, 0x74, 0x72, 0x75, 0x63, 0x74, 0x69, 0x6f,
+	0x6e, 0x12, 0x4f, 0x0a, 0x13, 0x70, 0x6f, 0x72, 0x74, 0x5f, 0x66, 0x6f, 0x72, 0x77, 0x61, 0x72,
+	0x64, 0x5f, 0x61, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1d,
+	0x2e, 0x57, 0x61, 0x74, 0x63, 0x68, 0x49, 0x6e, 0x73, 0x74, 0x72, 0x75, 0x63, 0x74, 0x69, 0x6f,
+	0x6e, 0x2e, 0x50, 0x6f, 0x72, 0x74, 0x46, 0x6f, 0x72, 0x77, 0x61, 0x72, 0x64, 0x48, 0x00, 0x52,
+	0x11, 0x70, 0x6f, 0x72, 0x74, 0x46, 0x6f, 0x72, 0x77, 0x61, 0x72, 0x64, 0x41, 0x63, 0x74, 0x69,
+	0x6f, 0x6e, 0x1a, 0x57, 0x0a, 0x0b, 0x50, 0x6f, 0x72, 0x74, 0x46, 0x6f, 0x72, 0x77, 0x61, 0x72,
+	0x64, 0x12, 0x18, 0x0a, 0x07, 0x73, 0x65, 0x73, 0x73, 0x69, 0x6f, 0x6e, 0x18, 0x01, 0x20, 0x01,
+	0x28, 0x09, 0x52, 0x07, 0x73, 0x65, 0x73, 0x73, 0x69, 0x6f, 0x6e, 0x12, 0x15, 0x0a, 0x06, 0x76,
+	0x6d, 0x5f, 0x75, 0x69, 0x64, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x05, 0x76, 0x6d, 0x55,
+	0x69, 0x64, 0x12, 0x17, 0x0a, 0x07, 0x76, 0x6d, 0x5f, 0x70, 0x6f, 0x72, 0x74, 0x18, 0x03, 0x20,
+	0x01, 0x28, 0x0d, 0x52, 0x06, 0x76, 0x6d, 0x50, 0x6f, 0x72, 0x74, 0x42, 0x08, 0x0a, 0x06, 0x61,
+	0x63, 0x74, 0x69, 0x6f, 0x6e, 0x22, 0x25, 0x0a, 0x0f, 0x50, 0x6f, 0x72, 0x74, 0x46, 0x6f, 0x72,
+	0x77, 0x61, 0x72, 0x64, 0x44, 0x61, 0x74, 0x61, 0x12, 0x12, 0x0a, 0x04, 0x64, 0x61, 0x74, 0x61,
+	0x18, 0x01, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x04, 0x64, 0x61, 0x74, 0x61, 0x32, 0x79, 0x0a, 0x0a,
+	0x43, 0x6f, 0x6e, 0x74, 0x72, 0x6f, 0x6c, 0x6c, 0x65, 0x72, 0x12, 0x34, 0x0a, 0x05, 0x57, 0x61,
+	0x74, 0x63, 0x68, 0x12, 0x16, 0x2e, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x70, 0x72, 0x6f,
+	0x74, 0x6f, 0x62, 0x75, 0x66, 0x2e, 0x45, 0x6d, 0x70, 0x74, 0x79, 0x1a, 0x11, 0x2e, 0x57, 0x61,
+	0x74, 0x63, 0x68, 0x49, 0x6e, 0x73, 0x74, 0x72, 0x75, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x30, 0x01,
+	0x12, 0x35, 0x0a, 0x0b, 0x50, 0x6f, 0x72, 0x74, 0x46, 0x6f, 0x72, 0x77, 0x61, 0x72, 0x64, 0x12,
+	0x10, 0x2e, 0x50, 0x6f, 0x72, 0x74, 0x46, 0x6f, 0x72, 0x77, 0x61, 0x72, 0x64, 0x44, 0x61, 0x74,
+	0x61, 0x1a, 0x10, 0x2e, 0x50, 0x6f, 0x72, 0x74, 0x46, 0x6f, 0x72, 0x77, 0x61, 0x72, 0x64, 0x44,
+	0x61, 0x74, 0x61, 0x28, 0x01, 0x30, 0x01, 0x42, 0x23, 0x5a, 0x21, 0x67, 0x69, 0x74, 0x68, 0x75,
+	0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x63, 0x69, 0x72, 0x72, 0x75, 0x73, 0x6c, 0x61, 0x62, 0x73,
+	0x2f, 0x6f, 0x72, 0x63, 0x68, 0x61, 0x72, 0x64, 0x2f, 0x72, 0x70, 0x63, 0x62, 0x06, 0x70, 0x72,
+	0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -626,33 +246,24 @@ func file_orchard_proto_rawDescGZIP() []byte {
 	return file_orchard_proto_rawDescData
 }
 
-var file_orchard_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
+var file_orchard_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
 var file_orchard_proto_goTypes = []interface{}{
-	(*WatchFromWorker)(nil),                 // 0: WatchFromWorker
-	(*WatchFromController)(nil),             // 1: WatchFromController
-	(*PortForwardFromWorker)(nil),           // 2: PortForwardFromWorker
-	(*PortForwardFromController)(nil),       // 3: PortForwardFromController
-	(*WatchFromWorker_Init)(nil),            // 4: WatchFromWorker.Init
-	(*WatchFromController_PortForward)(nil), // 5: WatchFromController.PortForward
-	(*PortForwardFromWorker_Init)(nil),      // 6: PortForwardFromWorker.Init
-	(*PortForwardFromWorker_Data)(nil),      // 7: PortForwardFromWorker.Data
-	(*PortForwardFromController_Data)(nil),  // 8: PortForwardFromController.Data
+	(*WatchInstruction)(nil),             // 0: WatchInstruction
+	(*PortForwardData)(nil),              // 1: PortForwardData
+	(*WatchInstruction_PortForward)(nil), // 2: WatchInstruction.PortForward
+	(*emptypb.Empty)(nil),                // 3: google.protobuf.Empty
 }
 var file_orchard_proto_depIdxs = []int32{
-	4, // 0: WatchFromWorker.init_action:type_name -> WatchFromWorker.Init
-	5, // 1: WatchFromController.port_forward_action:type_name -> WatchFromController.PortForward
-	6, // 2: PortForwardFromWorker.init_action:type_name -> PortForwardFromWorker.Init
-	7, // 3: PortForwardFromWorker.data_action:type_name -> PortForwardFromWorker.Data
-	8, // 4: PortForwardFromController.data_action:type_name -> PortForwardFromController.Data
-	0, // 5: Controller.Watch:input_type -> WatchFromWorker
-	2, // 6: Controller.PortForward:input_type -> PortForwardFromWorker
-	1, // 7: Controller.Watch:output_type -> WatchFromController
-	3, // 8: Controller.PortForward:output_type -> PortForwardFromController
-	7, // [7:9] is the sub-list for method output_type
-	5, // [5:7] is the sub-list for method input_type
-	5, // [5:5] is the sub-list for extension type_name
-	5, // [5:5] is the sub-list for extension extendee
-	0, // [0:5] is the sub-list for field type_name
+	2, // 0: WatchInstruction.port_forward_action:type_name -> WatchInstruction.PortForward
+	3, // 1: Controller.Watch:input_type -> google.protobuf.Empty
+	1, // 2: Controller.PortForward:input_type -> PortForwardData
+	0, // 3: Controller.Watch:output_type -> WatchInstruction
+	1, // 4: Controller.PortForward:output_type -> PortForwardData
+	3, // [3:5] is the sub-list for method output_type
+	1, // [1:3] is the sub-list for method input_type
+	1, // [1:1] is the sub-list for extension type_name
+	1, // [1:1] is the sub-list for extension extendee
+	0, // [0:1] is the sub-list for field type_name
 }
 
 func init() { file_orchard_proto_init() }
@@ -662,7 +273,7 @@ func file_orchard_proto_init() {
 	}
 	if !protoimpl.UnsafeEnabled {
 		file_orchard_proto_msgTypes[0].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*WatchFromWorker); i {
+			switch v := v.(*WatchInstruction); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -674,7 +285,7 @@ func file_orchard_proto_init() {
 			}
 		}
 		file_orchard_proto_msgTypes[1].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*WatchFromController); i {
+			switch v := v.(*PortForwardData); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -686,79 +297,7 @@ func file_orchard_proto_init() {
 			}
 		}
 		file_orchard_proto_msgTypes[2].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*PortForwardFromWorker); i {
-			case 0:
-				return &v.state
-			case 1:
-				return &v.sizeCache
-			case 2:
-				return &v.unknownFields
-			default:
-				return nil
-			}
-		}
-		file_orchard_proto_msgTypes[3].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*PortForwardFromController); i {
-			case 0:
-				return &v.state
-			case 1:
-				return &v.sizeCache
-			case 2:
-				return &v.unknownFields
-			default:
-				return nil
-			}
-		}
-		file_orchard_proto_msgTypes[4].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*WatchFromWorker_Init); i {
-			case 0:
-				return &v.state
-			case 1:
-				return &v.sizeCache
-			case 2:
-				return &v.unknownFields
-			default:
-				return nil
-			}
-		}
-		file_orchard_proto_msgTypes[5].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*WatchFromController_PortForward); i {
-			case 0:
-				return &v.state
-			case 1:
-				return &v.sizeCache
-			case 2:
-				return &v.unknownFields
-			default:
-				return nil
-			}
-		}
-		file_orchard_proto_msgTypes[6].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*PortForwardFromWorker_Init); i {
-			case 0:
-				return &v.state
-			case 1:
-				return &v.sizeCache
-			case 2:
-				return &v.unknownFields
-			default:
-				return nil
-			}
-		}
-		file_orchard_proto_msgTypes[7].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*PortForwardFromWorker_Data); i {
-			case 0:
-				return &v.state
-			case 1:
-				return &v.sizeCache
-			case 2:
-				return &v.unknownFields
-			default:
-				return nil
-			}
-		}
-		file_orchard_proto_msgTypes[8].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*PortForwardFromController_Data); i {
+			switch v := v.(*WatchInstruction_PortForward); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -771,17 +310,7 @@ func file_orchard_proto_init() {
 		}
 	}
 	file_orchard_proto_msgTypes[0].OneofWrappers = []interface{}{
-		(*WatchFromWorker_InitAction)(nil),
-	}
-	file_orchard_proto_msgTypes[1].OneofWrappers = []interface{}{
-		(*WatchFromController_PortForwardAction)(nil),
-	}
-	file_orchard_proto_msgTypes[2].OneofWrappers = []interface{}{
-		(*PortForwardFromWorker_InitAction)(nil),
-		(*PortForwardFromWorker_DataAction)(nil),
-	}
-	file_orchard_proto_msgTypes[3].OneofWrappers = []interface{}{
-		(*PortForwardFromController_DataAction)(nil),
+		(*WatchInstruction_PortForwardAction)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -789,7 +318,7 @@ func file_orchard_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_orchard_proto_rawDesc,
 			NumEnums:      0,
-			NumMessages:   9,
+			NumMessages:   3,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
