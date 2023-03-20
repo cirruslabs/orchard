@@ -70,6 +70,15 @@ func (dataDir *DataDir) DBPath() string {
 	return filepath.Join(dataDir.path, "db")
 }
 
+func (dataDir *DataDir) ControllerCertificateExists() bool {
+	return fileExist(dataDir.ControllerCertificatePath()) && fileExist(dataDir.ControllerKeyPath())
+}
+
+func fileExist(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
+}
+
 func (dataDir *DataDir) ControllerCertificatePath() string {
 	return filepath.Join(dataDir.path, "controller.crt")
 }

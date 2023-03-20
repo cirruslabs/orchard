@@ -19,7 +19,6 @@ const ctxServiceAccountKey = "service-account"
 var ErrUnauthorized = errors.New("unauthorized")
 
 func (controller *Controller) initAPI() *gin.Engine {
-	gin.SetMode(gin.DebugMode)
 	ginEngine := gin.Default()
 
 	// v1 API
