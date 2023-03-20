@@ -39,7 +39,7 @@ func run(cmd *cobra.Command, args []string) (err error) {
 		return err
 	}
 
-	listener, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:0"))
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		return err
 	}

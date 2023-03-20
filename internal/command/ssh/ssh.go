@@ -2,16 +2,19 @@ package ssh
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/cirruslabs/orchard/pkg/client"
 	"github.com/spf13/cobra"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/terminal"
+	"golang.org/x/term"
 	"io"
 	"net"
 	"os"
 	"time"
 )
+
+var ErrFailed = errors.New("ssh command failed")
 
 var username string
 var password string
@@ -62,33 +65,35 @@ func run(cmd *cobra.Command, args []string) error {
 
 	sshConn, chans, reqs, err := ssh.NewClientConn(wsConn, "", sshConfig)
 	if err != nil {
-		return fmt.Errorf("failed to establish an SSH connection: %v", err)
+		return fmt.Errorf("%w: failed to establish an SSH connection: %v", ErrFailed, err)
 	}
 
 	sshClient := ssh.NewClient(sshConn, chans, reqs)
 
 	sshSess, err := sshClient.NewSession()
 	if err != nil {
-		return fmt.Errorf("failed to open an SSH session: %v", err)
+		return fmt.Errorf("%w: failed to open an SSH session: %v", ErrFailed, err)
 	}
 
 	// Switch controlling terminal into raw mode,
 	// otherwise ANSI escape sequences that allow
 	// for cursor control and more wouldn't work
 	terminalFd := int(os.Stdin.Fd())
-	state, err := terminal.MakeRaw(terminalFd)
+	state, err := term.MakeRaw(terminalFd)
 	if err != nil {
-		return fmt.Errorf("failed to switch controlling terminal into raw mode: %v", err)
+		return fmt.Errorf("%w: failed to switch controlling terminal into raw mode: %v", ErrFailed, err)
 	}
-	defer terminal.Restore(terminalFd, state)
+	defer func() {
+		_ = term.Restore(terminalFd, state)
+	}()
 
-	width, height, err := terminal.GetSize(terminalFd)
+	width, height, err := term.GetSize(terminalFd)
 	if err != nil {
 		return err
 	}
 
 	if err := sshSess.RequestPty("xterm-256color", height, width, ssh.TerminalModes{}); err != nil {
-		return fmt.Errorf("failed to request the PTY from the SSH server: %v", err)
+		return fmt.Errorf("%w: failed to request the PTY from the SSH server: %v", ErrFailed, err)
 	}
 
 	sshSess.Stdout = os.Stdout
@@ -99,15 +104,15 @@ func run(cmd *cobra.Command, args []string) error {
 	}
 
 	go func() {
-		io.Copy(sshSessStdinPipe, os.Stdin)
-		sshSessStdinPipe.Close()
-		sshSess.Close()
+		_, _ = io.Copy(sshSessStdinPipe, os.Stdin)
+		_ = sshSessStdinPipe.Close()
+		_ = sshSess.Close()
 	}()
 
 	// Periodically adjust remote terminal size
 	go func() {
 		for {
-			newWidth, newHeight, err := terminal.GetSize(terminalFd)
+			newWidth, newHeight, err := term.GetSize(terminalFd)
 			if err != nil {
 				return
 			}

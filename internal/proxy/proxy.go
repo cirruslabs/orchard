@@ -43,5 +43,5 @@ func Connections(left net.Conn, right net.Conn) (finalErr error) {
 		finalErr = nil
 	}
 
-	return
+	return finalErr
 }
