@@ -5,18 +5,32 @@ import (
 	"errors"
 	"fmt"
 	"github.com/cirruslabs/orchard/internal/controller"
+	"github.com/cirruslabs/orchard/internal/netconstants"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
+	"os"
+	"strconv"
 )
 
 var ErrRunFailed = errors.New("failed to run controller")
 
+var address string
+
 func newRunCommand() *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "run",
 		Short: "Run the controller",
 		RunE:  runController,
 	}
+
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = strconv.FormatInt(netconstants.DefaultControllerPort, 10)
+	}
+
+	cmd.PersistentFlags().StringVarP(&address, "listen", "l", fmt.Sprintf(":%s", port), "address to listen on")
+
+	return cmd
 }
 
 func runController(cmd *cobra.Command, args []string) (err error) {
@@ -53,6 +67,7 @@ func runController(cmd *cobra.Command, args []string) (err error) {
 	}
 
 	controller, err := controller.New(
+		controller.WithListenAddr(address),
 		controller.WithDataDir(dataDir),
 		controller.WithLogger(logger),
 		controller.WithTLSConfig(&tls.Config{

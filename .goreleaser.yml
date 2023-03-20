@@ -1,0 +1,41 @@
+project_name: orchard
+
+before:
+  hooks:
+    - go mod download
+
+builds:
+  - main: cmd/orchard/main.go
+    ldflags: >
+      -X github.com/cirruslabs/orchard/internal/version.Version={{.Version}}
+      -X github.com/cirruslabs/orchard/internal/version.Commit={{.ShortCommit}}
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - id: binary
+    format: binary
+    name_template: "{{ .ProjectName }}-{{ .Os }}-{{ .Arch }}"
+  - id: regular
+    name_template: "{{ .ProjectName }}-{{ .Os }}-{{ .Arch }}"
+
+release:
+  prerelease: auto
+
+brews:
+  - name: orchard
+    ids:
+      - regular
+    tap:
+      owner: cirruslabs
+      name: homebrew-cli
+    caveats: See the Github repository for more information
+    homepage: https://github.com/cirruslabs/orchard
+    description: Orchestrator for running Tart Virtual Machines on a cluster of Apple Silicon devices
+    skip_upload: auto

@@ -11,6 +11,7 @@ import (
 	"github.com/cirruslabs/orchard/internal/command/portforward"
 	"github.com/cirruslabs/orchard/internal/command/stop"
 	"github.com/cirruslabs/orchard/internal/command/worker"
+	"github.com/cirruslabs/orchard/internal/version"
 	"github.com/spf13/cobra"
 )
 
@@ -19,6 +20,7 @@ func NewRootCmd() *cobra.Command {
 		Use:           "orchard",
 		SilenceUsage:  true,
 		SilenceErrors: true,
+		Version:       version.FullVersion,
 	}
 
 	addGroupedCommands(command, "Working With Resources:",

@@ -11,3 +11,38 @@ task:
     cleanup_script:
       - tart list
       - rm -rf ~/.tart/vms/orchard-*
+
+task:
+  name: Release Binaries
+  only_if: $CIRRUS_TAG != ''
+  depends_on:
+    - Lint
+    - Test (macOS)
+  env:
+    GITHUB_TOKEN: ENCRYPTED[!98ace8259c6024da912c14d5a3c5c6aac186890a8d4819fad78f3e0c41a4e0cd3a2537dd6e91493952fb056fa434be7c!]
+  container:
+    image: goreleaser/goreleaser:latest
+    cpu: 4
+    memory: 12G
+  release_script: goreleaser
+
+
+docker_builder:
+  name: Release Docker Image
+  only_if: $CIRRUS_TAG != ''
+  depends_on:
+    - Lint
+    - Test (macOS)
+  env:
+    GITHUB_TOKEN: ENCRYPTED[!82ed873afdf627284305afef4958c85a8f73127b09978a9786ac521559630ea6c9a5ab6e7f8315abf9ead09b6eff6eae!]
+  login_script:
+    - echo $GITHUB_TOKEN | docker login ghcr.io -u fkorotkov --password-stdin
+  setup_script:
+    - docker buildx create --name multibuilder
+    - docker buildx use multibuilder
+    - docker buildx inspect --bootstrap
+  deploy_script: |
+    docker buildx build --push --platform linux/amd64,linux/arm64 \
+      --tag ghcr.io/cirruslabs/orchard:$CIRRUS_TAG \
+      --tag ghcr.io/cirruslabs/orchard:latest \
+      .
