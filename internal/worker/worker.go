@@ -65,15 +65,9 @@ func New(opts ...Option) (*Worker, error) {
 func (worker *Worker) Run(ctx context.Context) error {
 	tickCh := time.NewTicker(pollInterval)
 
-	go func() {
-		_ = retry.Do(func() error {
-			return worker.watchRPC(ctx)
-		}, retry.OnRetry(func(n uint, err error) {
-			worker.logger.Warnf("failed to watch RPC: %v", err)
-		}), retry.Context(ctx), retry.Attempts(0))
-	}()
-
 	for {
+		subCtx, cancel := context.WithCancel(ctx)
+
 		if err := worker.registerWorker(ctx); err != nil {
 			worker.logger.Warnf("failed to register worker: %v", err)
 
@@ -84,8 +78,17 @@ func (worker *Worker) Run(ctx context.Context) error {
 				return ctx.Err()
 			}
 
+			cancel()
 			continue
 		}
+
+		go func() {
+			_ = retry.Do(func() error {
+				return worker.watchRPC(subCtx)
+			}, retry.OnRetry(func(n uint, err error) {
+				worker.logger.Warnf("failed to watch RPC: %v", err)
+			}), retry.Context(subCtx), retry.Attempts(0))
+		}()
 
 		for {
 			if err := worker.updateWorker(ctx); err != nil {
@@ -121,6 +124,8 @@ func (worker *Worker) Run(ctx context.Context) error {
 				return ctx.Err()
 			}
 		}
+
+		cancel()
 	}
 }
 
