@@ -42,7 +42,8 @@ func newRunCommand() *cobra.Command {
 	cmd.PersistentFlags().StringVar(&serviceAccountName, "superuser-account-name", "",
 		"optional name of a service account with maximum privileges to auto-create")
 	cmd.PersistentFlags().StringVar(&serviceAccountToken, "superuser-account-token", "",
-		"token to use when creating a service account with maximum privileges (required when --admin-account-name is specified)")
+		"token to use when creating a service account with maximum privileges "+
+			"(required when --admin-account-name is specified)")
 
 	return cmd
 }

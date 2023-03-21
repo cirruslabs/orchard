@@ -26,14 +26,10 @@ var serviceAccountToken string
 func FindControllerCertificate(dataDir *controller.DataDir) (controllerCert tls.Certificate, err error) {
 	if controllerCertPath != "" || controllerKeyPath != "" {
 		// if external certificate is specified, use it
-		if err := checkBothCertAndKeyAreSpecified(); err != nil {
+		if err = checkBothCertAndKeyAreSpecified(); err != nil {
 			return controllerCert, err
 		}
-
-		controllerCert, err = tls.LoadX509KeyPair(controllerCertPath, controllerCertPath)
-		if err != nil {
-			return controllerCert, err
-		}
+		return tls.LoadX509KeyPair(controllerCertPath, controllerCertPath)
 	} else if !dataDir.ControllerCertificateExists() {
 		// otherwise, generate a self-signed certificate if it's not already present
 		controllerCert, err = GenerateSelfSignedControllerCertificate()
