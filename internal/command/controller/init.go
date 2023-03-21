@@ -12,8 +12,6 @@ import (
 	"fmt"
 	"github.com/cirruslabs/orchard/internal/controller"
 	"github.com/cirruslabs/orchard/internal/netconstants"
-	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
-	"github.com/spf13/cobra"
 	"math/big"
 	"time"
 )
@@ -24,86 +22,25 @@ var controllerCertPath string
 var controllerKeyPath string
 var serviceAccountName string
 var serviceAccountToken string
-var force bool
 
-func newInitCommand() *cobra.Command {
-	command := &cobra.Command{
-		Use:   "init",
-		Short: "Initialize the controller",
-		RunE:  runInit,
-	}
-
-	command.PersistentFlags().StringVar(&controllerCertPath, "controller-cert", "",
-		"do not auto-generate the controller certificate, import it from the specified path instead"+
-			" (requires --controller-key)")
-	command.PersistentFlags().StringVar(&controllerKeyPath, "controller-key", "",
-		"do not auto-generate the controller certificate key, import it from the specified path instead"+
-			" (requires --controller-cert)")
-	command.PersistentFlags().StringVar(&serviceAccountName, "service-account-name", "admin",
-		"name of the service account with maximum privileges to create")
-	command.PersistentFlags().StringVar(&serviceAccountToken, "service-account-token", "",
-		"token to use when creating the service account with maximum privileges")
-	command.PersistentFlags().BoolVar(&force, "force", false,
-		"force re-initialization if the controller is already initialized")
-
-	return command
-}
-
-func runInit(cmd *cobra.Command, args []string) (err error) {
-	if serviceAccountToken == "" {
-		return fmt.Errorf("%w: --service-account-token is required", ErrInitFailed)
-	}
-
-	dataDir, err := controller.NewDataDir(dataDirPath)
-	if err != nil {
-		return err
-	}
-
-	initialized, err := dataDir.Initialized()
-	if err != nil {
-		return err
-	}
-
-	if initialized && !force {
-		return fmt.Errorf("%w: controller is already initialized, preventing overwrite; "+
-			"please specify \"--force\" to re-initialize", ErrInitFailed)
-	}
-
-	var controllerCert tls.Certificate
-
+func FindControllerCertificate(dataDir *controller.DataDir) (controllerCert tls.Certificate, err error) {
 	if controllerCertPath != "" || controllerKeyPath != "" {
-		if err := checkBothCertAndKeyAreSpecified(); err != nil {
-			return err
+		// if external certificate is specified, use it
+		if err = checkBothCertAndKeyAreSpecified(); err != nil {
+			return controllerCert, err
 		}
-
-		controllerCert, err = tls.LoadX509KeyPair(controllerCertPath, controllerCertPath)
-		if err != nil {
-			return err
-		}
-	} else {
+		return tls.LoadX509KeyPair(controllerCertPath, controllerCertPath)
+	} else if !dataDir.ControllerCertificateExists() {
+		// otherwise, generate a self-signed certificate if it's not already present
 		controllerCert, err = GenerateSelfSignedControllerCertificate()
 		if err != nil {
-			return err
+			return controllerCert, err
+		}
+		if err = dataDir.SetControllerCertificate(controllerCert); err != nil {
+			return controllerCert, err
 		}
 	}
-
-	if err := dataDir.SetControllerCertificate(controllerCert); err != nil {
-		return err
-	}
-
-	// Run the controller to create the service account with maximum privileges
-	controller, err := controller.New(controller.WithDataDir(dataDir))
-	if err != nil {
-		return err
-	}
-
-	return controller.EnsureServiceAccount(&v1.ServiceAccount{
-		Meta: v1.Meta{
-			Name: serviceAccountName,
-		},
-		Token: serviceAccountToken,
-		Roles: v1.AllServiceAccountRoles(),
-	})
+	return
 }
 
 func checkBothCertAndKeyAreSpecified() error {

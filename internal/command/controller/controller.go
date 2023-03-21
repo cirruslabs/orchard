@@ -12,10 +12,10 @@ var dataDirPath string
 func NewCommand() *cobra.Command {
 	command := &cobra.Command{
 		Use:   "controller",
-		Short: "Initialize and run a controller on the local machine",
+		Short: "Run a controller on the local machine",
 	}
 
-	command.AddCommand(newInitCommand(), newRunCommand())
+	command.AddCommand(newRunCommand())
 
 	orchardHome, err := orchardhome.Path()
 	if err != nil {

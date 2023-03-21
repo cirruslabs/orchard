@@ -116,7 +116,8 @@ func (controller *Controller) EnsureServiceAccount(serviceAccount *v1.ServiceAcc
 	}
 
 	if serviceAccount.Token == "" {
-		serviceAccount.Token = uuid.New().String()
+		return fmt.Errorf("%w: attempted to create a service account with an empty token",
+			ErrAdminTaskFailed)
 	}
 
 	serviceAccount.CreatedAt = time.Now()
