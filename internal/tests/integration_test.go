@@ -7,6 +7,9 @@ import (
 	"github.com/cirruslabs/orchard/pkg/client"
 	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
+	"net"
 	"net/http"
 	"testing"
 	"time"
@@ -177,4 +180,61 @@ func StartIntegrationTestEnvironment(t *testing.T) *client.Client {
 		t.Fatal(err)
 	}
 	return devClient
+}
+
+func TestPortForwarding(t *testing.T) {
+	ctx := context.Background()
+
+	devClient := StartIntegrationTestEnvironment(t)
+
+	// Create a generic macOS VM
+	err := devClient.VMs().Create(ctx, &v1.VM{
+		Meta: v1.Meta{
+			Name: "test-vm",
+		},
+		Image:    "ghcr.io/cirruslabs/macos-ventura-base:latest",
+		CPU:      4,
+		Memory:   8 * 1024,
+		Softnet:  false,
+		Headless: true,
+	})
+	require.NoError(t, err)
+
+	// Wait for the VM to start
+	var vm *v1.VM
+
+	require.True(t, Wait(2*time.Minute, func() bool {
+		vm, err = devClient.VMs().Get(ctx, "test-vm")
+		require.NoError(t, err)
+
+		t.Logf("Waiting for the VM to start, current status: %s", vm.Status)
+
+		return vm.Status == v1.VMStatusRunning || vm.Status == v1.VMStatusFailed
+	}), "failed to start a VM")
+
+	require.Equal(t, v1.VMStatusRunning, vm.Status)
+	require.Empty(t, vm.StatusMessage)
+
+	// Establish port forwarding to VMs SSH port
+	wsConn, err := devClient.VMs().PortForward(ctx, "test-vm", 22)
+	require.NoError(t, err)
+
+	// Make sure we can connect to the VM over SSH via the forwarded port
+	sshConfig := &ssh.ClientConfig{
+		HostKeyCallback: func(hostname string, remote net.Addr, key ssh.PublicKey) error {
+			return nil
+		},
+		User: "admin",
+		Auth: []ssh.AuthMethod{
+			ssh.Password("admin"),
+		},
+	}
+
+	sshConn, chans, reqs, err := ssh.NewClientConn(wsConn, "", sshConfig)
+	require.NoError(t, err)
+
+	sshClient := ssh.NewClient(sshConn, chans, reqs)
+
+	_, err = sshClient.NewSession()
+	require.NoError(t, err)
 }
