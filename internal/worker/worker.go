@@ -63,63 +63,51 @@ func New(opts ...Option) (*Worker, error) {
 }
 
 func (worker *Worker) Run(ctx context.Context) error {
-	tickCh := time.NewTicker(pollInterval)
+	for {
+		if err := worker.runNewSession(ctx); err != nil {
+			return err
+		}
+	}
+}
+
+func (worker *Worker) runNewSession(ctx context.Context) error {
+	subCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	if err := worker.registerWorker(subCtx); err != nil {
+		worker.logger.Warnf("failed to register worker: %v", err)
+
+		return nil
+	}
 
 	go func() {
 		_ = retry.Do(func() error {
-			return worker.watchRPC(ctx)
+			return worker.watchRPC(subCtx)
 		}, retry.OnRetry(func(n uint, err error) {
 			worker.logger.Warnf("failed to watch RPC: %v", err)
-		}), retry.Context(ctx), retry.Attempts(0))
+		}), retry.Context(subCtx), retry.Attempts(0))
 	}()
 
+	tickCh := time.NewTicker(pollInterval)
+
 	for {
-		if err := worker.registerWorker(ctx); err != nil {
-			worker.logger.Warnf("failed to register worker: %v", err)
+		if err := worker.updateWorker(ctx); err != nil {
+			worker.logger.Errorf("failed to update worker resource: %v", err)
 
-			select {
-			case <-tickCh.C:
-				// continue
-			case <-ctx.Done():
-				return ctx.Err()
-			}
-
-			continue
+			return nil
 		}
 
-		for {
-			if err := worker.updateWorker(ctx); err != nil {
-				worker.logger.Errorf("failed to update worker resource: %v", err)
+		if err := worker.syncVMs(subCtx); err != nil {
+			worker.logger.Warnf("failed to sync VMs: %v", err)
 
-				select {
-				case <-tickCh.C:
-					// continue
-				case <-ctx.Done():
-					return ctx.Err()
-				}
+			return nil
+		}
 
-				break
-			}
-
-			if err := worker.syncVMs(ctx); err != nil {
-				worker.logger.Warnf("failed to sync VMs: %v", err)
-
-				select {
-				case <-tickCh.C:
-					// continue
-				case <-ctx.Done():
-					return ctx.Err()
-				}
-
-				break
-			}
-
-			select {
-			case <-tickCh.C:
-				// continue
-			case <-ctx.Done():
-				return ctx.Err()
-			}
+		select {
+		case <-tickCh.C:
+			// continue
+		case <-subCtx.Done():
+			return subCtx.Err()
 		}
 	}
 }

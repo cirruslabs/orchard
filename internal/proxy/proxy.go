@@ -3,32 +3,45 @@ package proxy
 import (
 	"io"
 	"net"
+	"strings"
 )
 
-func Connections(left net.Conn, right net.Conn) error {
-	errCh := make(chan error, 2)
+func Connections(left net.Conn, right net.Conn) (finalErr error) {
+	leftErrCh := make(chan error, 1)
+	rightErrCh := make(chan error, 1)
+
+	recordErr := func(newErr error) {
+		if newErr != nil && finalErr == nil {
+			finalErr = newErr
+		}
+	}
 
 	go func() {
 		_, err := io.Copy(left, right)
-		errCh <- err
+		rightErrCh <- err
 	}()
 
 	go func() {
 		_, err := io.Copy(right, left)
-		errCh <- err
+		leftErrCh <- err
 	}()
 
-	firstErr := <-errCh
-
-	// Force connection closure to unlock the other goroutine
-	left.Close()
-	right.Close()
-
-	secondErr := <-errCh
-
-	if firstErr != nil {
-		return firstErr
+	// Wait for some goroutine and then unlock the other goroutine
+	// by closing its source io.Reader
+	select {
+	case err := <-rightErrCh:
+		recordErr(err)
+		recordErr(left.Close())
+		recordErr(<-leftErrCh)
+	case err := <-leftErrCh:
+		recordErr(err)
+		recordErr(right.Close())
+		recordErr(<-rightErrCh)
 	}
 
-	return secondErr
+	if strings.Contains(finalErr.Error(), "use of closed network connection") {
+		finalErr = nil
+	}
+
+	return finalErr
 }

@@ -102,8 +102,8 @@ func New(opts ...Option) (*Controller, error) {
 	})
 
 	controller.httpServer = &http.Server{
-		Handler:     h2c.NewHandler(handler, &http2.Server{}),
-		ReadTimeout: 60 * time.Second,
+		Handler:           h2c.NewHandler(handler, &http2.Server{}),
+		ReadHeaderTimeout: 60 * time.Second,
 	}
 
 	return controller, nil
