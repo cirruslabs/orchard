@@ -235,6 +235,10 @@ func TestPortForwarding(t *testing.T) {
 
 	sshClient := ssh.NewClient(sshConn, chans, reqs)
 
-	_, err = sshClient.NewSession()
+	sshSession, err := sshClient.NewSession()
 	require.NoError(t, err)
+
+	unameOutput, err := sshSession.Output("uname -mo")
+	require.NoError(t, err)
+	require.Contains(t, string(unameOutput), "Darwin arm64")
 }
