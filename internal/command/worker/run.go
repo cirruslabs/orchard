@@ -43,6 +43,9 @@ func runWorker(cmd *cobra.Command, args []string) (err error) {
 		client.WithTrustedCertificate(bootstrapToken.Certificate()),
 		client.WithCredentials(bootstrapToken.ServiceAccountName(), bootstrapToken.ServiceAccountToken()),
 	)
+	if err != nil {
+		return err
+	}
 
 	// Initialize the logger
 	logger, err := zap.NewProduction()
