@@ -20,8 +20,6 @@ var ErrInitFailed = errors.New("controller initialization failed")
 
 var controllerCertPath string
 var controllerKeyPath string
-var serviceAccountName string
-var serviceAccountToken string
 
 func FindControllerCertificate(dataDir *controller.DataDir) (controllerCert tls.Certificate, err error) {
 	if controllerCertPath != "" || controllerKeyPath != "" {

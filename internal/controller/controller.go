@@ -129,6 +129,12 @@ func (controller *Controller) EnsureServiceAccount(serviceAccount *v1.ServiceAcc
 	})
 }
 
+func (controller *Controller) DeleteServiceAccount(name string) error {
+	return controller.store.Update(func(txn storepkg.Transaction) error {
+		return txn.DeleteServiceAccount(name)
+	})
+}
+
 func (controller *Controller) Run(ctx context.Context) error {
 	// Run the scheduler so that each VM will eventually
 	// be assigned to a specific WorkerUID

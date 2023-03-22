@@ -48,19 +48,9 @@ func newCreateCommand() *cobra.Command {
 }
 
 func runCreate(cmd *cobra.Command, args []string) error {
-	addr := args[0]
-
-	if !strings.HasPrefix(addr, "https://") && !strings.HasPrefix(addr, "http://") {
-		addr = "https://" + addr
-	}
-
-	controllerURL, err := url.Parse(addr)
+	controllerURL, err := netconstants.NormalizeAddress(args[0])
 	if err != nil {
 		return err
-	}
-
-	if controllerURL.Port() == "" {
-		controllerURL.Host += fmt.Sprintf(":%d", netconstants.DefaultControllerPort)
 	}
 
 	// Establish trust
@@ -82,19 +72,9 @@ func runCreate(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Check that the API is accessible
-	privatePool := x509.NewCertPool()
-	privatePool.AddCert(trustedControllerCertificate)
-
-	tlsConfig := &tls.Config{
-		MinVersion: tls.VersionTLS13,
-		RootCAs:    privatePool,
-		ServerName: netconstants.DefaultControllerServerName,
-	}
-
 	client, err := client.New(
 		client.WithAddress(controllerURL.String()),
-		client.WithTLSConfig(tlsConfig),
+		client.WithTrustedCertificate(trustedControllerCertificate),
 		client.WithCredentials(serviceAccountName, serviceAccountToken),
 	)
 	if err != nil {

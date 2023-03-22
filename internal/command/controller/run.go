@@ -14,6 +14,7 @@ import (
 )
 
 var ErrRunFailed = errors.New("failed to run controller")
+var BootstrapAdminAccountName = "bootstrap-admin"
 
 var address string
 
@@ -39,11 +40,6 @@ func newRunCommand() *cobra.Command {
 	cmd.PersistentFlags().StringVar(&controllerKeyPath, "controller-key", "",
 		"use the controller certificate key from the specified path instead of the auto-generated one"+
 			" (requires --controller-cert)")
-	cmd.PersistentFlags().StringVar(&serviceAccountName, "superuser-account-name", "",
-		"optional name of a service account with maximum privileges to auto-create")
-	cmd.PersistentFlags().StringVar(&serviceAccountToken, "superuser-account-token", "",
-		"token to use when creating a service account with maximum privileges "+
-			"(required when --admin-account-name is specified)")
 
 	return cmd
 }
@@ -94,14 +90,19 @@ func runController(cmd *cobra.Command, args []string) (err error) {
 		return err
 	}
 
-	if serviceAccountName != "" {
+	if adminToken, ok := os.LookupEnv("ORCHARD_BOOTSTRAP_ADMIN_TOKEN"); ok {
 		err = controllerInstance.EnsureServiceAccount(&v1.ServiceAccount{
 			Meta: v1.Meta{
-				Name: serviceAccountName,
+				Name: BootstrapAdminAccountName,
 			},
-			Token: serviceAccountToken,
+			Token: adminToken,
 			Roles: v1.AllServiceAccountRoles(),
 		})
+	} else {
+		err = controllerInstance.DeleteServiceAccount(BootstrapAdminAccountName)
+	}
+	if err != nil {
+		return err
 	}
 
 	return controllerInstance.Run(cmd.Context())
