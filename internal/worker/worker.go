@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/avast/retry-go/v4"
+	"github.com/cirruslabs/orchard/internal/worker/iokitregistry"
 	"github.com/cirruslabs/orchard/internal/worker/vmmanager"
 	"github.com/cirruslabs/orchard/pkg/client"
 	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
@@ -23,7 +24,6 @@ var ErrPollFailed = errors.New("failed to poll controller")
 type Worker struct {
 	dataDirPath string
 	name        string
-	uid         string
 	vmm         *vmmanager.VMManager
 	client      *client.Client
 	logger      *zap.SugaredLogger
@@ -113,19 +113,23 @@ func (worker *Worker) runNewSession(ctx context.Context) error {
 }
 
 func (worker *Worker) registerWorker(ctx context.Context) error {
-	workerResource, err := worker.client.Workers().Create(ctx, v1.Worker{
+	platformUUID, err := iokitregistry.PlatformUUID()
+	if err != nil {
+		return err
+	}
+
+	_, err = worker.client.Workers().Create(ctx, v1.Worker{
 		Meta: v1.Meta{
 			Name: worker.name,
 		},
-		LastSeen: time.Now(),
+		LastSeen:  time.Now(),
+		MachineID: platformUUID,
 	})
 	if err != nil {
 		return err
 	}
 
-	worker.uid = workerResource.UID
-
-	worker.logger.Infof("registered worker %s with UID %s", worker.name, workerResource.UID)
+	worker.logger.Infof("registered worker %s", worker.name)
 
 	return nil
 }
@@ -134,11 +138,6 @@ func (worker *Worker) updateWorker(ctx context.Context) error {
 	workerResource, err := worker.client.Workers().Get(ctx, worker.name)
 	if err != nil {
 		return fmt.Errorf("%w: failed to retrieve worker from the API: %v", ErrPollFailed, err)
-	}
-
-	if workerResource.UID != worker.uid {
-		return fmt.Errorf("%w: our UID is %s, controller's UID is %s",
-			ErrPollFailed, worker.uid, workerResource.UID)
 	}
 
 	worker.logger.Debugf("got worker from the API")
@@ -155,7 +154,7 @@ func (worker *Worker) updateWorker(ctx context.Context) error {
 }
 
 func (worker *Worker) syncVMs(ctx context.Context) error {
-	remoteVMs, err := worker.client.VMs().FindForWorker(ctx, worker.uid)
+	remoteVMs, err := worker.client.VMs().FindForWorker(ctx, worker.name)
 	if err != nil {
 		return err
 	}
@@ -340,6 +339,5 @@ func (worker *Worker) GPRCMetadata() metadata.MD {
 	return metadata.Join(
 		worker.client.GPRCMetadata(),
 		metadata.Pairs(rpc.MetadataWorkerNameKey, worker.name),
-		metadata.Pairs(rpc.MetadataWorkerUIDKey, worker.uid),
 	)
 }

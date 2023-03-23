@@ -31,7 +31,6 @@ func (controller *Controller) createServiceAccount(ctx *gin.Context) responder.R
 	}
 
 	serviceAccount.CreatedAt = time.Now()
-	serviceAccount.UID = uuid.New().String()
 	serviceAccount.Generation = 0
 
 	return controller.storeUpdate(func(txn storepkg.Transaction) responder.Responder {

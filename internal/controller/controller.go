@@ -12,7 +12,6 @@ import (
 	"github.com/cirruslabs/orchard/internal/netconstants"
 	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
 	"github.com/cirruslabs/orchard/rpc"
-	"github.com/google/uuid"
 	"go.uber.org/zap"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
@@ -121,7 +120,6 @@ func (controller *Controller) EnsureServiceAccount(serviceAccount *v1.ServiceAcc
 	}
 
 	serviceAccount.CreatedAt = time.Now()
-	serviceAccount.UID = uuid.New().String()
 	serviceAccount.Generation = 0
 
 	return controller.store.Update(func(txn storepkg.Transaction) error {
@@ -137,7 +135,7 @@ func (controller *Controller) DeleteServiceAccount(name string) error {
 
 func (controller *Controller) Run(ctx context.Context) error {
 	// Run the scheduler so that each VM will eventually
-	// be assigned to a specific WorkerUID
+	// be assigned to a specific Worker
 	go func() {
 		err := runScheduler(controller.store)
 		if err != nil {

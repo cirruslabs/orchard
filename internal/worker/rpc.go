@@ -75,9 +75,7 @@ func (worker *Worker) handlePortForward(
 
 	// Obtain VM
 	vm, err := worker.vmm.Get(v1.VM{
-		Meta: v1.Meta{
-			UID: portForwardAction.VmUid,
-		},
+		UID: portForwardAction.VmUid,
 	})
 	if err != nil {
 		worker.logger.Warnf("port forwarding failed: failed to get the VM: %v", err)

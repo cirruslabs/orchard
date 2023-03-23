@@ -23,20 +23,22 @@ func (service *VMsService) Create(ctx context.Context, vm *v1.VM) error {
 	return nil
 }
 
-func (service *VMsService) FindForWorker(ctx context.Context, workerUID string) (map[string]v1.VM, error) {
+func (service *VMsService) FindForWorker(ctx context.Context, worker string) (map[string]v1.VM, error) {
 	allVms, err := service.List(ctx)
-
 	if err != nil {
 		return nil, err
 	}
 
 	var filteredVms = make(map[string]v1.VM)
+
 	for _, vmResource := range allVms {
-		if vmResource.WorkerUID != workerUID {
+		if vmResource.Worker != worker {
 			continue
 		}
+
 		filteredVms[vmResource.UID] = vmResource
 	}
+
 	return filteredVms, nil
 }
 
