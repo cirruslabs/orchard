@@ -25,25 +25,25 @@ func NewNotifier() *Notifier {
 	}
 }
 
-func (watcher *Notifier) Register(ctx context.Context, workerUID string) (chan *rpc.WatchInstruction, func()) {
+func (watcher *Notifier) Register(ctx context.Context, worker string) (chan *rpc.WatchInstruction, func()) {
 	subCtx, cancel := context.WithCancel(ctx)
 	workerCh := make(chan *rpc.WatchInstruction)
 
-	watcher.workers.Store(workerUID, &WorkerSlot{
+	watcher.workers.Store(worker, &WorkerSlot{
 		ctx: subCtx,
 		ch:  workerCh,
 	})
 
 	return workerCh, func() {
-		watcher.workers.Delete(workerUID)
+		watcher.workers.Delete(worker)
 		cancel()
 	}
 }
 
-func (watcher *Notifier) Notify(ctx context.Context, workerUID string, msg *rpc.WatchInstruction) error {
-	slot, ok := watcher.workers.Load(workerUID)
+func (watcher *Notifier) Notify(ctx context.Context, worker string, msg *rpc.WatchInstruction) error {
+	slot, ok := watcher.workers.Load(worker)
 	if !ok {
-		return fmt.Errorf("%w: %s", ErrNoWorker, workerUID)
+		return fmt.Errorf("%w: %s", ErrNoWorker, worker)
 	}
 
 	select {

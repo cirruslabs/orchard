@@ -45,7 +45,7 @@ func (controller *Controller) portForwardVM(ctx *gin.Context) responder.Responde
 	}
 
 	// Sanity-check
-	if vm.WorkerUID == "" {
+	if vm.Worker == "" {
 		return responder.Code(http.StatusServiceUnavailable)
 	}
 
@@ -55,7 +55,7 @@ func (controller *Controller) portForwardVM(ctx *gin.Context) responder.Responde
 	defer cancel()
 
 	// send request to worker to initiate port-forwarding connection back to us
-	err = controller.workerNotifier.Notify(ctx, vm.WorkerUID, &rpc.WatchInstruction{
+	err = controller.workerNotifier.Notify(ctx, vm.Worker, &rpc.WatchInstruction{
 		Action: &rpc.WatchInstruction_PortForwardAction{
 			PortForwardAction: &rpc.WatchInstruction_PortForward{
 				Session: session,
@@ -65,7 +65,7 @@ func (controller *Controller) portForwardVM(ctx *gin.Context) responder.Responde
 		},
 	})
 	if err != nil {
-		controller.logger.Warnf("failed to request port-forwarding from the worker %s: %v", vm.WorkerUID, err)
+		controller.logger.Warnf("failed to request port-forwarding from the worker %s: %v", vm.Worker, err)
 
 		return responder.Code(http.StatusServiceUnavailable)
 	}

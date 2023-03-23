@@ -6,7 +6,6 @@ import (
 	"github.com/cirruslabs/orchard/internal/responder"
 	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"net/http"
 	"time"
 )
@@ -31,13 +30,17 @@ func (controller *Controller) createWorker(ctx *gin.Context) responder.Responder
 		worker.LastSeen = currentTime
 	}
 	worker.CreatedAt = currentTime
-	worker.UID = uuid.New().String()
 	worker.Generation = 0
 
 	return controller.storeUpdate(func(txn storepkg.Transaction) responder.Responder {
-		// Does the worker resource with this name already exists?
-		_, err := txn.GetWorker(worker.Name)
-		if !errors.Is(err, storepkg.ErrNotFound) {
+		// In case there already exist a worker with the same name,
+		// allow overwriting it if the request comes from a worker
+		// with the same machine ID
+		dbWorker, err := txn.GetWorker(worker.Name)
+		if err != nil && !errors.Is(err, storepkg.ErrNotFound) {
+			return responder.Code(http.StatusInternalServerError)
+		}
+		if err == nil && worker.MachineID != dbWorker.MachineID {
 			return responder.Code(http.StatusConflict)
 		}
 

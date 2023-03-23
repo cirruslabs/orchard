@@ -17,11 +17,6 @@ type Meta struct {
 	// when receiving a POST request.
 	CreatedAt time.Time `json:"createdAt"`
 
-	// UID is a useful field for avoiding data races within a single Name.
-	//
-	// It is populated by the Controller when receiving a POST request.
-	UID string `json:"uid"`
-
 	// Generation is a useful field for avoiding data races within a single UID.
 	//
 	// It is populated by the controller when receiving POST or PUT requests.
@@ -32,6 +27,8 @@ type Worker struct {
 	// LastSeen is set by the Worker and is used by the Controller
 	// to track unhealthy Workers.
 	LastSeen time.Time
+
+	MachineID string
 
 	Meta
 }
@@ -47,13 +44,18 @@ type VM struct {
 	Status        VMStatus `json:"status"`
 	StatusMessage string   `json:"status_message"`
 
-	// WorkerUID field is set by the Controller to assign this VM to a specific WorkerUID.
-	WorkerUID string `json:"worker"`
+	// Worker field is set by the Controller to assign this VM to a specific Worker.
+	Worker string `json:"worker"`
 
 	Username       string    `json:"username"`
 	Password       string    `json:"password"`
 	StartupScript  *VMScript `json:"startup_script"`
 	ShutdownScript *VMScript `json:"shutdown_script"`
+
+	// UID is a useful field for avoiding data races within a single Name.
+	//
+	// It is populated by the Controller when receiving a POST request.
+	UID string `json:"uid"`
 
 	Meta
 }

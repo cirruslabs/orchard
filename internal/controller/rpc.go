@@ -18,13 +18,13 @@ func (controller *Controller) Watch(_ *emptypb.Empty, stream rpc.Controller_Watc
 		return status.Errorf(codes.Unauthenticated, "auth failed")
 	}
 
-	workerUIDMetadataValue := metadata.ValueFromIncomingContext(stream.Context(), rpc.MetadataWorkerUIDKey)
-	if len(workerUIDMetadataValue) == 0 {
-		return status.Errorf(codes.InvalidArgument, "no worker UID in metadata")
+	workerMetadataValue := metadata.ValueFromIncomingContext(stream.Context(), rpc.MetadataWorkerKey)
+	if len(workerMetadataValue) == 0 {
+		return status.Errorf(codes.InvalidArgument, "no worker ident in metadata")
 	}
 
-	workerUID := workerUIDMetadataValue[0]
-	workerCh, cancel := controller.workerNotifier.Register(stream.Context(), workerUID)
+	worker := workerMetadataValue[0]
+	workerCh, cancel := controller.workerNotifier.Register(stream.Context(), worker)
 	defer cancel()
 
 	for {
