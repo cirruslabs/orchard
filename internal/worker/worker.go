@@ -338,6 +338,6 @@ func (worker *Worker) DeleteAllVMs() error {
 func (worker *Worker) GPRCMetadata() metadata.MD {
 	return metadata.Join(
 		worker.client.GPRCMetadata(),
-		metadata.Pairs(rpc.MetadataWorkerKey, worker.name),
+		metadata.Pairs(rpc.MetadataWorkerNameKey, worker.name),
 	)
 }

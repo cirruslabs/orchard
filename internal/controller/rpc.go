@@ -18,7 +18,7 @@ func (controller *Controller) Watch(_ *emptypb.Empty, stream rpc.Controller_Watc
 		return status.Errorf(codes.Unauthenticated, "auth failed")
 	}
 
-	workerMetadataValue := metadata.ValueFromIncomingContext(stream.Context(), rpc.MetadataWorkerKey)
+	workerMetadataValue := metadata.ValueFromIncomingContext(stream.Context(), rpc.MetadataWorkerNameKey)
 	if len(workerMetadataValue) == 0 {
 		return status.Errorf(codes.InvalidArgument, "no worker ident in metadata")
 	}
