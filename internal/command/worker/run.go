@@ -16,9 +16,10 @@ var bootstrapTokenRaw string
 
 func newRunCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:  "run CONTROLLER_URL",
-		RunE: runWorker,
-		Args: cobra.ExactArgs(1),
+		Use:   "run CONTROLLER_URL",
+		Short: "Run worker",
+		RunE:  runWorker,
+		Args:  cobra.ExactArgs(1),
 	}
 	cmd.PersistentFlags().StringVar(&bootstrapTokenRaw, "bootstrap-token", "",
 		"a bootstrap token retrieved via `orchard get bootstrap-token <service-account-name-for-workers>`")

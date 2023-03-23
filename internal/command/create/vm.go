@@ -14,9 +14,10 @@ var headless bool
 
 func newCreateVMCommand() *cobra.Command {
 	command := &cobra.Command{
-		Use:  "vm NAME",
-		RunE: runCreateVM,
-		Args: cobra.ExactArgs(1),
+		Use:   "vm NAME",
+		Short: "Create a VM",
+		RunE:  runCreateVM,
+		Args:  cobra.ExactArgs(1),
 	}
 
 	command.PersistentFlags().StringVar(&image, "image", "ghcr.io/cirruslabs/macos-ventura-base:latest", "image to use")

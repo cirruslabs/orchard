@@ -8,9 +8,10 @@ import (
 
 func newLogsVMCommand() *cobra.Command {
 	command := &cobra.Command{
-		Use:  "vm NAME",
-		RunE: runLogsVM,
-		Args: cobra.ExactArgs(1),
+		Use:   "vm NAME",
+		Short: "Retrieve VM logs",
+		RunE:  runLogsVM,
+		Args:  cobra.ExactArgs(1),
 	}
 
 	return command
