@@ -20,18 +20,19 @@ import (
 const pollInterval = 5 * time.Second
 
 var ErrPollFailed = errors.New("failed to poll controller")
+var ErrRegistrationFailed = errors.New("failed to poll controller")
 
 type Worker struct {
-	dataDirPath string
-	name        string
-	vmm         *vmmanager.VMManager
-	client      *client.Client
-	logger      *zap.SugaredLogger
+	name   string
+	vmm    *vmmanager.VMManager
+	client *client.Client
+	logger *zap.SugaredLogger
 }
 
-func New(opts ...Option) (*Worker, error) {
+func New(client *client.Client, opts ...Option) (*Worker, error) {
 	worker := &Worker{
-		vmm: vmmanager.New(),
+		client: client,
+		vmm:    vmmanager.New(),
 	}
 
 	// Apply options
@@ -52,13 +53,6 @@ func New(opts ...Option) (*Worker, error) {
 		worker.logger = zap.NewNop().Sugar()
 	}
 
-	// Instantiate worker
-	client, err := client.New()
-	if err != nil {
-		return nil, err
-	}
-	worker.client = client
-
 	return worker, nil
 }
 
@@ -77,7 +71,7 @@ func (worker *Worker) runNewSession(ctx context.Context) error {
 	if err := worker.registerWorker(subCtx); err != nil {
 		worker.logger.Warnf("failed to register worker: %v", err)
 
-		return nil
+		return ErrRegistrationFailed
 	}
 
 	go func() {
