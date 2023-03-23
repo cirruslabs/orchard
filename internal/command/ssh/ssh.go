@@ -21,7 +21,7 @@ var password string
 
 func NewCommand() *cobra.Command {
 	command := &cobra.Command{
-		Use:   "ssh <VM name>",
+		Use:   "ssh VM_NAME",
 		Short: "SSH into the VM",
 		Args:  cobra.ExactArgs(1),
 		RunE:  run,

@@ -7,7 +7,7 @@ import (
 
 func newDeleteVMCommand() *cobra.Command {
 	return &cobra.Command{
-		Use:  "vm",
+		Use:  "vm NAME",
 		Args: cobra.ExactArgs(1),
 		RunE: runDeleteVM,
 	}

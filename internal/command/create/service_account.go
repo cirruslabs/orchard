@@ -13,7 +13,7 @@ var roles []string
 
 func newCreateServiceAccount() *cobra.Command {
 	command := &cobra.Command{
-		Use:  "service-account",
+		Use:  "service-account NAME",
 		RunE: runCreateServiceAccount,
 		Args: cobra.ExactArgs(1),
 	}

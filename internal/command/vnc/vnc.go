@@ -17,7 +17,7 @@ var password string
 
 func NewCommand() *cobra.Command {
 	command := &cobra.Command{
-		Use:   "vnc <VM name>",
+		Use:   "vnc VM_NAME",
 		Short: "Open VNC session with the VM",
 		Args:  cobra.ExactArgs(1),
 		RunE:  run,

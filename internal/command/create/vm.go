@@ -14,7 +14,7 @@ var headless bool
 
 func newCreateVMCommand() *cobra.Command {
 	command := &cobra.Command{
-		Use:  "vm",
+		Use:  "vm NAME",
 		RunE: runCreateVM,
 		Args: cobra.ExactArgs(1),
 	}

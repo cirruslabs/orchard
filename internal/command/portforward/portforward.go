@@ -10,7 +10,7 @@ import (
 
 func NewCommand() *cobra.Command {
 	command := &cobra.Command{
-		Use:   "port-forward <VM name> [<local port>]:<remote port>",
+		Use:   "port-forward VM_NAME [LOCAL_PORT]:REMOTE_PORT",
 		Short: "Forward TCP port to the VM",
 		Args:  cobra.ExactArgs(2),
 		RunE:  runPortForward,

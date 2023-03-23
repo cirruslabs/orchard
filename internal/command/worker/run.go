@@ -16,7 +16,7 @@ var bootstrapTokenRaw string
 
 func newRunCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:  "run",
+		Use:  "run CONTROLLER_URL",
 		RunE: runWorker,
 		Args: cobra.ExactArgs(1),
 	}

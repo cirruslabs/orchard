@@ -7,7 +7,7 @@ import (
 
 func newDeleteCommand() *cobra.Command {
 	command := &cobra.Command{
-		Use:   "delete",
+		Use:   "delete NAME",
 		Short: "Delete a context",
 		Args:  cobra.ExactArgs(1),
 		RunE:  runDelete,
