@@ -7,9 +7,10 @@ import (
 
 func newDeleteServiceComandCommand() *cobra.Command {
 	return &cobra.Command{
-		Use:  "service-account",
-		Args: cobra.ExactArgs(1),
-		RunE: runDeleteServiceAccountCommand,
+		Use:   "service-account NAME",
+		Short: "Delete a service account",
+		Args:  cobra.ExactArgs(1),
+		RunE:  runDeleteServiceAccountCommand,
 	}
 }
 

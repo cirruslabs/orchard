@@ -7,7 +7,7 @@ import (
 
 func newDefaultCommand() *cobra.Command {
 	command := &cobra.Command{
-		Use:   "default",
+		Use:   "default NAME",
 		Short: "Set a default context to use for client/worker commands",
 		Args:  cobra.ExactArgs(1),
 		RunE:  runDefault,

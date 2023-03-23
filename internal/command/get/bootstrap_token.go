@@ -10,7 +10,7 @@ import (
 
 func newGetBootstrapTokenCommand() *cobra.Command {
 	command := &cobra.Command{
-		Use:   "bootstrap-token",
+		Use:   "bootstrap-token NAME",
 		Short: "Retrieve a bootstrap token for the specified service account",
 		RunE:  runGetBootstrapToken,
 		Args:  cobra.ExactArgs(1),

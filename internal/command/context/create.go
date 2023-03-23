@@ -27,7 +27,7 @@ var force bool
 
 func newCreateCommand() *cobra.Command {
 	command := &cobra.Command{
-		Use:   "create",
+		Use:   "create NAME",
 		Short: "Create a new context",
 		Args:  cobra.ExactArgs(1),
 		RunE:  runCreate,

@@ -11,8 +11,8 @@ import (
 
 func newGetServiceAccountCommand() *cobra.Command {
 	command := &cobra.Command{
-		Use:   "service-account",
-		Short: "Retrieve service account and it's fields",
+		Use:   "service-account NAME",
+		Short: "Retrieve a service account and it's fields",
 		RunE:  runGetServiceAccount,
 		Args:  cobra.ExactArgs(1),
 	}

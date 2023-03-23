@@ -13,9 +13,10 @@ var roles []string
 
 func newCreateServiceAccount() *cobra.Command {
 	command := &cobra.Command{
-		Use:  "service-account",
-		RunE: runCreateServiceAccount,
-		Args: cobra.ExactArgs(1),
+		Use:   "service-account NAME",
+		Short: "Create a service account",
+		RunE:  runCreateServiceAccount,
+		Args:  cobra.ExactArgs(1),
 	}
 
 	command.PersistentFlags().StringVar(&token, "token", "",

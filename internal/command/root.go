@@ -8,6 +8,7 @@ import (
 	"github.com/cirruslabs/orchard/internal/command/dev"
 	"github.com/cirruslabs/orchard/internal/command/get"
 	"github.com/cirruslabs/orchard/internal/command/list"
+	"github.com/cirruslabs/orchard/internal/command/logs"
 	"github.com/cirruslabs/orchard/internal/command/portforward"
 	"github.com/cirruslabs/orchard/internal/command/ssh"
 	"github.com/cirruslabs/orchard/internal/command/stop"
@@ -29,6 +30,7 @@ func NewRootCmd() *cobra.Command {
 		create.NewCommand(),
 		get.NewCommand(),
 		list.NewCommand(),
+		logs.NewCommand(),
 		portforward.NewCommand(),
 		ssh.NewCommand(),
 		vnc.NewCommand(),
