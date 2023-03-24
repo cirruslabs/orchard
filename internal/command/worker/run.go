@@ -26,8 +26,8 @@ func newRunCommand() *cobra.Command {
 	}
 	cmd.PersistentFlags().StringVar(&bootstrapTokenRaw, "bootstrap-token", "",
 		"a bootstrap token retrieved via `orchard get bootstrap-token <service-account-name-for-workers>`")
-	cmd.PersistentFlags().StringVar(&logFilePath, "log-file", "/tmp/orchard-worker.log",
-		"path to a file where logs (up to 100 Mb) will be written.")
+	cmd.PersistentFlags().StringVar(&logFilePath, "log-file", "",
+		"optional path to a file where logs (up to 100 Mb) will be written.")
 	return cmd
 }
 
@@ -54,16 +54,10 @@ func runWorker(cmd *cobra.Command, args []string) (err error) {
 	}
 
 	// Initialize the logger
-	logFileWriter := zapcore.AddSync(&lumberjack.Logger{
-		Filename: logFilePath,
-		MaxSize:  100, // megabytes
-	})
-	core := zapcore.NewCore(
-		zapcore.NewJSONEncoder(zap.NewProductionEncoderConfig()),
-		logFileWriter,
-		zap.InfoLevel,
-	)
-	logger := zap.New(core)
+	logger, err := createLogger()
+	if err != nil {
+		return err
+	}
 
 	defer func() {
 		if syncErr := logger.Sync(); syncErr != nil && err == nil {
@@ -77,4 +71,21 @@ func runWorker(cmd *cobra.Command, args []string) (err error) {
 	}
 
 	return workerInstance.Run(cmd.Context())
+}
+
+func createLogger() (*zap.Logger, error) {
+	if logFilePath == "" {
+		return zap.NewProduction()
+	}
+
+	logFileWriter := zapcore.AddSync(&lumberjack.Logger{
+		Filename: logFilePath,
+		MaxSize:  100, // megabytes
+	})
+	core := zapcore.NewCore(
+		zapcore.NewJSONEncoder(zap.NewProductionEncoderConfig()),
+		logFileWriter,
+		zap.InfoLevel,
+	)
+	return zap.New(core), nil
 }
