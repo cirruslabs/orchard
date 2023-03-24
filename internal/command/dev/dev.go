@@ -78,6 +78,7 @@ func CreateDevControllerAndWorker(devDataDirPath string) (*controller.Controller
 
 	devController, err := controller.New(
 		controller.WithDataDir(dataDir),
+		controller.WithListenAddr(":0"),
 		controller.WithInsecureAuthDisabled(),
 		controller.WithLogger(logger),
 	)

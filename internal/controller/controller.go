@@ -161,8 +161,11 @@ func (controller *Controller) Run(ctx context.Context) error {
 }
 
 func (controller *Controller) Address() string {
-	if strings.HasPrefix(controller.listenAddr, ":") {
-		return fmt.Sprintf("http://localhost%s", controller.listenAddr)
+	hostPort := strings.ReplaceAll(controller.listener.Addr().String(), "[::]", "127.0.0.1")
+
+	if controller.tlsConfig != nil {
+		return fmt.Sprintf("https://%s", hostPort)
 	}
-	return controller.listenAddr
+
+	return fmt.Sprintf("http://%s", hostPort)
 }
