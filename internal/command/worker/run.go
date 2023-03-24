@@ -65,9 +65,6 @@ func runWorker(cmd *cobra.Command, args []string) (err error) {
 	)
 	logger := zap.New(core)
 
-	if err != nil {
-		return err
-	}
 	defer func() {
 		if syncErr := logger.Sync(); syncErr != nil && err == nil {
 			err = syncErr
