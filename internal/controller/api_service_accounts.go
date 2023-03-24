@@ -39,7 +39,6 @@ func (controller *Controller) createServiceAccount(ctx *gin.Context) responder.R
 	}
 
 	serviceAccount.CreatedAt = time.Now()
-	serviceAccount.Generation = 0
 
 	return controller.storeUpdate(func(txn storepkg.Transaction) responder.Responder {
 		// Does the Service Account resource with this name already exists?
@@ -80,8 +79,6 @@ func (controller *Controller) updateServiceAccount(ctx *gin.Context) responder.R
 		if err != nil {
 			return responder.Error(err)
 		}
-
-		dbServiceAccount.Generation++
 
 		if err := txn.SetServiceAccount(dbServiceAccount); err != nil {
 			return responder.Code(http.StatusInternalServerError)

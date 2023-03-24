@@ -29,7 +29,6 @@ func (controller *Controller) createVM(ctx *gin.Context) responder.Responder {
 	vm.Status = v1.VMStatusPending
 	vm.CreatedAt = time.Now()
 	vm.UID = uuid.New().String()
-	vm.Generation = 0
 
 	return controller.storeUpdate(func(txn storepkg.Transaction) responder.Responder {
 		// Does the VM resource with this name already exists?
@@ -73,7 +72,6 @@ func (controller *Controller) updateVM(ctx *gin.Context) responder.Responder {
 
 		dbVM.Status = userVM.Status
 		dbVM.StatusMessage = userVM.StatusMessage
-		dbVM.Generation++
 
 		if err := txn.SetVM(*dbVM); err != nil {
 			return responder.Code(http.StatusInternalServerError)

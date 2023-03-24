@@ -16,11 +16,6 @@ type Meta struct {
 	// It is populated by the Controller with the current time
 	// when receiving a POST request.
 	CreatedAt time.Time `json:"createdAt"`
-
-	// Generation is a useful field for avoiding data races within a single UID.
-	//
-	// It is populated by the controller when receiving POST or PUT requests.
-	Generation int64 `json:"generation"`
 }
 
 type Worker struct {
