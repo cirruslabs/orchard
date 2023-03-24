@@ -8,11 +8,14 @@ import (
 	"github.com/cirruslabs/orchard/pkg/client"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 var ErrBootstrapTokenNotProvided = errors.New("no bootstrap token provided")
 
 var bootstrapTokenRaw string
+var logFilePath string
 
 func newRunCommand() *cobra.Command {
 	cmd := &cobra.Command{
@@ -23,6 +26,8 @@ func newRunCommand() *cobra.Command {
 	}
 	cmd.PersistentFlags().StringVar(&bootstrapTokenRaw, "bootstrap-token", "",
 		"a bootstrap token retrieved via `orchard get bootstrap-token <service-account-name-for-workers>`")
+	cmd.PersistentFlags().StringVar(&logFilePath, "log-file", "/tmp/orchard-worker.log",
+		"path to a file where logs (up to 100 Mb) will be written.")
 	return cmd
 }
 
@@ -49,7 +54,17 @@ func runWorker(cmd *cobra.Command, args []string) (err error) {
 	}
 
 	// Initialize the logger
-	logger, err := zap.NewProduction()
+	logFileWriter := zapcore.AddSync(&lumberjack.Logger{
+		Filename: logFilePath,
+		MaxSize:  100, // megabytes
+	})
+	core := zapcore.NewCore(
+		zapcore.NewJSONEncoder(zap.NewProductionEncoderConfig()),
+		logFileWriter,
+		zap.InfoLevel,
+	)
+	logger := zap.New(core)
+
 	if err != nil {
 		return err
 	}
