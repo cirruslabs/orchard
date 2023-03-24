@@ -1,6 +1,7 @@
 package dev
 
 import (
+	"github.com/cirruslabs/orchard/internal/config"
 	"github.com/cirruslabs/orchard/internal/controller"
 	"github.com/cirruslabs/orchard/internal/worker"
 	"github.com/cirruslabs/orchard/pkg/client"
@@ -75,17 +76,35 @@ func CreateDevControllerAndWorker(devDataDirPath string) (*controller.Controller
 		return nil, nil, err
 	}
 
-	devController, err := controller.New(controller.WithDataDir(dataDir),
-		controller.WithInsecureAuthDisabled(), controller.WithLogger(logger))
+	devController, err := controller.New(
+		controller.WithDataDir(dataDir),
+		controller.WithInsecureAuthDisabled(),
+		controller.WithLogger(logger),
+	)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	defaultClient, err := client.New()
+	defaultClient, err := client.New(client.WithAddress(devController.Address()))
 	if err != nil {
 		return nil, nil, err
 	}
 	devWorker, err := worker.New(defaultClient, worker.WithLogger(logger))
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// set local-dev context as active
+	configHandle, err := config.NewHandle()
+	if err != nil {
+		return nil, nil, err
+	}
+	localContext := config.Context{URL: devController.Address()}
+	err = configHandle.CreateContext("local-dev", localContext, true)
+	if err != nil {
+		return nil, nil, err
+	}
+	err = configHandle.SetDefaultContext("local-dev")
 	if err != nil {
 		return nil, nil, err
 	}
