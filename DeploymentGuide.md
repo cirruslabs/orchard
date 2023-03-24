@@ -68,4 +68,8 @@ orchard create service-account worker-pool-m1 --roles "worker" --roles "compute:
 orchard get bootstrap-token worker-pool-m1
 ```
 
-TBD where to put the token above and which Ansible soles to run
+## Configuring Orchard Workers
+
+If you have a set of machines that you want to use as Orchard Workers, you can use Ansible to configure them.
+Please refer a [separate repository](https://github.com/cirruslabs/ansible-orchard) where we prepared a basic
+Ansible playbook for convenient setup.
