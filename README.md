@@ -4,19 +4,19 @@ Orchard is an orchestration system for [Tart](https://github.com/cirruslabs/tart
 
 Create a cluster of bare-metal Apple Silicon machines and manage dozens of VMs with ease!
 
-## Installation
-
-```
-go install github.com/cirruslabs/orchard/...@latest
-```
-
 ## Quick start
 
-Start the Orchard Controller and the Worker in a single inocation:
+Start the Orchard in local development mode:
 
 ```shell
+brew install cirruslabs/cli/orchard
 orchard dev
 ```
+
+This will start Orchard Controller and a single Orchard Worker on your local machine.
+For production deployments, please refer to the [Deployment Guide](./DeploymentGuide.md).
+
+### Creating Virtual Machines
 
 Create a Virtual Machine resource:
 
@@ -30,10 +30,6 @@ Check a list of VM resources to see if the Virtual Machine we've created above i
 orchard list vms
 ```
 
-## Development
+### Accessing Virtual Machines
 
-Development is done as one would normally develop any Golang package, however, if you did modify any `*.proto` files in the `rpc/` directory, install [Buf](https://buf.build/) and run the following command from the project's root directory to re-generate the code:
-
-```shell
-buf generate
-```
+TBD
