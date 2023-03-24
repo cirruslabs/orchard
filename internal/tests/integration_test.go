@@ -175,7 +175,7 @@ func StartIntegrationTestEnvironment(t *testing.T) *client.Client {
 
 	time.Sleep(5 * time.Second)
 
-	devClient, err := client.New()
+	devClient, err := client.New(client.WithAddress(devController.Address()))
 	if err != nil {
 		t.Fatal(err)
 	}
