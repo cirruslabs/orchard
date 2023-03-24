@@ -10,7 +10,7 @@ func NewCommand() *cobra.Command {
 		Short: "Delete resources from the controller",
 	}
 
-	command.AddCommand(newDeleteVMCommand(), newDeleteServiceComandCommand())
+	command.AddCommand(newDeleteVMCommand(), newDeleteServiceComandCommand(), newDeleteWorkerCommand())
 
 	return command
 }
