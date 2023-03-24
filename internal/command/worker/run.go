@@ -59,7 +59,7 @@ func runWorker(cmd *cobra.Command, args []string) (err error) {
 		}
 	}()
 
-	workerInstance, err := worker.New(worker.WithClient(controllerClient), worker.WithLogger(logger))
+	workerInstance, err := worker.New(controllerClient, worker.WithLogger(logger))
 	if err != nil {
 		return err
 	}

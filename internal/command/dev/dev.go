@@ -3,6 +3,7 @@ package dev
 import (
 	"github.com/cirruslabs/orchard/internal/controller"
 	"github.com/cirruslabs/orchard/internal/worker"
+	"github.com/cirruslabs/orchard/pkg/client"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 	"os"
@@ -80,7 +81,11 @@ func CreateDevControllerAndWorker(devDataDirPath string) (*controller.Controller
 		return nil, nil, err
 	}
 
-	devWorker, err := worker.New(worker.WithDataDirPath(devDataDirPath), worker.WithLogger(logger))
+	defaultClient, err := client.New()
+	if err != nil {
+		return nil, nil, err
+	}
+	devWorker, err := worker.New(defaultClient, worker.WithLogger(logger))
 	if err != nil {
 		return nil, nil, err
 	}

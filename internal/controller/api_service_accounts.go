@@ -26,6 +26,14 @@ func (controller *Controller) createServiceAccount(ctx *gin.Context) responder.R
 		return responder.Code(http.StatusPreconditionFailed)
 	}
 
+	// validate roles
+	for _, role := range serviceAccount.Roles {
+		_, err := v1.NewServiceAccountRole(string(role))
+		if err != nil {
+			return responder.Code(http.StatusPreconditionFailed)
+		}
+	}
+
 	if serviceAccount.Token == "" {
 		serviceAccount.Token = uuid.New().String()
 	}
