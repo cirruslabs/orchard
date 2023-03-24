@@ -19,6 +19,7 @@ import (
 	"google.golang.org/grpc/keepalive"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -157,4 +158,11 @@ func (controller *Controller) Run(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func (controller *Controller) Address() string {
+	if strings.HasPrefix(controller.listenAddr, ":") {
+		return fmt.Sprintf("http://localhost%s", controller.listenAddr)
+	}
+	return controller.listenAddr
 }
