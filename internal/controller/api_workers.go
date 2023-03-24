@@ -30,7 +30,6 @@ func (controller *Controller) createWorker(ctx *gin.Context) responder.Responder
 		worker.LastSeen = currentTime
 	}
 	worker.CreatedAt = currentTime
-	worker.Generation = 0
 
 	return controller.storeUpdate(func(txn storepkg.Transaction) responder.Responder {
 		// In case there already exist a worker with the same name,
@@ -70,7 +69,6 @@ func (controller *Controller) updateWorker(ctx *gin.Context) responder.Responder
 		}
 
 		dbWorker.LastSeen = userWorker.LastSeen
-		dbWorker.Generation++
 
 		if err := txn.SetWorker(*dbWorker); err != nil {
 			return responder.Code(http.StatusInternalServerError)

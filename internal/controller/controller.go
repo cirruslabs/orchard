@@ -121,7 +121,6 @@ func (controller *Controller) EnsureServiceAccount(serviceAccount *v1.ServiceAcc
 	}
 
 	serviceAccount.CreatedAt = time.Now()
-	serviceAccount.Generation = 0
 
 	return controller.store.Update(func(txn storepkg.Transaction) error {
 		return txn.SetServiceAccount(serviceAccount)
