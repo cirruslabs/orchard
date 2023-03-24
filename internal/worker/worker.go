@@ -20,7 +20,7 @@ import (
 const pollInterval = 5 * time.Second
 
 var ErrPollFailed = errors.New("failed to poll controller")
-var ErrRegistrationFailed = errors.New("failed to poll controller")
+var ErrRegistrationFailed = errors.New("failed to register worker on the controller")
 
 type Worker struct {
 	name   string
