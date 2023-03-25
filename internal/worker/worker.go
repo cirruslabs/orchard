@@ -116,6 +116,9 @@ func (worker *Worker) registerWorker(ctx context.Context) error {
 		Meta: v1.Meta{
 			Name: worker.name,
 		},
+		Resources: map[string]uint64{
+			v1.ResourceTartVMs: 2,
+		},
 		LastSeen:  time.Now(),
 		MachineID: platformUUID,
 	})
