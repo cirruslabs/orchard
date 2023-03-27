@@ -53,7 +53,7 @@ func (controller *Controller) portForwardVM(ctx *gin.Context) responder.Responde
 		}
 
 		if vm.TerminalState() {
-			return responder.Code(http.StatusExpectationFailed)
+			return responder.JSON(http.StatusExpectationFailed, NewErrorResponse("VM is in a terminal state '%s'", vm.Status))
 		}
 		if vm.Status == v1.VMStatusRunning {
 			// VM is running, proceed
@@ -61,7 +61,7 @@ func (controller *Controller) portForwardVM(ctx *gin.Context) responder.Responde
 		}
 		select {
 		case <-waitContext.Done():
-			return responder.Code(http.StatusRequestTimeout)
+			return responder.JSON(http.StatusRequestTimeout, NewErrorResponse("VM is not running on '%s' worker", vm.Worker))
 		case <-time.After(1 * time.Second):
 			// try again
 			continue
