@@ -2,20 +2,25 @@ package worker
 
 import (
 	"errors"
+	"fmt"
 	"github.com/cirruslabs/orchard/internal/bootstraptoken"
 	"github.com/cirruslabs/orchard/internal/netconstants"
 	"github.com/cirruslabs/orchard/internal/worker"
 	"github.com/cirruslabs/orchard/pkg/client"
+	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
+var ErrRunFailed = errors.New("failed to run worker")
+
 var ErrBootstrapTokenNotProvided = errors.New("no bootstrap token provided")
 
 var bootstrapTokenRaw string
 var logFilePath string
+var stringToStringResources map[string]string
 
 func newRunCommand() *cobra.Command {
 	cmd := &cobra.Command{
@@ -24,10 +29,14 @@ func newRunCommand() *cobra.Command {
 		RunE:  runWorker,
 		Args:  cobra.ExactArgs(1),
 	}
+
 	cmd.PersistentFlags().StringVar(&bootstrapTokenRaw, "bootstrap-token", "",
 		"a bootstrap token retrieved via `orchard get bootstrap-token <service-account-name-for-workers>`")
 	cmd.PersistentFlags().StringVar(&logFilePath, "log-file", "",
 		"optional path to a file where logs (up to 100 Mb) will be written.")
+	cmd.PersistentFlags().StringToStringVar(&stringToStringResources, "resources", map[string]string{},
+		"resources that this worker provides")
+
 	return cmd
 }
 
@@ -42,6 +51,12 @@ func runWorker(cmd *cobra.Command, args []string) (err error) {
 	bootstrapToken, err := bootstraptoken.NewFromString(bootstrapTokenRaw)
 	if err != nil {
 		return err
+	}
+
+	// Convert resources
+	resources, err := v1.NewResourcesFromStringToString(stringToStringResources)
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrRunFailed, err)
 	}
 
 	controllerClient, err := client.New(
@@ -65,7 +80,11 @@ func runWorker(cmd *cobra.Command, args []string) (err error) {
 		}
 	}()
 
-	workerInstance, err := worker.New(controllerClient, worker.WithLogger(logger))
+	workerInstance, err := worker.New(
+		controllerClient,
+		worker.WithResources(resources),
+		worker.WithLogger(logger),
+	)
 	if err != nil {
 		return err
 	}

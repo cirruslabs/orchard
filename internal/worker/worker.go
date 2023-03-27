@@ -23,10 +23,11 @@ var ErrPollFailed = errors.New("failed to poll controller")
 var ErrRegistrationFailed = errors.New("failed to register worker on the controller")
 
 type Worker struct {
-	name   string
-	vmm    *vmmanager.VMManager
-	client *client.Client
-	logger *zap.SugaredLogger
+	name      string
+	vmm       *vmmanager.VMManager
+	client    *client.Client
+	resources v1.Resources
+	logger    *zap.SugaredLogger
 }
 
 func New(client *client.Client, opts ...Option) (*Worker, error) {
@@ -49,6 +50,12 @@ func New(client *client.Client, opts ...Option) (*Worker, error) {
 
 		worker.name = hostname
 	}
+
+	defaultResources := v1.Resources{
+		v1.ResourceTartVMs: 2,
+	}
+	worker.resources = defaultResources.Merged(worker.resources)
+
 	if worker.logger == nil {
 		worker.logger = zap.NewNop().Sugar()
 	}
@@ -116,6 +123,7 @@ func (worker *Worker) registerWorker(ctx context.Context) error {
 		Meta: v1.Meta{
 			Name: worker.name,
 		},
+		Resources: worker.resources,
 		LastSeen:  time.Now(),
 		MachineID: platformUUID,
 	})

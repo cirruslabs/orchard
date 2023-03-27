@@ -25,6 +25,9 @@ type Worker struct {
 
 	MachineID string
 
+	// Resources available on this Worker.
+	Resources Resources `json:"resources"`
+
 	Meta
 }
 
@@ -51,6 +54,9 @@ type VM struct {
 	//
 	// It is populated by the Controller when receiving a POST request.
 	UID string `json:"uid"`
+
+	// Resources required by this VM.
+	Resources Resources `json:"resources"`
 
 	Meta
 }

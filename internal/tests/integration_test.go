@@ -151,7 +151,7 @@ func Wait(duration time.Duration, condition func() bool) bool {
 
 func StartIntegrationTestEnvironment(t *testing.T) *client.Client {
 	t.Setenv("ORCHARD_HOME", t.TempDir())
-	devController, devWorker, err := dev.CreateDevControllerAndWorker(t.TempDir())
+	devController, devWorker, err := dev.CreateDevControllerAndWorker(t.TempDir(), ":0", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -30,6 +30,14 @@ func (controller *Controller) createVM(ctx *gin.Context) responder.Responder {
 	vm.CreatedAt = time.Now()
 	vm.UID = uuid.New().String()
 
+	// Provide resource defaults
+	if vm.Resources == nil {
+		vm.Resources = make(v1.Resources)
+	}
+	if _, ok := vm.Resources[v1.ResourceTartVMs]; !ok {
+		vm.Resources[v1.ResourceTartVMs] = 1
+	}
+
 	return controller.storeUpdate(func(txn storepkg.Transaction) responder.Responder {
 		// Does the VM resource with this name already exists?
 		_, err := txn.GetVM(vm.Name)

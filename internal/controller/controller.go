@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/cirruslabs/orchard/internal/controller/notifier"
 	"github.com/cirruslabs/orchard/internal/controller/proxy"
+	"github.com/cirruslabs/orchard/internal/controller/scheduler"
 	storepkg "github.com/cirruslabs/orchard/internal/controller/store"
 	"github.com/cirruslabs/orchard/internal/controller/store/badger"
 	"github.com/cirruslabs/orchard/internal/netconstants"
@@ -40,6 +41,7 @@ type Controller struct {
 	grpcServer           *grpc.Server
 	workerNotifier       *notifier.Notifier
 	proxy                *proxy.Proxy
+	enableSwaggerDocs    bool
 
 	rpc.UnimplementedControllerServer
 }
@@ -137,7 +139,7 @@ func (controller *Controller) Run(ctx context.Context) error {
 	// Run the scheduler so that each VM will eventually
 	// be assigned to a specific Worker
 	go func() {
-		err := runScheduler(controller.store)
+		err := scheduler.Run(controller.store)
 		if err != nil {
 			panic(err)
 		}

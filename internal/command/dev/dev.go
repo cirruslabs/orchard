@@ -1,10 +1,14 @@
 package dev
 
 import (
+	"errors"
+	"fmt"
 	"github.com/cirruslabs/orchard/internal/config"
 	"github.com/cirruslabs/orchard/internal/controller"
+	"github.com/cirruslabs/orchard/internal/netconstants"
 	"github.com/cirruslabs/orchard/internal/worker"
 	"github.com/cirruslabs/orchard/pkg/client"
+	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 	"os"
@@ -12,7 +16,10 @@ import (
 	"path/filepath"
 )
 
+var ErrFailed = errors.New("failed to run development controller and worker")
+
 var devDataDirPath string
+var stringToStringResources map[string]string
 
 func NewCommand() *cobra.Command {
 	command := &cobra.Command{
@@ -23,6 +30,8 @@ func NewCommand() *cobra.Command {
 
 	command.PersistentFlags().StringVarP(&devDataDirPath, "data-dir", "d", ".dev-data",
 		"path to persist data between runs")
+	command.PersistentFlags().StringToStringVar(&stringToStringResources, "resources", map[string]string{},
+		"resources that the development worker will provide")
 
 	return command
 }
@@ -36,7 +45,14 @@ func runDev(cmd *cobra.Command, args []string) error {
 		devDataDirPath = path.Join(pwd, devDataDirPath)
 	}
 
-	devController, devWorker, err := CreateDevControllerAndWorker(devDataDirPath)
+	// Convert resources
+	resources, err := v1.NewResourcesFromStringToString(stringToStringResources)
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrFailed, err)
+	}
+
+	devController, devWorker, err := CreateDevControllerAndWorker(devDataDirPath,
+		fmt.Sprintf(":%d", netconstants.DefaultControllerPort), resources)
 
 	if err != nil {
 		return err
@@ -59,7 +75,11 @@ func runDev(cmd *cobra.Command, args []string) error {
 	return <-errChan
 }
 
-func CreateDevControllerAndWorker(devDataDirPath string) (*controller.Controller, *worker.Worker, error) {
+func CreateDevControllerAndWorker(
+	devDataDirPath string,
+	controllerListenAddr string,
+	resources v1.Resources,
+) (*controller.Controller, *worker.Worker, error) {
 	// Initialize the logger
 	logger, err := zap.NewDevelopment()
 	if err != nil {
@@ -78,8 +98,9 @@ func CreateDevControllerAndWorker(devDataDirPath string) (*controller.Controller
 
 	devController, err := controller.New(
 		controller.WithDataDir(dataDir),
-		controller.WithListenAddr(":0"),
+		controller.WithListenAddr(controllerListenAddr),
 		controller.WithInsecureAuthDisabled(),
+		controller.WithSwaggerDocs(),
 		controller.WithLogger(logger),
 	)
 	if err != nil {
@@ -90,7 +111,7 @@ func CreateDevControllerAndWorker(devDataDirPath string) (*controller.Controller
 	if err != nil {
 		return nil, nil, err
 	}
-	devWorker, err := worker.New(defaultClient, worker.WithLogger(logger))
+	devWorker, err := worker.New(defaultClient, worker.WithResources(resources), worker.WithLogger(logger))
 	if err != nil {
 		return nil, nil, err
 	}
