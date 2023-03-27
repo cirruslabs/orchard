@@ -258,6 +258,14 @@ components:
         name:
           type: string
           description: Node name
+        resources:
+          type: object
+          description: |
+            Dictionary that maps the resource name to the
+            amount of this resource provided by the worker
+            for running VMs.
+          additionalProperties:
+            type: integer
     VM:
       title: Virtual Machine
       type: object
@@ -265,6 +273,14 @@ components:
         name:
           type: string
           description: VM name
+        resources:
+          type: object
+          description: |
+            Dictionary that maps the resource name to the
+            amount of this resource required on the worker
+            for this VM to be scheduled
+          additionalProperties:
+            type: integer
     Events:
       title: Events
       type: object
