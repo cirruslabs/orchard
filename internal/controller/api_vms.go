@@ -12,18 +12,27 @@ import (
 )
 
 func (controller *Controller) createVM(ctx *gin.Context) responder.Responder {
-	if !controller.authorize(ctx, v1.ServiceAccountRoleComputeWrite) {
-		return responder.Code(http.StatusUnauthorized)
+	if responder := controller.authorize(ctx, v1.ServiceAccountRoleComputeWrite); responder != nil {
+		return responder
 	}
 
 	var vm v1.VM
 
 	if err := ctx.ShouldBindJSON(&vm); err != nil {
-		return responder.Code(http.StatusBadRequest)
+		return responder.JSON(http.StatusBadRequest, NewErrorResponse("invalid JSON was provided"))
 	}
 
-	if vm.Name == "" || vm.Image == "" || vm.CPU == 0 || vm.Memory == 0 {
-		return responder.Code(http.StatusPreconditionFailed)
+	if vm.Name == "" {
+		return responder.JSON(http.StatusPreconditionFailed, NewErrorResponse("VM name is empty"))
+	}
+	if vm.Image == "" {
+		return responder.JSON(http.StatusPreconditionFailed, NewErrorResponse("VM image is empty"))
+	}
+	if vm.CPU == 0 {
+		return responder.JSON(http.StatusPreconditionFailed, NewErrorResponse("VM CPU is zero"))
+	}
+	if vm.Memory == 0 {
+		return responder.JSON(http.StatusPreconditionFailed, NewErrorResponse("VM memory is zero"))
 	}
 
 	vm.Status = v1.VMStatusPending
@@ -41,8 +50,11 @@ func (controller *Controller) createVM(ctx *gin.Context) responder.Responder {
 	return controller.storeUpdate(func(txn storepkg.Transaction) responder.Responder {
 		// Does the VM resource with this name already exists?
 		_, err := txn.GetVM(vm.Name)
-		if !errors.Is(err, storepkg.ErrNotFound) {
-			return responder.Code(http.StatusConflict)
+		if err != nil && !errors.Is(err, storepkg.ErrNotFound) {
+			return responder.Code(http.StatusInternalServerError)
+		}
+		if err == nil {
+			return responder.JSON(http.StatusConflict, NewErrorResponse("VM with this name already exists"))
 		}
 
 		if err := txn.SetVM(vm); err != nil {
@@ -54,18 +66,18 @@ func (controller *Controller) createVM(ctx *gin.Context) responder.Responder {
 }
 
 func (controller *Controller) updateVM(ctx *gin.Context) responder.Responder {
-	if !controller.authorize(ctx, v1.ServiceAccountRoleComputeWrite) {
-		return responder.Code(http.StatusUnauthorized)
+	if responder := controller.authorize(ctx, v1.ServiceAccountRoleComputeWrite); responder != nil {
+		return responder
 	}
 
 	var userVM v1.VM
 
 	if err := ctx.ShouldBindJSON(&userVM); err != nil {
-		return responder.Code(http.StatusBadRequest)
+		return responder.JSON(http.StatusBadRequest, NewErrorResponse("invalid JSON was provided"))
 	}
 
 	if userVM.Name == "" {
-		return responder.Code(http.StatusPreconditionFailed)
+		return responder.JSON(http.StatusPreconditionFailed, NewErrorResponse("VM name is empty"))
 	}
 
 	return controller.storeUpdate(func(txn storepkg.Transaction) responder.Responder {
@@ -75,7 +87,8 @@ func (controller *Controller) updateVM(ctx *gin.Context) responder.Responder {
 		}
 
 		if dbVM.TerminalState() && dbVM.Status != userVM.Status {
-			return responder.Code(http.StatusPreconditionFailed)
+			return responder.JSON(http.StatusPreconditionFailed,
+				NewErrorResponse("cannot update status for a VM in a terminal state"))
 		}
 
 		dbVM.Status = userVM.Status
@@ -90,8 +103,8 @@ func (controller *Controller) updateVM(ctx *gin.Context) responder.Responder {
 }
 
 func (controller *Controller) getVM(ctx *gin.Context) responder.Responder {
-	if !controller.authorize(ctx, v1.ServiceAccountRoleComputeRead) {
-		return responder.Code(http.StatusUnauthorized)
+	if responder := controller.authorize(ctx, v1.ServiceAccountRoleComputeRead); responder != nil {
+		return responder
 	}
 
 	name := ctx.Param("name")
@@ -107,8 +120,8 @@ func (controller *Controller) getVM(ctx *gin.Context) responder.Responder {
 }
 
 func (controller *Controller) listVMs(ctx *gin.Context) responder.Responder {
-	if !controller.authorize(ctx, v1.ServiceAccountRoleComputeRead) {
-		return responder.Code(http.StatusUnauthorized)
+	if responder := controller.authorize(ctx, v1.ServiceAccountRoleComputeRead); responder != nil {
+		return responder
 	}
 
 	return controller.storeView(func(txn storepkg.Transaction) responder.Responder {
@@ -122,8 +135,8 @@ func (controller *Controller) listVMs(ctx *gin.Context) responder.Responder {
 }
 
 func (controller *Controller) deleteVM(ctx *gin.Context) responder.Responder {
-	if !controller.authorize(ctx, v1.ServiceAccountRoleComputeWrite) {
-		return responder.Code(http.StatusUnauthorized)
+	if responder := controller.authorize(ctx, v1.ServiceAccountRoleComputeWrite); responder != nil {
+		return responder
 	}
 
 	name := ctx.Param("name")
@@ -146,14 +159,14 @@ func (controller *Controller) deleteVM(ctx *gin.Context) responder.Responder {
 	})
 }
 func (controller *Controller) appendVMEvents(ctx *gin.Context) responder.Responder {
-	if !controller.authorize(ctx, v1.ServiceAccountRoleComputeWrite) {
-		return responder.Code(http.StatusUnauthorized)
+	if responder := controller.authorize(ctx, v1.ServiceAccountRoleComputeWrite); responder != nil {
+		return responder
 	}
 
 	var events []v1.Event
 
 	if err := ctx.ShouldBindJSON(&events); err != nil {
-		return responder.Code(http.StatusBadRequest)
+		return responder.JSON(http.StatusBadRequest, NewErrorResponse("invalid JSON was provided"))
 	}
 
 	name := ctx.Param("name")
@@ -172,8 +185,8 @@ func (controller *Controller) appendVMEvents(ctx *gin.Context) responder.Respond
 }
 
 func (controller *Controller) listVMEvents(ctx *gin.Context) responder.Responder {
-	if !controller.authorize(ctx, v1.ServiceAccountRoleComputeRead) {
-		return responder.Code(http.StatusUnauthorized)
+	if responder := controller.authorize(ctx, v1.ServiceAccountRoleComputeRead); responder != nil {
+		return responder
 	}
 
 	name := ctx.Param("name")

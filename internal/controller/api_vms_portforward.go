@@ -14,8 +14,8 @@ import (
 )
 
 func (controller *Controller) portForwardVM(ctx *gin.Context) responder.Responder {
-	if !controller.authorize(ctx, v1.ServiceAccountRoleComputeWrite) {
-		return responder.Code(http.StatusUnauthorized)
+	if responder := controller.authorize(ctx, v1.ServiceAccountRoleComputeWrite); responder != nil {
+		return responder
 	}
 
 	// Retrieve and parse path and query parameters

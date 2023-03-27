@@ -11,18 +11,19 @@ import (
 )
 
 func (controller *Controller) createWorker(ctx *gin.Context) responder.Responder {
-	if !controller.authorize(ctx, v1.ServiceAccountRoleComputeWrite, v1.ServiceAccountRoleWorker) {
-		return responder.Code(http.StatusUnauthorized)
+	if responder := controller.authorize(ctx, v1.ServiceAccountRoleComputeWrite,
+		v1.ServiceAccountRoleWorker); responder != nil {
+		return responder
 	}
 
 	var worker v1.Worker
 
 	if err := ctx.ShouldBindJSON(&worker); err != nil {
-		return responder.Code(http.StatusBadRequest)
+		return responder.JSON(http.StatusBadRequest, NewErrorResponse("invalid JSON was provided"))
 	}
 
 	if worker.Name == "" {
-		return responder.Code(http.StatusPreconditionFailed)
+		return responder.JSON(http.StatusPreconditionFailed, NewErrorResponse("worker name is empty"))
 	}
 
 	currentTime := time.Now()
@@ -40,7 +41,9 @@ func (controller *Controller) createWorker(ctx *gin.Context) responder.Responder
 			return responder.Code(http.StatusInternalServerError)
 		}
 		if err == nil && worker.MachineID != dbWorker.MachineID {
-			return responder.Code(http.StatusConflict)
+			return responder.JSON(http.StatusConflict,
+				NewErrorResponse("this worker is managed from a different machine ID, "+
+					"delete this worker first to be able to re-create it"))
 		}
 
 		if err := txn.SetWorker(worker); err != nil {
@@ -52,14 +55,15 @@ func (controller *Controller) createWorker(ctx *gin.Context) responder.Responder
 }
 
 func (controller *Controller) updateWorker(ctx *gin.Context) responder.Responder {
-	if !controller.authorize(ctx, v1.ServiceAccountRoleComputeWrite, v1.ServiceAccountRoleWorker) {
-		return responder.Code(http.StatusUnauthorized)
+	if responder := controller.authorize(ctx, v1.ServiceAccountRoleComputeWrite,
+		v1.ServiceAccountRoleWorker); responder != nil {
+		return responder
 	}
 
 	var userWorker v1.Worker
 
 	if err := ctx.ShouldBindJSON(&userWorker); err != nil {
-		return responder.Code(http.StatusBadRequest)
+		return responder.JSON(http.StatusBadRequest, NewErrorResponse("invalid JSON was provided"))
 	}
 
 	return controller.storeUpdate(func(txn storepkg.Transaction) responder.Responder {
@@ -79,8 +83,9 @@ func (controller *Controller) updateWorker(ctx *gin.Context) responder.Responder
 }
 
 func (controller *Controller) getWorker(ctx *gin.Context) responder.Responder {
-	if !controller.authorize(ctx, v1.ServiceAccountRoleComputeRead, v1.ServiceAccountRoleWorker) {
-		return responder.Code(http.StatusUnauthorized)
+	if responder := controller.authorize(ctx, v1.ServiceAccountRoleComputeRead,
+		v1.ServiceAccountRoleWorker); responder != nil {
+		return responder
 	}
 
 	name := ctx.Param("name")
@@ -96,8 +101,9 @@ func (controller *Controller) getWorker(ctx *gin.Context) responder.Responder {
 }
 
 func (controller *Controller) listWorkers(ctx *gin.Context) responder.Responder {
-	if !controller.authorize(ctx, v1.ServiceAccountRoleComputeRead, v1.ServiceAccountRoleWorker) {
-		return responder.Code(http.StatusUnauthorized)
+	if responder := controller.authorize(ctx, v1.ServiceAccountRoleComputeRead,
+		v1.ServiceAccountRoleWorker); responder != nil {
+		return responder
 	}
 
 	return controller.storeView(func(txn storepkg.Transaction) responder.Responder {
@@ -111,8 +117,9 @@ func (controller *Controller) listWorkers(ctx *gin.Context) responder.Responder 
 }
 
 func (controller *Controller) deleteWorker(ctx *gin.Context) responder.Responder {
-	if !controller.authorize(ctx, v1.ServiceAccountRoleComputeWrite, v1.ServiceAccountRoleWorker) {
-		return responder.Code(http.StatusUnauthorized)
+	if responder := controller.authorize(ctx, v1.ServiceAccountRoleComputeWrite,
+		v1.ServiceAccountRoleWorker); responder != nil {
+		return responder
 	}
 
 	name := ctx.Param("name")

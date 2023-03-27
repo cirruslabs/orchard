@@ -14,6 +14,7 @@ import (
 	"github.com/go-openapi/runtime/middleware"
 	"google.golang.org/grpc/metadata"
 	"net/http"
+	"strings"
 )
 
 const ctxServiceAccountKey = "service-account"
@@ -163,19 +164,36 @@ func (controller *Controller) authenticateMiddleware(c *gin.Context) {
 	c.Next()
 }
 
-func (controller *Controller) authorize(ctx *gin.Context, scopes ...v1pkg.ServiceAccountRole) bool {
+func (controller *Controller) authorize(
+	ctx *gin.Context,
+	requiredRoles ...v1pkg.ServiceAccountRole,
+) responder.Responder {
 	if controller.insecureAuthDisabled {
-		return true
+		return nil
 	}
 
 	serviceAccountUntyped, ok := ctx.Get(ctxServiceAccountKey)
 	if !ok {
-		return false
+		return responder.Code(http.StatusUnauthorized)
+	}
+	serviceAccount := serviceAccountUntyped.(*v1pkg.ServiceAccount)
+	serviceAccountRolesSet := mapset.NewSet[v1pkg.ServiceAccountRole](serviceAccount.Roles...)
+
+	requiredRolesSet := mapset.NewSet[v1pkg.ServiceAccountRole](requiredRoles...)
+
+	missingRoles := requiredRolesSet.Difference(serviceAccountRolesSet).ToSlice()
+	if len(missingRoles) == 0 {
+		return nil
 	}
 
-	serviceAccount := serviceAccountUntyped.(*v1pkg.ServiceAccount)
+	var missingRolesStrings []string
 
-	return mapset.NewSet[v1pkg.ServiceAccountRole](serviceAccount.Roles...).Contains(scopes...)
+	for _, missingRole := range missingRoles {
+		missingRolesStrings = append(missingRolesStrings, string(missingRole))
+	}
+
+	return responder.JSON(http.StatusUnauthorized,
+		NewErrorResponse("missing roles: %s", strings.Join(missingRolesStrings, ", ")))
 }
 
 func (controller *Controller) authorizeGRPC(ctx context.Context, scopes ...v1pkg.ServiceAccountRole) bool {
