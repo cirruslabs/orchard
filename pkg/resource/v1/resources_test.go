@@ -17,12 +17,36 @@ func TestResourcesAdd(t *testing.T) {
 	require.Equal(t, v1.Resources{v1.ResourceTartVMs: 4}, resources)
 }
 
-func TestResourcesSub(t *testing.T) {
+func TestResourcesAdded(t *testing.T) {
+	resources := v1.Resources{
+		v1.ResourceTartVMs: 1,
+	}
+
+	resources = resources.Added(v1.Resources{v1.ResourceTartVMs: 3})
+
+	require.Equal(t, v1.Resources{v1.ResourceTartVMs: 4}, resources)
+}
+
+func TestResourcesSubtract(t *testing.T) {
 	resources := v1.Resources{
 		v1.ResourceTartVMs: 2,
 	}
 
 	resources.Subtract(v1.Resources{
+		v1.ResourceTartVMs: 1,
+	})
+
+	require.False(t, resources.CanFit(v1.Resources{
+		v1.ResourceTartVMs: 2,
+	}))
+}
+
+func TestResourcesSubtracted(t *testing.T) {
+	resources := v1.Resources{
+		v1.ResourceTartVMs: 2,
+	}
+
+	resources = resources.Subtracted(v1.Resources{
 		v1.ResourceTartVMs: 1,
 	})
 
@@ -51,5 +75,32 @@ func TestResourcesCanFit(t *testing.T) {
 	}))
 	require.False(t, resources.CanFit(v1.Resources{
 		v1.ResourceTartVMs: math.MaxUint64,
+	}))
+}
+
+func TestResourcesMerge(t *testing.T) {
+	resources := v1.Resources{
+		v1.ResourceTartVMs: 2,
+		"some-other":       5,
+	}
+	resources.Merge(v1.Resources{
+		v1.ResourceTartVMs: 4,
+	})
+	require.Equal(t, v1.Resources{
+		v1.ResourceTartVMs: 4,
+		"some-other":       5,
+	}, resources)
+}
+
+func TestResourcesMerged(t *testing.T) {
+	resources := v1.Resources{
+		v1.ResourceTartVMs: 2,
+		"some-other":       5,
+	}
+	require.Equal(t, v1.Resources{
+		v1.ResourceTartVMs: 4,
+		"some-other":       5,
+	}, resources.Merged(v1.Resources{
+		v1.ResourceTartVMs: 4,
 	}))
 }
