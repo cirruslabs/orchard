@@ -1,3 +1,4 @@
+//nolint:testpackage // we need to have access for Controller for this test
 package controller
 
 import (
