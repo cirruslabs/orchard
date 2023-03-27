@@ -1,8 +1,10 @@
 package dev
 
 import (
+	"fmt"
 	"github.com/cirruslabs/orchard/internal/config"
 	"github.com/cirruslabs/orchard/internal/controller"
+	"github.com/cirruslabs/orchard/internal/netconstants"
 	"github.com/cirruslabs/orchard/internal/worker"
 	"github.com/cirruslabs/orchard/pkg/client"
 	"github.com/spf13/cobra"
@@ -36,7 +38,8 @@ func runDev(cmd *cobra.Command, args []string) error {
 		devDataDirPath = path.Join(pwd, devDataDirPath)
 	}
 
-	devController, devWorker, err := CreateDevControllerAndWorker(devDataDirPath)
+	devController, devWorker, err := CreateDevControllerAndWorker(devDataDirPath,
+		fmt.Sprintf(":%d", netconstants.DefaultControllerPort))
 
 	if err != nil {
 		return err
@@ -59,7 +62,10 @@ func runDev(cmd *cobra.Command, args []string) error {
 	return <-errChan
 }
 
-func CreateDevControllerAndWorker(devDataDirPath string) (*controller.Controller, *worker.Worker, error) {
+func CreateDevControllerAndWorker(
+	devDataDirPath string,
+	controllerListenAddr string,
+) (*controller.Controller, *worker.Worker, error) {
 	// Initialize the logger
 	logger, err := zap.NewDevelopment()
 	if err != nil {
@@ -78,7 +84,7 @@ func CreateDevControllerAndWorker(devDataDirPath string) (*controller.Controller
 
 	devController, err := controller.New(
 		controller.WithDataDir(dataDir),
-		controller.WithListenAddr(":0"),
+		controller.WithListenAddr(controllerListenAddr),
 		controller.WithInsecureAuthDisabled(),
 		controller.WithLogger(logger),
 	)
