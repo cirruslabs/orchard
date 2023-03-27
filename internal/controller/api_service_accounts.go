@@ -19,11 +19,11 @@ func (controller *Controller) createServiceAccount(ctx *gin.Context) responder.R
 	var serviceAccount v1.ServiceAccount
 
 	if err := ctx.ShouldBindJSON(&serviceAccount); err != nil {
-		return responder.JSON(http.StatusBadRequest, NewError("invalid JSON was provided"))
+		return responder.JSON(http.StatusBadRequest, NewErrorResponse("invalid JSON was provided"))
 	}
 
 	if serviceAccount.Name == "" {
-		return responder.JSON(http.StatusPreconditionFailed, NewError("service account name is empty"))
+		return responder.JSON(http.StatusPreconditionFailed, NewErrorResponse("service account name is empty"))
 	}
 
 	// validate roles
@@ -31,7 +31,7 @@ func (controller *Controller) createServiceAccount(ctx *gin.Context) responder.R
 		_, err := v1.NewServiceAccountRole(string(role))
 		if err != nil {
 			return responder.JSON(http.StatusPreconditionFailed,
-				NewError("unsupported role \"%s\"", role))
+				NewErrorResponse("unsupported role \"%s\"", role))
 		}
 	}
 
@@ -49,7 +49,7 @@ func (controller *Controller) createServiceAccount(ctx *gin.Context) responder.R
 		}
 		if err == nil {
 			return responder.JSON(http.StatusConflict,
-				NewError("service account with this name already exists"))
+				NewErrorResponse("service account with this name already exists"))
 		}
 
 		if err := txn.SetServiceAccount(&serviceAccount); err != nil {
@@ -68,15 +68,15 @@ func (controller *Controller) updateServiceAccount(ctx *gin.Context) responder.R
 	var userServiceAccount v1.ServiceAccount
 
 	if err := ctx.ShouldBindJSON(&userServiceAccount); err != nil {
-		return responder.JSON(http.StatusBadRequest, NewError("invalid JSON was provided"))
+		return responder.JSON(http.StatusBadRequest, NewErrorResponse("invalid JSON was provided"))
 	}
 
 	if userServiceAccount.Name == "" {
-		return responder.JSON(http.StatusPreconditionFailed, NewError("service account name is empty"))
+		return responder.JSON(http.StatusPreconditionFailed, NewErrorResponse("service account name is empty"))
 	}
 
 	if userServiceAccount.Token == "" {
-		return responder.JSON(http.StatusPreconditionFailed, NewError("service account token is empty"))
+		return responder.JSON(http.StatusPreconditionFailed, NewErrorResponse("service account token is empty"))
 	}
 
 	return controller.storeUpdate(func(txn storepkg.Transaction) responder.Responder {

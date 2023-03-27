@@ -19,20 +19,20 @@ func (controller *Controller) createVM(ctx *gin.Context) responder.Responder {
 	var vm v1.VM
 
 	if err := ctx.ShouldBindJSON(&vm); err != nil {
-		return responder.JSON(http.StatusBadRequest, NewError("invalid JSON was provided"))
+		return responder.JSON(http.StatusBadRequest, NewErrorResponse("invalid JSON was provided"))
 	}
 
 	if vm.Name == "" {
-		return responder.JSON(http.StatusPreconditionFailed, NewError("VM name is empty"))
+		return responder.JSON(http.StatusPreconditionFailed, NewErrorResponse("VM name is empty"))
 	}
 	if vm.Image == "" {
-		return responder.JSON(http.StatusPreconditionFailed, NewError("VM image is empty"))
+		return responder.JSON(http.StatusPreconditionFailed, NewErrorResponse("VM image is empty"))
 	}
 	if vm.CPU == 0 {
-		return responder.JSON(http.StatusPreconditionFailed, NewError("VM CPU is zero"))
+		return responder.JSON(http.StatusPreconditionFailed, NewErrorResponse("VM CPU is zero"))
 	}
 	if vm.Memory == 0 {
-		return responder.JSON(http.StatusPreconditionFailed, NewError("VM memory is zero"))
+		return responder.JSON(http.StatusPreconditionFailed, NewErrorResponse("VM memory is zero"))
 	}
 
 	vm.Status = v1.VMStatusPending
@@ -46,7 +46,7 @@ func (controller *Controller) createVM(ctx *gin.Context) responder.Responder {
 			return responder.Code(http.StatusInternalServerError)
 		}
 		if err == nil {
-			return responder.JSON(http.StatusConflict, NewError("VM with this name already exists"))
+			return responder.JSON(http.StatusConflict, NewErrorResponse("VM with this name already exists"))
 		}
 
 		if err := txn.SetVM(vm); err != nil {
@@ -65,11 +65,11 @@ func (controller *Controller) updateVM(ctx *gin.Context) responder.Responder {
 	var userVM v1.VM
 
 	if err := ctx.ShouldBindJSON(&userVM); err != nil {
-		return responder.JSON(http.StatusBadRequest, NewError("invalid JSON was provided"))
+		return responder.JSON(http.StatusBadRequest, NewErrorResponse("invalid JSON was provided"))
 	}
 
 	if userVM.Name == "" {
-		return responder.JSON(http.StatusPreconditionFailed, NewError("VM name is empty"))
+		return responder.JSON(http.StatusPreconditionFailed, NewErrorResponse("VM name is empty"))
 	}
 
 	return controller.storeUpdate(func(txn storepkg.Transaction) responder.Responder {
@@ -80,7 +80,7 @@ func (controller *Controller) updateVM(ctx *gin.Context) responder.Responder {
 
 		if dbVM.TerminalState() && dbVM.Status != userVM.Status {
 			return responder.JSON(http.StatusPreconditionFailed,
-				NewError("cannot update status for a VM in a terminal state"))
+				NewErrorResponse("cannot update status for a VM in a terminal state"))
 		}
 
 		dbVM.Status = userVM.Status
@@ -158,7 +158,7 @@ func (controller *Controller) appendVMEvents(ctx *gin.Context) responder.Respond
 	var events []v1.Event
 
 	if err := ctx.ShouldBindJSON(&events); err != nil {
-		return responder.JSON(http.StatusBadRequest, NewError("invalid JSON was provided"))
+		return responder.JSON(http.StatusBadRequest, NewErrorResponse("invalid JSON was provided"))
 	}
 
 	name := ctx.Param("name")

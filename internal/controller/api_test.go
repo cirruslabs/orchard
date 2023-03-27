@@ -31,7 +31,7 @@ func TestAuthorizeAuthenticatedNoRoles(t *testing.T) {
 
 	const requiredRole = v1pkg.ServiceAccountRoleAdminWrite
 
-	require.Equal(t, responder.JSON(http.StatusUnauthorized, NewError("missing roles: %s", requiredRole)),
+	require.Equal(t, responder.JSON(http.StatusUnauthorized, NewErrorResponse("missing roles: %s", requiredRole)),
 		controller.authorize(ctx, requiredRole))
 }
 

@@ -19,11 +19,11 @@ func (controller *Controller) createWorker(ctx *gin.Context) responder.Responder
 	var worker v1.Worker
 
 	if err := ctx.ShouldBindJSON(&worker); err != nil {
-		return responder.JSON(http.StatusBadRequest, NewError("invalid JSON was provided"))
+		return responder.JSON(http.StatusBadRequest, NewErrorResponse("invalid JSON was provided"))
 	}
 
 	if worker.Name == "" {
-		return responder.JSON(http.StatusPreconditionFailed, NewError("worker name is empty"))
+		return responder.JSON(http.StatusPreconditionFailed, NewErrorResponse("worker name is empty"))
 	}
 
 	currentTime := time.Now()
@@ -42,7 +42,7 @@ func (controller *Controller) createWorker(ctx *gin.Context) responder.Responder
 		}
 		if err == nil && worker.MachineID != dbWorker.MachineID {
 			return responder.JSON(http.StatusConflict,
-				NewError("this worker is managed from a different machine ID, "+
+				NewErrorResponse("this worker is managed from a different machine ID, "+
 					"delete this worker first to be able to re-create it"))
 		}
 
@@ -63,7 +63,7 @@ func (controller *Controller) updateWorker(ctx *gin.Context) responder.Responder
 	var userWorker v1.Worker
 
 	if err := ctx.ShouldBindJSON(&userWorker); err != nil {
-		return responder.JSON(http.StatusBadRequest, NewError("invalid JSON was provided"))
+		return responder.JSON(http.StatusBadRequest, NewErrorResponse("invalid JSON was provided"))
 	}
 
 	return controller.storeUpdate(func(txn storepkg.Transaction) responder.Responder {

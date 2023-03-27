@@ -178,7 +178,7 @@ func (controller *Controller) authorize(
 	}
 
 	return responder.JSON(http.StatusUnauthorized,
-		NewError("missing roles: %s", strings.Join(missingRolesStrings, ", ")))
+		NewErrorResponse("missing roles: %s", strings.Join(missingRolesStrings, ", ")))
 }
 
 func (controller *Controller) authorizeGRPC(ctx context.Context, scopes ...v1pkg.ServiceAccountRole) bool {
