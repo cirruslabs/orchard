@@ -4,12 +4,14 @@ import (
 	"context"
 	"crypto/subtle"
 	"errors"
+	"github.com/cirruslabs/orchard/api"
 	storepkg "github.com/cirruslabs/orchard/internal/controller/store"
 	"github.com/cirruslabs/orchard/internal/responder"
 	v1pkg "github.com/cirruslabs/orchard/pkg/resource/v1"
 	"github.com/cirruslabs/orchard/rpc"
 	"github.com/deckarep/golang-set/v2"
 	"github.com/gin-gonic/gin"
+	"github.com/go-openapi/runtime/middleware"
 	"google.golang.org/grpc/metadata"
 	"net/http"
 )
@@ -29,8 +31,21 @@ func (controller *Controller) initAPI() *gin.Engine {
 
 	// A way to for the clients to check that the API is working
 	v1.GET("/", func(c *gin.Context) {
-		c.Status(http.StatusOK)
+		if controller.enableSwaggerDocs {
+			middleware.SwaggerUI(middleware.SwaggerUIOpts{
+				Path:    "/v1",
+				SpecURL: "/v1/openapi.yaml",
+			}, nil).ServeHTTP(c.Writer, c.Request)
+		} else {
+			c.Status(http.StatusOK)
+		}
 	})
+
+	if controller.enableSwaggerDocs {
+		v1.GET("/openapi.yaml", func(c *gin.Context) {
+			c.Data(200, "text/yaml", api.Spec)
+		})
+	}
 
 	// Service accounts
 	v1.POST("/service-accounts", func(c *gin.Context) {

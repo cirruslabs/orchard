@@ -100,6 +100,7 @@ func CreateDevControllerAndWorker(
 		controller.WithDataDir(dataDir),
 		controller.WithListenAddr(controllerListenAddr),
 		controller.WithInsecureAuthDisabled(),
+		controller.WithSwaggerDocs(),
 		controller.WithLogger(logger),
 	)
 	if err != nil {

@@ -41,6 +41,7 @@ type Controller struct {
 	grpcServer           *grpc.Server
 	workerNotifier       *notifier.Notifier
 	proxy                *proxy.Proxy
+	enableSwaggerDocs    bool
 
 	rpc.UnimplementedControllerServer
 }

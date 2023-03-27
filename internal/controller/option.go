@@ -31,6 +31,12 @@ func WithInsecureAuthDisabled() Option {
 	}
 }
 
+func WithSwaggerDocs() Option {
+	return func(controller *Controller) {
+		controller.enableSwaggerDocs = true
+	}
+}
+
 func WithLogger(logger *zap.Logger) Option {
 	return func(controller *Controller) {
 		controller.logger = logger.Sugar()
