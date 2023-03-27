@@ -166,7 +166,7 @@ func (controller *Controller) authorize(
 
 	requiredRolesSet := mapset.NewSet[v1pkg.ServiceAccountRole](requiredRoles...)
 
-	missingRoles := serviceAccountRolesSet.Difference(requiredRolesSet).ToSlice()
+	missingRoles := requiredRolesSet.Difference(serviceAccountRolesSet).ToSlice()
 	if len(missingRoles) == 0 {
 		return nil
 	}
