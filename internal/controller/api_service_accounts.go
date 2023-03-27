@@ -12,25 +12,26 @@ import (
 )
 
 func (controller *Controller) createServiceAccount(ctx *gin.Context) responder.Responder {
-	if !controller.authorize(ctx, v1.ServiceAccountRoleAdminWrite) {
-		return responder.Code(http.StatusUnauthorized)
+	if responder := controller.authorize(ctx, v1.ServiceAccountRoleAdminWrite); responder != nil {
+		return responder
 	}
 
 	var serviceAccount v1.ServiceAccount
 
 	if err := ctx.ShouldBindJSON(&serviceAccount); err != nil {
-		return responder.Code(http.StatusBadRequest)
+		return responder.JSON(http.StatusBadRequest, NewError("invalid JSON was provided"))
 	}
 
 	if serviceAccount.Name == "" {
-		return responder.Code(http.StatusPreconditionFailed)
+		return responder.JSON(http.StatusPreconditionFailed, NewError("service account name is empty"))
 	}
 
 	// validate roles
 	for _, role := range serviceAccount.Roles {
 		_, err := v1.NewServiceAccountRole(string(role))
 		if err != nil {
-			return responder.Code(http.StatusPreconditionFailed)
+			return responder.JSON(http.StatusPreconditionFailed,
+				NewError("unsupported role \"%s\"", role))
 		}
 	}
 
@@ -43,8 +44,12 @@ func (controller *Controller) createServiceAccount(ctx *gin.Context) responder.R
 	return controller.storeUpdate(func(txn storepkg.Transaction) responder.Responder {
 		// Does the Service Account resource with this name already exists?
 		_, err := txn.GetServiceAccount(serviceAccount.Name)
-		if !errors.Is(err, storepkg.ErrNotFound) {
-			return responder.Code(http.StatusConflict)
+		if err != nil && !errors.Is(err, storepkg.ErrNotFound) {
+			return responder.Code(http.StatusInternalServerError)
+		}
+		if err == nil {
+			return responder.JSON(http.StatusConflict,
+				NewError("service account with this name already exists"))
 		}
 
 		if err := txn.SetServiceAccount(&serviceAccount); err != nil {
@@ -56,22 +61,22 @@ func (controller *Controller) createServiceAccount(ctx *gin.Context) responder.R
 }
 
 func (controller *Controller) updateServiceAccount(ctx *gin.Context) responder.Responder {
-	if !controller.authorize(ctx, v1.ServiceAccountRoleAdminWrite) {
-		return responder.Code(http.StatusUnauthorized)
+	if responder := controller.authorize(ctx, v1.ServiceAccountRoleAdminWrite); responder != nil {
+		return responder
 	}
 
 	var userServiceAccount v1.ServiceAccount
 
 	if err := ctx.ShouldBindJSON(&userServiceAccount); err != nil {
-		return responder.Code(http.StatusBadRequest)
+		return responder.JSON(http.StatusBadRequest, NewError("invalid JSON was provided"))
 	}
 
 	if userServiceAccount.Name == "" {
-		return responder.Code(http.StatusPreconditionFailed)
+		return responder.JSON(http.StatusPreconditionFailed, NewError("service account name is empty"))
 	}
 
 	if userServiceAccount.Token == "" {
-		return responder.Code(http.StatusPreconditionFailed)
+		return responder.JSON(http.StatusPreconditionFailed, NewError("service account token is empty"))
 	}
 
 	return controller.storeUpdate(func(txn storepkg.Transaction) responder.Responder {
@@ -89,8 +94,8 @@ func (controller *Controller) updateServiceAccount(ctx *gin.Context) responder.R
 }
 
 func (controller *Controller) getServiceAccount(ctx *gin.Context) responder.Responder {
-	if !controller.authorize(ctx, v1.ServiceAccountRoleAdminRead) {
-		return responder.Code(http.StatusUnauthorized)
+	if responder := controller.authorize(ctx, v1.ServiceAccountRoleAdminRead); responder != nil {
+		return responder
 	}
 
 	name := ctx.Param("name")
@@ -106,8 +111,8 @@ func (controller *Controller) getServiceAccount(ctx *gin.Context) responder.Resp
 }
 
 func (controller *Controller) listServiceAccounts(ctx *gin.Context) responder.Responder {
-	if !controller.authorize(ctx, v1.ServiceAccountRoleAdminRead) {
-		return responder.Code(http.StatusUnauthorized)
+	if responder := controller.authorize(ctx, v1.ServiceAccountRoleAdminRead); responder != nil {
+		return responder
 	}
 
 	return controller.storeView(func(txn storepkg.Transaction) responder.Responder {
@@ -121,8 +126,8 @@ func (controller *Controller) listServiceAccounts(ctx *gin.Context) responder.Re
 }
 
 func (controller *Controller) deleteServiceAccount(ctx *gin.Context) responder.Responder {
-	if !controller.authorize(ctx, v1.ServiceAccountRoleAdminWrite) {
-		return responder.Code(http.StatusUnauthorized)
+	if responder := controller.authorize(ctx, v1.ServiceAccountRoleAdminWrite); responder != nil {
+		return responder
 	}
 
 	name := ctx.Param("name")
