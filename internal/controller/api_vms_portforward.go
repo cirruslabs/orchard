@@ -34,6 +34,9 @@ func (controller *Controller) portForwardVM(ctx *gin.Context) responder.Responde
 
 	waitRaw := ctx.Query("wait")
 	wait, err := strconv.ParseUint(waitRaw, 10, 16)
+	if err != nil {
+		return responder.Code(http.StatusBadRequest)
+	}
 	waitContext, waitContextCancel := context.WithTimeout(ctx, time.Duration(wait)*time.Second)
 	defer waitContextCancel()
 
