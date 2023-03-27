@@ -18,6 +18,7 @@ var ErrFailed = errors.New("ssh command failed")
 
 var username string
 var password string
+var wait uint16
 
 func newSSHVMCommand() *cobra.Command {
 	command := &cobra.Command{
@@ -31,6 +32,8 @@ func newSSHVMCommand() *cobra.Command {
 		"SSH username")
 	command.PersistentFlags().StringVarP(&password, "password", "p", "",
 		"SSH password")
+	command.PersistentFlags().Uint16VarP(&wait, "wait", "t", 60,
+		"Amount of seconds to wait for the VM to start running if it's not running already")
 
 	return command
 }
@@ -43,7 +46,7 @@ func runSSHVM(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	wsConn, err := client.VMs().PortForward(cmd.Context(), name, 22)
+	wsConn, err := client.VMs().PortForward(cmd.Context(), name, 22, wait)
 	if err != nil {
 		fmt.Printf("failed to forward an SSH port to VM %s: %v\n", name, err)
 

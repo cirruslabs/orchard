@@ -8,6 +8,8 @@ import (
 	"net"
 )
 
+var wait uint16
+
 func newPortForwardVMCommand() *cobra.Command {
 	command := &cobra.Command{
 		Use:   "vm VM_NAME [LOCAL_PORT]:REMOTE_PORT",
@@ -15,6 +17,9 @@ func newPortForwardVMCommand() *cobra.Command {
 		Args:  cobra.ExactArgs(2),
 		RunE:  runPortForwardVMCommand,
 	}
+
+	command.PersistentFlags().Uint16VarP(&wait, "wait", "t", 60,
+		"Amount of seconds to wait for the VM to start running if it's not running already")
 
 	return command
 }
@@ -59,7 +64,7 @@ func runPortForwardVMCommand(cmd *cobra.Command, args []string) (err error) {
 			go func() {
 				defer conn.Close()
 
-				wsConn, err := client.VMs().PortForward(cmd.Context(), name, portSpec.RemotePort)
+				wsConn, err := client.VMs().PortForward(cmd.Context(), name, portSpec.RemotePort, wait)
 				if err != nil {
 					fmt.Printf("failed to forward port: %v\n", err)
 

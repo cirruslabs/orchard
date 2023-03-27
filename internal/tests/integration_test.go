@@ -200,24 +200,16 @@ func TestPortForwarding(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Wait for the VM to start
-	var vm *v1.VM
+	// Establish port forwarding to VMs SSH port
+	wsConn, err := devClient.VMs().PortForward(ctx, "test-vm", 22, 120)
+	require.NoError(t, err)
 
-	require.True(t, Wait(2*time.Minute, func() bool {
-		vm, err = devClient.VMs().Get(ctx, "test-vm")
-		require.NoError(t, err)
-
-		t.Logf("Waiting for the VM to start, current status: %s", vm.Status)
-
-		return vm.Status == v1.VMStatusRunning || vm.Status == v1.VMStatusFailed
-	}), "failed to start a VM")
-
+	vm, err := devClient.VMs().Get(ctx, "test-vm")
+	require.NoError(t, err)
 	require.Equal(t, v1.VMStatusRunning, vm.Status)
 	require.Empty(t, vm.StatusMessage)
 
-	// Establish port forwarding to VMs SSH port
-	wsConn, err := devClient.VMs().PortForward(ctx, "test-vm", 22)
-	require.NoError(t, err)
+	t.Logf("Waiting for the VM to start, current status: %s", vm.Status)
 
 	// Make sure we can connect to the VM over SSH via the forwarded port
 	sshConfig := &ssh.ClientConfig{

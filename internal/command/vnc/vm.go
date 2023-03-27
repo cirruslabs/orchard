@@ -14,6 +14,7 @@ const vncPort = 5900
 
 var username string
 var password string
+var wait uint16
 
 func newVNCVMCommand() *cobra.Command {
 	command := &cobra.Command{
@@ -27,6 +28,8 @@ func newVNCVMCommand() *cobra.Command {
 		"VNC username")
 	command.PersistentFlags().StringVarP(&password, "password", "p", "",
 		"VNC password")
+	command.PersistentFlags().Uint16VarP(&wait, "wait", "w", 60,
+		"Amount of seconds to wait for the VM to start running if it's not running already")
 
 	return command
 }
@@ -63,7 +66,7 @@ func runVNCVM(cmd *cobra.Command, args []string) (err error) {
 			}
 
 			go func() {
-				wsConn, err := client.VMs().PortForward(cmd.Context(), name, vncPort)
+				wsConn, err := client.VMs().PortForward(cmd.Context(), name, vncPort, wait)
 				if err != nil {
 					fmt.Printf("failed to forward port: %v\n", err)
 

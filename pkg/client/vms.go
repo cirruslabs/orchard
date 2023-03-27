@@ -101,9 +101,17 @@ func (service *VMsService) Delete(ctx context.Context, name string) error {
 	return nil
 }
 
-func (service *VMsService) PortForward(ctx context.Context, name string, port uint16) (*websocket.Conn, error) {
+func (service *VMsService) PortForward(
+	ctx context.Context,
+	name string,
+	port uint16,
+	waitSeconds uint16,
+) (*websocket.Conn, error) {
 	return service.client.wsRequest(ctx, fmt.Sprintf("vms/%s/port-forward", name),
-		map[string]string{"port": strconv.FormatUint(uint64(port), 10)})
+		map[string]string{
+			"port": strconv.FormatUint(uint64(port), 10),
+			"wait": strconv.FormatUint(uint64(waitSeconds), 10),
+		})
 }
 
 func (service *VMsService) StreamEvents(name string) *EventStreamer {

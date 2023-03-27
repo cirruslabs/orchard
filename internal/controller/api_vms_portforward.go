@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"context"
 	storepkg "github.com/cirruslabs/orchard/internal/controller/store"
 	"github.com/cirruslabs/orchard/internal/proxy"
 	"github.com/cirruslabs/orchard/internal/responder"
@@ -11,6 +12,7 @@ import (
 	"golang.org/x/net/websocket"
 	"net/http"
 	"strconv"
+	"time"
 )
 
 func (controller *Controller) portForwardVM(ctx *gin.Context) responder.Responder {
@@ -30,23 +32,43 @@ func (controller *Controller) portForwardVM(ctx *gin.Context) responder.Responde
 		return responder.Code(http.StatusBadRequest)
 	}
 
+	waitRaw := ctx.Query("wait")
+	wait, err := strconv.ParseUint(waitRaw, 10, 16)
+	if err != nil {
+		return responder.Code(http.StatusBadRequest)
+	}
+	waitContext, waitContextCancel := context.WithTimeout(ctx, time.Duration(wait)*time.Second)
+	defer waitContextCancel()
+
 	// Look-up the VM
 	var vm *v1.VM
 
-	if responder := controller.storeView(func(txn storepkg.Transaction) responder.Responder {
-		vm, err = txn.GetVM(name)
-		if err != nil {
-			return responder.Error(err)
+	for {
+		if lookupResponder := controller.storeView(func(txn storepkg.Transaction) responder.Responder {
+			vm, err = txn.GetVM(name)
+			if err != nil {
+				return responder.Error(err)
+			}
+
+			return nil
+		}); lookupResponder != nil {
+			return lookupResponder
 		}
 
-		return nil
-	}); responder != nil {
-		return responder
-	}
-
-	// Sanity-check
-	if vm.Worker == "" {
-		return responder.Code(http.StatusServiceUnavailable)
+		if vm.TerminalState() {
+			return responder.JSON(http.StatusExpectationFailed, NewErrorResponse("VM is in a terminal state '%s'", vm.Status))
+		}
+		if vm.Status == v1.VMStatusRunning {
+			// VM is running, proceed
+			break
+		}
+		select {
+		case <-waitContext.Done():
+			return responder.JSON(http.StatusRequestTimeout, NewErrorResponse("VM is not running on '%s' worker", vm.Worker))
+		case <-time.After(1 * time.Second):
+			// try again
+			continue
+		}
 	}
 
 	// Request and wait for a connection with a worker
