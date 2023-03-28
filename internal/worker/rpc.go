@@ -44,12 +44,12 @@ func (worker *Worker) watchRPC(ctx context.Context) error {
 			return err
 		}
 
-		portForwardAction, ok := watchFromController.Action.(*rpc.WatchInstruction_PortForwardAction)
-		if !ok {
-			continue
+		switch action := watchFromController.Action.(type) {
+		case *rpc.WatchInstruction_PortForwardAction:
+			go worker.handlePortForward(ctxWithMetadata, client, action.PortForwardAction)
+		case *rpc.WatchInstruction_SyncVmsAction:
+			worker.RequestVMSyncing()
 		}
-
-		go worker.handlePortForward(ctxWithMetadata, client, portForwardAction.PortForwardAction)
 	}
 }
 

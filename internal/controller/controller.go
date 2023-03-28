@@ -36,6 +36,7 @@ type Controller struct {
 	listener             net.Listener
 	httpServer           *http.Server
 	insecureAuthDisabled bool
+	scheduler            *scheduler.Scheduler
 	store                storepkg.Store
 	logger               *zap.SugaredLogger
 	grpcServer           *grpc.Server
@@ -75,6 +76,7 @@ func New(opts ...Option) (*Controller, error) {
 		return nil, err
 	}
 	controller.store = store
+	controller.scheduler = scheduler.NewScheduler(store, controller.workerNotifier, controller.logger)
 
 	listener, err := net.Listen("tcp", controller.listenAddr)
 	if err != nil {
@@ -138,12 +140,7 @@ func (controller *Controller) DeleteServiceAccount(name string) error {
 func (controller *Controller) Run(ctx context.Context) error {
 	// Run the scheduler so that each VM will eventually
 	// be assigned to a specific Worker
-	go func() {
-		err := scheduler.Run(controller.store)
-		if err != nil {
-			panic(err)
-		}
-	}()
+	go controller.scheduler.Run()
 
 	// A helper function to shut down the HTTP server on context cancellation
 	go func() {

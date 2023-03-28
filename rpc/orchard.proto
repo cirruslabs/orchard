@@ -21,9 +21,12 @@ message WatchInstruction {
     string vm_uid = 2;
     uint32 vm_port = 3;
   }
+  message SyncVMs {
+  }
 
   oneof action {
     PortForward port_forward_action = 1;
+    SyncVMs sync_vms_action = 2;
   }
 }
 

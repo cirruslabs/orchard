@@ -47,7 +47,7 @@ func (controller *Controller) createVM(ctx *gin.Context) responder.Responder {
 		vm.Resources[v1.ResourceTartVMs] = 1
 	}
 
-	return controller.storeUpdate(func(txn storepkg.Transaction) responder.Responder {
+	response := controller.storeUpdate(func(txn storepkg.Transaction) responder.Responder {
 		// Does the VM resource with this name already exists?
 		_, err := txn.GetVM(vm.Name)
 		if err != nil && !errors.Is(err, storepkg.ErrNotFound) {
@@ -63,6 +63,9 @@ func (controller *Controller) createVM(ctx *gin.Context) responder.Responder {
 
 		return responder.JSON(http.StatusOK, &vm)
 	})
+	// request immediate scheduling
+	controller.scheduler.RequestScheduling()
+	return response
 }
 
 func (controller *Controller) updateVM(ctx *gin.Context) responder.Responder {
