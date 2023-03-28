@@ -23,17 +23,19 @@ var ErrPollFailed = errors.New("failed to poll controller")
 var ErrRegistrationFailed = errors.New("failed to register worker on the controller")
 
 type Worker struct {
-	name      string
-	vmm       *vmmanager.VMManager
-	client    *client.Client
-	resources v1.Resources
-	logger    *zap.SugaredLogger
+	name          string
+	syncRequested chan bool
+	vmm           *vmmanager.VMManager
+	client        *client.Client
+	resources     v1.Resources
+	logger        *zap.SugaredLogger
 }
 
 func New(client *client.Client, opts ...Option) (*Worker, error) {
 	worker := &Worker{
-		client: client,
-		vmm:    vmmanager.New(),
+		client:        client,
+		vmm:           vmmanager.New(),
+		syncRequested: make(chan bool, 1),
 	}
 
 	// Apply options
@@ -89,8 +91,6 @@ func (worker *Worker) runNewSession(ctx context.Context) error {
 		}), retry.Context(subCtx), retry.Attempts(0))
 	}()
 
-	tickCh := time.NewTicker(pollInterval)
-
 	for {
 		if err := worker.updateWorker(ctx); err != nil {
 			worker.logger.Errorf("failed to update worker resource: %v", err)
@@ -105,7 +105,8 @@ func (worker *Worker) runNewSession(ctx context.Context) error {
 		}
 
 		select {
-		case <-tickCh.C:
+		case <-worker.syncRequested:
+		case <-time.After(pollInterval):
 			// continue
 		case <-subCtx.Done():
 			return subCtx.Err()
@@ -342,4 +343,13 @@ func (worker *Worker) GPRCMetadata() metadata.MD {
 		worker.client.GPRCMetadata(),
 		metadata.Pairs(rpc.MetadataWorkerNameKey, worker.name),
 	)
+}
+
+func (worker *Worker) RequestVMSyncing() {
+	select {
+	case worker.syncRequested <- true:
+		worker.logger.Debugf("Successfully requested syncing")
+	default:
+		worker.logger.Debugf("There's already a syncing request in the queue, skipping")
+	}
 }
