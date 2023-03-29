@@ -32,4 +32,21 @@ orchard list vms
 
 ### Accessing Virtual Machines
 
-TBD
+To SSH into a VM use the `orchard ssh` command:
+
+```shell
+orchard ssh vm ventura-base
+```
+
+You can specify the `--username` and `--password` flags to specify the username/password pair to SSH. By default, `admin`/`admin` is used.
+
+Similar to `ssh` command, you can use `vnc` command to open Screen Sharing into a remote VM:
+
+```shell
+orchard vnc vm --username=administrator --password=password101 ventura-base
+```
+
+From architecture perspective, Orchard has a lower level API for port forwarding that `ssh` and `vnc` commands are built on top of.
+All port forwarding connections are done via the Orchard Controller instance which "proxies" a secure connection to the Orchard Workers.
+Therefore, your workers can be located under a stricter firewall that only allows connections to the Orchard Controller instance.
+Orchard Controller instance is secured by default and all API calls are authenticated and authorized.
