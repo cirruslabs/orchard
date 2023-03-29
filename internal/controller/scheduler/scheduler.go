@@ -36,6 +36,7 @@ func (scheduler *Scheduler) Run() {
 		case <-scheduler.schedulingRequested:
 		case <-time.After(schedulerInterval):
 		}
+
 		if err := scheduler.schedulingLoopIteration(); err != nil {
 			scheduler.logger.Errorf("Failed to schedule VMs: %v", err)
 		}
@@ -53,12 +54,13 @@ func (scheduler *Scheduler) RequestScheduling() {
 
 func (scheduler *Scheduler) schedulingLoopIteration() error {
 	affectedWorkers := map[string]bool{}
+
 	err := scheduler.store.Update(func(txn storepkg.Transaction) error {
 		vms, err := txn.ListVMs()
 		if err != nil {
 			return err
 		}
-		unscheduledVMs, workerToResources := processVMs(vms)
+		scheduledVMs, unscheduledVMs, workerToResources := processVMs(vms)
 
 		workers, err := txn.ListWorkers()
 		if err != nil {
@@ -84,8 +86,21 @@ func (scheduler *Scheduler) schedulingLoopIteration() error {
 			}
 		}
 
+		// Process scheduled VMs
+		nameToWorker := map[string]v1.Worker{}
+		for _, worker := range workers {
+			nameToWorker[worker.Name] = worker
+		}
+
+		for _, scheduledVM := range scheduledVMs {
+			if err := processScheduledVM(txn, nameToWorker, scheduledVM); err != nil {
+				return err
+			}
+		}
+
 		return nil
 	})
+
 	syncVMsInstruction := rpc.WatchInstruction{
 		Action: &rpc.WatchInstruction_SyncVmsAction{},
 	}
@@ -96,10 +111,33 @@ func (scheduler *Scheduler) schedulingLoopIteration() error {
 			scheduler.logger.Errorf("Failed to reactively sync VMs on worker %s: %v", workerToPoke, notifyErr)
 		}
 	}
+
 	return err
 }
 
-func processVMs(vms []v1.VM) ([]v1.VM, WorkerToResources) {
+func processScheduledVM(txn storepkg.Transaction, nameToWorker map[string]v1.Worker, scheduledVM v1.VM) error {
+	worker, ok := nameToWorker[scheduledVM.Worker]
+	if !ok {
+		scheduledVM.Status = v1.VMStatusFailed
+		scheduledVM.StatusMessage = "VM is assigned to a worker that " +
+			"doesn't exist anymore"
+
+		return txn.SetVM(scheduledVM)
+	}
+
+	if time.Since(worker.LastSeen).Minutes() > 1 {
+		scheduledVM.Status = v1.VMStatusFailed
+		scheduledVM.StatusMessage = "VM is assigned to a worker that " +
+			"lost connection with the controller"
+
+		return txn.SetVM(scheduledVM)
+	}
+
+	return nil
+}
+
+func processVMs(vms []v1.VM) ([]v1.VM, []v1.VM, WorkerToResources) {
+	var scheduledVMs []v1.VM
 	var unscheduledVMs []v1.VM
 	workerToResources := make(WorkerToResources)
 
@@ -107,6 +145,7 @@ func processVMs(vms []v1.VM) ([]v1.VM, WorkerToResources) {
 		if vm.Worker == "" {
 			unscheduledVMs = append(unscheduledVMs, vm)
 		} else if !vm.TerminalState() {
+			scheduledVMs = append(scheduledVMs, vm)
 			workerToResources.Add(vm.Worker, vm.Resources)
 		}
 	}
@@ -116,5 +155,5 @@ func processVMs(vms []v1.VM) ([]v1.VM, WorkerToResources) {
 		return unscheduledVMs[i].CreatedAt.Before(unscheduledVMs[j].CreatedAt)
 	})
 
-	return unscheduledVMs, workerToResources
+	return scheduledVMs, unscheduledVMs, workerToResources
 }

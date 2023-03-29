@@ -1,10 +1,11 @@
-package vmmanager
+package tart
 
 import (
 	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"go.uber.org/zap"
 	"os/exec"
 	"strings"
 )
@@ -16,9 +17,9 @@ var (
 	ErrTartFailed   = errors.New("tart command returned non-zero exit code")
 )
 
-//nolint:unparam // might use stderr at some point
-func (vm *VM) tart(
+func Tart(
 	ctx context.Context,
+	logger *zap.SugaredLogger,
 	args ...string,
 ) (string, string, error) {
 	cmd := exec.CommandContext(ctx, tartCommandName, args...)
@@ -28,7 +29,7 @@ func (vm *VM) tart(
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
-	vm.logger.Debugf("running '%s %s'", tartCommandName, strings.Join(args, " "))
+	logger.Debugf("running '%s %s'", tartCommandName, strings.Join(args, " "))
 	err := cmd.Run()
 	if err != nil {
 		if errors.Is(err, exec.ErrNotFound) {
@@ -37,7 +38,7 @@ func (vm *VM) tart(
 		}
 
 		if exitErr, ok := err.(*exec.ExitError); ok {
-			vm.logger.Warnf(
+			logger.Warnf(
 				"'%s %s' failed with exit code %d: %s",
 				tartCommandName, strings.Join(args, " "),
 				exitErr.ExitCode(), firstNonEmptyLine(stderr.String(), stdout.String()),
@@ -49,6 +50,15 @@ func (vm *VM) tart(
 	}
 
 	return stdout.String(), stderr.String(), err
+}
+
+func List(ctx context.Context, logger *zap.SugaredLogger, args ...string) ([]string, error) {
+	output, _, err := Tart(ctx, logger, "list", "-q")
+	if err != nil {
+		return nil, err
+	}
+
+	return strings.Split(output, "\n"), nil
 }
 
 func firstNonEmptyLine(outputs ...string) string {

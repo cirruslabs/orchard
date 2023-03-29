@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"github.com/avast/retry-go/v4"
 	"github.com/cirruslabs/orchard/internal/worker/iokitregistry"
+	"github.com/cirruslabs/orchard/internal/worker/ondiskname"
+	"github.com/cirruslabs/orchard/internal/worker/tart"
 	"github.com/cirruslabs/orchard/internal/worker/vmmanager"
 	"github.com/cirruslabs/orchard/pkg/client"
 	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
@@ -164,7 +166,7 @@ func (worker *Worker) syncVMs(ctx context.Context) error {
 
 	worker.logger.Infof("syncing %d VMs...", len(remoteVMs))
 
-	// check if need to stop any of the VMs
+	// Check if we need to stop any of the VMs
 	for _, vmResource := range remoteVMs {
 		if vmResource.Status == v1.VMStatusStopping && worker.vmm.Exists(vmResource) {
 			if err := worker.stopVM(vmResource); err != nil {
@@ -173,7 +175,7 @@ func (worker *Worker) syncVMs(ctx context.Context) error {
 		}
 	}
 
-	// then, handle pending VMs first
+	// Handle pending VMs
 	for _, vmResource := range remoteVMs {
 		// handle pending VMs
 		if vmResource.Status == v1.VMStatusPending && !worker.vmm.Exists(vmResource) {
@@ -183,7 +185,7 @@ func (worker *Worker) syncVMs(ctx context.Context) error {
 		}
 	}
 
-	// lastly, try to sync local VMs with the remote ones
+	// Sync in-memory VMs
 	for _, vm := range worker.vmm.List() {
 		remoteVM, ok := remoteVMs[vm.Resource.UID]
 		if !ok {
@@ -198,6 +200,46 @@ func (worker *Worker) syncVMs(ctx context.Context) error {
 				return err
 			}
 			vm.Resource = *updatedVM
+		}
+	}
+
+	// Sync on-disk VMs
+	if err := worker.syncOnDiskVMs(ctx, remoteVMs); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (worker *Worker) syncOnDiskVMs(ctx context.Context, remoteVMs map[string]v1.VM) error {
+	onDiskNamesRaw, err := tart.List(ctx, worker.logger)
+	if err != nil {
+		return err
+	}
+
+	for _, onDiskNameRaw := range onDiskNamesRaw {
+		onDiskName, err := ondiskname.Parse(onDiskNameRaw)
+		if err != nil {
+			continue
+		}
+
+		remoteVM, ok := remoteVMs[onDiskName.UID]
+		if !ok {
+			// On-disk VM doesn't exist on the controller, delete it
+			_, _, err := tart.Tart(ctx, worker.logger, "delete", onDiskNameRaw)
+			if err != nil {
+				return err
+			}
+		} else if !worker.vmm.Exists(v1.VM{UID: onDiskName.UID}) {
+			// On-disk VM exist on the controller,
+			// but we don't know about it, so
+			// mark it as failed
+			remoteVM.Status = v1.VMStatusFailed
+			remoteVM.StatusMessage = "Worker lost track of VM"
+			_, err := worker.client.VMs().Update(ctx, remoteVM)
+			if err != nil {
+				return err
+			}
 		}
 	}
 
