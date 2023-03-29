@@ -38,7 +38,7 @@ To SSH into a VM use the `orchard ssh` command:
 orchard ssh vm ventura-base
 ```
 
-You can specify the `--username` and `--passowrd` flags to specify the username/password pair to SSH. By default, `admin`/`admin` is used.
+You can specify the `--username` and `--password` flags to specify the username/password pair to SSH. By default, `admin`/`admin` is used.
 
 Similar to `ssh` command, you can use `vnc` command to open Screen Sharing into a remote VM:
 
