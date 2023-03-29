@@ -212,13 +212,17 @@ func (worker *Worker) syncVMs(ctx context.Context) error {
 }
 
 func (worker *Worker) syncOnDiskVMs(ctx context.Context, remoteVMs map[string]v1.VM) error {
-	onDiskNamesRaw, err := tart.List(ctx, worker.logger)
+	vmInfos, err := tart.List(ctx, worker.logger)
 	if err != nil {
 		return err
 	}
 
-	for _, onDiskNameRaw := range onDiskNamesRaw {
-		onDiskName, err := ondiskname.Parse(onDiskNameRaw)
+	for _, vmInfo := range vmInfos {
+		if vmInfo.Running {
+			continue
+		}
+
+		onDiskName, err := ondiskname.Parse(vmInfo.Name)
 		if err != nil {
 			if errors.Is(err, ondiskname.ErrNotManagedByOrchard) {
 				continue
@@ -230,7 +234,7 @@ func (worker *Worker) syncOnDiskVMs(ctx context.Context, remoteVMs map[string]v1
 		remoteVM, ok := remoteVMs[onDiskName.UID]
 		if !ok {
 			// On-disk VM doesn't exist on the controller, delete it
-			_, _, err := tart.Tart(ctx, worker.logger, "delete", onDiskNameRaw)
+			_, _, err := tart.Tart(ctx, worker.logger, "delete", vmInfo.Name)
 			if err != nil {
 				return err
 			}

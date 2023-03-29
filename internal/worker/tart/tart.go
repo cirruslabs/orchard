@@ -3,6 +3,7 @@ package tart
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"go.uber.org/zap"
@@ -16,6 +17,11 @@ var (
 	ErrTartNotFound = errors.New("tart command not found")
 	ErrTartFailed   = errors.New("tart command returned non-zero exit code")
 )
+
+type VMInfo struct {
+	Name    string
+	Running bool
+}
 
 func Tart(
 	ctx context.Context,
@@ -52,13 +58,19 @@ func Tart(
 	return stdout.String(), stderr.String(), err
 }
 
-func List(ctx context.Context, logger *zap.SugaredLogger, args ...string) ([]string, error) {
-	output, _, err := Tart(ctx, logger, "list", "-q")
+func List(ctx context.Context, logger *zap.SugaredLogger) ([]VMInfo, error) {
+	output, _, err := Tart(ctx, logger, "list", "--format", "json")
 	if err != nil {
 		return nil, err
 	}
 
-	return strings.Split(output, "\n"), nil
+	var entries []VMInfo
+
+	if err := json.Unmarshal([]byte(output), &entries); err != nil {
+		return nil, err
+	}
+
+	return entries, nil
 }
 
 func firstNonEmptyLine(outputs ...string) string {
