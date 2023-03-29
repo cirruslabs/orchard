@@ -73,7 +73,7 @@ func (scheduler *Scheduler) schedulingLoopIteration() error {
 				resourcesUsed := workerToResources.Get(worker.Name)
 				resourcesRemaining := worker.Resources.Subtracted(resourcesUsed)
 
-				if resourcesRemaining.CanFit(unscheduledVM.Resources) {
+				if resourcesRemaining.CanFit(unscheduledVM.Resources) && !worker.Offline() {
 					unscheduledVM.Worker = worker.Name
 
 					if err := txn.SetVM(unscheduledVM); err != nil {
@@ -125,7 +125,7 @@ func processScheduledVM(txn storepkg.Transaction, nameToWorker map[string]v1.Wor
 		return txn.SetVM(scheduledVM)
 	}
 
-	if time.Since(worker.LastSeen).Minutes() > 1 {
+	if worker.Offline() {
 		scheduledVM.Status = v1.VMStatusFailed
 		scheduledVM.StatusMessage = "VM is assigned to a worker that " +
 			"lost connection with the controller"
