@@ -238,7 +238,7 @@ func (worker *Worker) syncOnDiskVMs(ctx context.Context, remoteVMs map[string]v1
 			if err != nil {
 				return err
 			}
-		} else if !worker.vmm.Exists(v1.VM{UID: onDiskName.UID}) {
+		} else if remoteVM.Status == v1.VMStatusRunning && !worker.vmm.Exists(v1.VM{UID: onDiskName.UID}) {
 			// On-disk VM exist on the controller,
 			// but we don't know about it, so
 			// mark it as failed
