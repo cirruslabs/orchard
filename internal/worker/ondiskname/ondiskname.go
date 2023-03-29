@@ -6,9 +6,15 @@ import (
 	"strings"
 )
 
-var ErrInvalidOnDiskName = errors.New("invalid on-disk VM name")
+var (
+	ErrNotManagedByOrchard = errors.New("this on-disk VM is not managed by Orchard")
+	ErrInvalidOnDiskName   = errors.New("invalid on-disk VM name")
+)
 
-const prefix = "orchard"
+const (
+	prefix           = "orchard"
+	numHyphensInUUID = 5
+)
 
 type OnDiskName struct {
 	Name string
@@ -25,8 +31,12 @@ func New(name string, uid string) OnDiskName {
 func Parse(s string) (OnDiskName, error) {
 	splits := strings.Split(s, "-")
 
-	if len(splits) < 3 {
-		return OnDiskName{}, fmt.Errorf("%w: name should contain at least 3 parts delimited by \"-\"",
+	if !strings.HasPrefix(s, fmt.Sprintf("%s-", prefix)) {
+		return OnDiskName{}, ErrNotManagedByOrchard
+	}
+
+	if len(splits) < 7 {
+		return OnDiskName{}, fmt.Errorf("%w: name should contain at least 7 parts delimited by \"-\"",
 			ErrInvalidOnDiskName)
 	}
 
@@ -42,9 +52,11 @@ func Parse(s string) (OnDiskName, error) {
 			ErrInvalidOnDiskName, prefix)
 	}
 
+	uuidStart := len(splits) - numHyphensInUUID
+
 	return OnDiskName{
-		Name: splits[1],
-		UID:  strings.Join(splits[2:], "-"),
+		Name: strings.Join(splits[1:uuidStart], "-"),
+		UID:  strings.Join(splits[uuidStart:], "-"),
 	}, nil
 }
 

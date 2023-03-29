@@ -7,8 +7,8 @@ import (
 	"testing"
 )
 
-func TestOnDiskNameSimple(t *testing.T) {
-	onDiskNameOriginal := ondiskname.New("a", "b")
+func TestOnDiskNameUUID(t *testing.T) {
+	onDiskNameOriginal := ondiskname.New("test-vm", uuid.New().String())
 
 	onDiskNameParsed, err := ondiskname.Parse(onDiskNameOriginal.String())
 	require.NoError(t, err)
@@ -16,11 +16,14 @@ func TestOnDiskNameSimple(t *testing.T) {
 	require.Equal(t, onDiskNameOriginal, onDiskNameParsed)
 }
 
-func TestOnDiskNameUUID(t *testing.T) {
-	onDiskNameOriginal := ondiskname.New("test VM", uuid.New().String())
+func TestOnDiskNameNonUUID(t *testing.T) {
+	onDiskNameOriginal := ondiskname.New("some-vm", "some-uid")
 
-	onDiskNameParsed, err := ondiskname.Parse(onDiskNameOriginal.String())
-	require.NoError(t, err)
+	_, err := ondiskname.Parse(onDiskNameOriginal.String())
+	require.Error(t, err)
+}
 
-	require.Equal(t, onDiskNameOriginal, onDiskNameParsed)
+func TestOnDiskNameNonOrchard(t *testing.T) {
+	_, err := ondiskname.Parse("ghcr.io/cirruslabs/macos-ventura-base:latest")
+	require.Error(t, err)
 }

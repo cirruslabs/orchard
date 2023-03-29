@@ -220,7 +220,11 @@ func (worker *Worker) syncOnDiskVMs(ctx context.Context, remoteVMs map[string]v1
 	for _, onDiskNameRaw := range onDiskNamesRaw {
 		onDiskName, err := ondiskname.Parse(onDiskNameRaw)
 		if err != nil {
-			continue
+			if errors.Is(err, ondiskname.ErrNotManagedByOrchard) {
+				continue
+			}
+
+			return err
 		}
 
 		remoteVM, ok := remoteVMs[onDiskName.UID]
