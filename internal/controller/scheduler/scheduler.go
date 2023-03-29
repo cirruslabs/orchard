@@ -40,6 +40,9 @@ func (scheduler *Scheduler) Run() {
 		if err := scheduler.schedulingLoopIteration(); err != nil {
 			scheduler.logger.Errorf("Failed to schedule VMs: %v", err)
 		}
+		if err := scheduler.healthCheckingLoopIteration(); err != nil {
+			scheduler.logger.Errorf("Failed to health-check VMs: %v", err)
+		}
 	}
 }
 
@@ -60,7 +63,7 @@ func (scheduler *Scheduler) schedulingLoopIteration() error {
 		if err != nil {
 			return err
 		}
-		scheduledVMs, unscheduledVMs, workerToResources := processVMs(vms)
+		unscheduledVMs, workerToResources := processVMs(vms)
 
 		workers, err := txn.ListWorkers()
 		if err != nil {
@@ -86,18 +89,6 @@ func (scheduler *Scheduler) schedulingLoopIteration() error {
 			}
 		}
 
-		// Process scheduled VMs
-		nameToWorker := map[string]v1.Worker{}
-		for _, worker := range workers {
-			nameToWorker[worker.Name] = worker
-		}
-
-		for _, scheduledVM := range scheduledVMs {
-			if err := processScheduledVM(txn, nameToWorker, scheduledVM); err != nil {
-				return err
-			}
-		}
-
 		return nil
 	})
 
@@ -115,29 +106,7 @@ func (scheduler *Scheduler) schedulingLoopIteration() error {
 	return err
 }
 
-func processScheduledVM(txn storepkg.Transaction, nameToWorker map[string]v1.Worker, scheduledVM v1.VM) error {
-	worker, ok := nameToWorker[scheduledVM.Worker]
-	if !ok {
-		scheduledVM.Status = v1.VMStatusFailed
-		scheduledVM.StatusMessage = "VM is assigned to a worker that " +
-			"doesn't exist anymore"
-
-		return txn.SetVM(scheduledVM)
-	}
-
-	if worker.Offline() {
-		scheduledVM.Status = v1.VMStatusFailed
-		scheduledVM.StatusMessage = "VM is assigned to a worker that " +
-			"lost connection with the controller"
-
-		return txn.SetVM(scheduledVM)
-	}
-
-	return nil
-}
-
-func processVMs(vms []v1.VM) ([]v1.VM, []v1.VM, WorkerToResources) {
-	var scheduledVMs []v1.VM
+func processVMs(vms []v1.VM) ([]v1.VM, WorkerToResources) {
 	var unscheduledVMs []v1.VM
 	workerToResources := make(WorkerToResources)
 
@@ -145,7 +114,6 @@ func processVMs(vms []v1.VM) ([]v1.VM, []v1.VM, WorkerToResources) {
 		if vm.Worker == "" {
 			unscheduledVMs = append(unscheduledVMs, vm)
 		} else if !vm.TerminalState() {
-			scheduledVMs = append(scheduledVMs, vm)
 			workerToResources.Add(vm.Worker, vm.Resources)
 		}
 	}
@@ -155,5 +123,64 @@ func processVMs(vms []v1.VM) ([]v1.VM, []v1.VM, WorkerToResources) {
 		return unscheduledVMs[i].CreatedAt.Before(unscheduledVMs[j].CreatedAt)
 	})
 
-	return scheduledVMs, unscheduledVMs, workerToResources
+	return unscheduledVMs, workerToResources
+}
+
+func (scheduler *Scheduler) healthCheckingLoopIteration() error {
+	return scheduler.store.Update(func(txn storepkg.Transaction) error {
+		// Retrieve scheduled VMs
+		vms, err := txn.ListVMs()
+		if err != nil {
+			return err
+		}
+
+		var scheduledVMs []v1.VM
+
+		for _, vm := range vms {
+			if vm.Worker != "" {
+				scheduledVMs = append(scheduledVMs, vm)
+			}
+		}
+
+		// Retrieve and index workers by name
+		workers, err := txn.ListWorkers()
+		if err != nil {
+			return err
+		}
+
+		nameToWorker := map[string]v1.Worker{}
+		for _, worker := range workers {
+			nameToWorker[worker.Name] = worker
+		}
+
+		// Process scheduled VMs
+		for _, scheduledVM := range scheduledVMs {
+			if err := healthCheckVM(txn, nameToWorker, scheduledVM); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
+}
+
+func healthCheckVM(txn storepkg.Transaction, nameToWorker map[string]v1.Worker, vm v1.VM) error {
+	worker, ok := nameToWorker[vm.Worker]
+	if !ok {
+		vm.Status = v1.VMStatusFailed
+		vm.StatusMessage = "VM is assigned to a worker that " +
+			"doesn't exist anymore"
+
+		return txn.SetVM(vm)
+	}
+
+	if worker.Offline() {
+		vm.Status = v1.VMStatusFailed
+		vm.StatusMessage = "VM is assigned to a worker that " +
+			"lost connection with the controller"
+
+		return txn.SetVM(vm)
+	}
+
+	return nil
 }
