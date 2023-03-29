@@ -8,7 +8,7 @@ import (
 )
 
 func TestOnDiskNameUUID(t *testing.T) {
-	onDiskNameOriginal := ondiskname.New("test-vm", uuid.New().String())
+	onDiskNameOriginal := ondiskname.New("test-vm--", uuid.New().String())
 
 	onDiskNameParsed, err := ondiskname.Parse(onDiskNameOriginal.String())
 	require.NoError(t, err)

@@ -40,13 +40,6 @@ func Parse(s string) (OnDiskName, error) {
 			ErrInvalidOnDiskName)
 	}
 
-	for _, split := range splits {
-		if split == "" {
-			return OnDiskName{}, fmt.Errorf("%w: name should not contain empty parts",
-				ErrInvalidOnDiskName)
-		}
-	}
-
 	if splits[0] != prefix {
 		return OnDiskName{}, fmt.Errorf("%w: name should begin with \"%s\" prefix",
 			ErrInvalidOnDiskName, prefix)
