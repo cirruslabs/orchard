@@ -93,6 +93,11 @@ func (worker *Worker) runNewSession(ctx context.Context) error {
 		}), retry.Context(subCtx), retry.Attempts(0))
 	}()
 
+	// Sync on-disk VMs
+	if err := worker.syncOnDiskVMs(ctx); err != nil {
+		return err
+	}
+
 	for {
 		if err := worker.updateWorker(ctx); err != nil {
 			worker.logger.Errorf("failed to update worker resource: %v", err)
@@ -203,15 +208,17 @@ func (worker *Worker) syncVMs(ctx context.Context) error {
 		}
 	}
 
-	// Sync on-disk VMs
-	if err := worker.syncOnDiskVMs(ctx, remoteVMs); err != nil {
-		return err
-	}
-
 	return nil
 }
 
-func (worker *Worker) syncOnDiskVMs(ctx context.Context, remoteVMs map[string]v1.VM) error {
+func (worker *Worker) syncOnDiskVMs(ctx context.Context) error {
+	remoteVMs, err := worker.client.VMs().FindForWorker(ctx, worker.name)
+	if err != nil {
+		return err
+	}
+
+	worker.logger.Infof("syncing on-disk VMs...")
+
 	vmInfos, err := tart.List(ctx, worker.logger)
 	if err != nil {
 		return err
