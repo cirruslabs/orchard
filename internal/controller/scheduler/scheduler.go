@@ -174,7 +174,7 @@ func healthCheckVM(txn storepkg.Transaction, nameToWorker map[string]v1.Worker, 
 		return txn.SetVM(vm)
 	}
 
-	if worker.Offline() {
+	if worker.Offline() && !vm.TerminalState() {
 		vm.Status = v1.VMStatusFailed
 		vm.StatusMessage = "VM is assigned to a worker that " +
 			"lost connection with the controller"
