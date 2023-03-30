@@ -44,11 +44,11 @@ func (scheduler *Scheduler) Run() {
 		case <-time.After(schedulerInterval):
 		}
 
-		if err := scheduler.schedulingLoopIteration(); err != nil {
-			scheduler.logger.Errorf("Failed to schedule VMs: %v", err)
-		}
 		if err := scheduler.healthCheckingLoopIteration(); err != nil {
 			scheduler.logger.Errorf("Failed to health-check VMs: %v", err)
+		}
+		if err := scheduler.schedulingLoopIteration(); err != nil {
+			scheduler.logger.Errorf("Failed to schedule VMs: %v", err)
 		}
 	}
 }
