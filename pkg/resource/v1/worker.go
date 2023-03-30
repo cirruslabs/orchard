@@ -15,6 +15,6 @@ type Worker struct {
 	Meta
 }
 
-func (worker Worker) Offline() bool {
-	return time.Since(worker.LastSeen).Minutes() > 3
+func (worker Worker) Offline(workerOfflineTimeout time.Duration) bool {
+	return time.Since(worker.LastSeen) > workerOfflineTimeout
 }

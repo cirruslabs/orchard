@@ -4,11 +4,18 @@ import (
 	"context"
 	"errors"
 	"github.com/cirruslabs/orchard/internal/command/dev"
+	"github.com/cirruslabs/orchard/internal/controller"
+	"github.com/cirruslabs/orchard/internal/worker"
+	"github.com/cirruslabs/orchard/internal/worker/ondiskname"
+	"github.com/cirruslabs/orchard/internal/worker/tart"
 	"github.com/cirruslabs/orchard/pkg/client"
 	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/exp/slices"
 	"net"
 	"net/http"
 	"testing"
@@ -149,9 +156,20 @@ func Wait(duration time.Duration, condition func() bool) bool {
 	}
 }
 
-func StartIntegrationTestEnvironment(t *testing.T) *client.Client {
+func StartIntegrationTestEnvironment(
+	t *testing.T,
+) *client.Client {
+	return StartIntegrationTestEnvironmentWithAdditionalOpts(t, nil, nil)
+}
+
+func StartIntegrationTestEnvironmentWithAdditionalOpts(
+	t *testing.T,
+	additionalControllerOpts []controller.Option,
+	additionalWorkerOpts []worker.Option,
+) *client.Client {
 	t.Setenv("ORCHARD_HOME", t.TempDir())
-	devController, devWorker, err := dev.CreateDevControllerAndWorker(t.TempDir(), ":0", nil)
+	devController, devWorker, err := dev.CreateDevControllerAndWorker(t.TempDir(),
+		":0", nil, additionalControllerOpts, additionalWorkerOpts)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -233,4 +251,182 @@ func TestPortForwarding(t *testing.T) {
 	unameOutput, err := sshSession.Output("uname -mo")
 	require.NoError(t, err)
 	require.Contains(t, string(unameOutput), "Darwin arm64")
+}
+
+// TestSchedulerHealthCheckingNonExistentWorker ensures that scheduler
+// will eventually fail VMs that are scheduled on a worker that was
+// deleted from the API.
+func TestSchedulerHealthCheckingNonExistentWorker(t *testing.T) {
+	ctx := context.Background()
+
+	devClient := StartIntegrationTestEnvironment(t)
+
+	const (
+		dummyWorkerName = "dummy-worker"
+		dummyVMName     = "dummy-vm"
+	)
+
+	// Create a dummy worker that won't update it's LastSeen
+	// timestamp, which will result in scheduler failing VMs
+	// scheduled on that worker.
+	//
+	// We use a special resource "unique-resource" to prevent
+	// our dummy VM (see below) from scheduling on any worker
+	// other than this one.
+	_, err := devClient.Workers().Create(ctx, v1.Worker{
+		Meta: v1.Meta{
+			Name: dummyWorkerName,
+		},
+		LastSeen:  time.Now(),
+		MachineID: uuid.New().String(),
+		Resources: map[string]uint64{
+			v1.ResourceTartVMs: 1,
+			"unique-resource":  1,
+		},
+	})
+	require.NoError(t, err)
+
+	// Create a dummy VM
+	err = devClient.VMs().Create(context.Background(), &v1.VM{
+		Meta: v1.Meta{
+			Name: dummyVMName,
+		},
+		Image:    "ghcr.io/cirruslabs/macos-ventura-base:latest",
+		CPU:      4,
+		Memory:   8 * 1024,
+		Headless: true,
+		Resources: map[string]uint64{
+			"unique-resource": 1,
+		},
+	})
+	require.NoError(t, err)
+
+	// Wait for the dummy VM to get scheduled to a dummy worker
+	require.True(t, Wait(2*time.Minute, func() bool {
+		vm, err := devClient.VMs().Get(context.Background(), dummyVMName)
+		require.NoError(t, err)
+
+		t.Logf("Waiting for the VM to be assigned to a dummy worker, current worker: %q", vm.Worker)
+
+		return vm.Worker == dummyWorkerName
+	}), "failed to wait for the dummy VM to be assigned to a dummy worker")
+
+	// Delete the dummy worker
+	err = devClient.Workers().Delete(ctx, dummyWorkerName)
+	require.NoError(t, err)
+
+	// Wait for the scheduler to change the dummy VM's status to "failed"
+	require.True(t, Wait(2*time.Minute, func() bool {
+		vm, err := devClient.VMs().Get(context.Background(), dummyVMName)
+		require.NoError(t, err)
+
+		t.Logf("Waiting for the VM to be failed by the scheduler")
+
+		return vm.Status == v1.VMStatusFailed
+	}), "VM was not marked as failed in time")
+
+	// Double check VM's status and status message
+	vm, err := devClient.VMs().Get(context.Background(), dummyVMName)
+	require.NoError(t, err)
+	require.Equal(t, v1.VMStatusFailed, vm.Status)
+	require.Equal(t, "VM is assigned to a worker that doesn't exist anymore", vm.StatusMessage)
+}
+
+// TestSchedulerHealthCheckingOfflineWorker ensures that scheduler
+// will eventually fail VMs that are scheduled on a worker that had
+// gone offline for a long time.
+func TestSchedulerHealthCheckingOfflineWorker(t *testing.T) {
+	ctx := context.Background()
+
+	devClient := StartIntegrationTestEnvironmentWithAdditionalOpts(t,
+		[]controller.Option{controller.WithWorkerOfflineTimeout(1 * time.Minute)}, nil)
+
+	const (
+		dummyWorkerName = "dummy-worker"
+		dummyVMName     = "dummy-vm"
+	)
+
+	// Create a dummy worker that will be eventually marked as offline
+	// because we won't update the LastSeen field
+	_, err := devClient.Workers().Create(ctx, v1.Worker{
+		Meta: v1.Meta{
+			Name: dummyWorkerName,
+		},
+		LastSeen:  time.Now(),
+		MachineID: uuid.New().String(),
+		Resources: map[string]uint64{
+			v1.ResourceTartVMs: 1,
+			"unique-resource":  1,
+		},
+	})
+	require.NoError(t, err)
+
+	// Create a dummy VM that will be assigned to our dummy worker
+	err = devClient.VMs().Create(context.Background(), &v1.VM{
+		Meta: v1.Meta{
+			Name: dummyVMName,
+		},
+		Image:    "ghcr.io/cirruslabs/macos-ventura-base:latest",
+		CPU:      4,
+		Memory:   8 * 1024,
+		Headless: true,
+		Resources: map[string]uint64{
+			"unique-resource": 1,
+		},
+	})
+	require.NoError(t, err)
+
+	// Wait for the VM to be marked as failed
+	assert.True(t, Wait(2*time.Minute, func() bool {
+		vm, err := devClient.VMs().Get(context.Background(), dummyVMName)
+		require.NoError(t, err)
+
+		t.Logf("Waiting for the VM to be marked as failed, current status: %s", vm.Status)
+
+		return vm.Status == v1.VMStatusFailed
+	}), "VM wasn't marked as failed in a reasonable time")
+
+	// Double-check the VM's status message
+	runningVM, err := devClient.VMs().Get(context.Background(), dummyVMName)
+	require.NoError(t, err)
+	require.Equal(t, v1.VMStatusFailed, runningVM.Status)
+	require.Equal(t, "VM is assigned to a worker that lost connection with the controller",
+		runningVM.StatusMessage)
+}
+
+// TestVMGarbageCollection ensures that on-disk Tart VMs that are managed by Orchard
+// and are not present in the API anymore are garbage-collected by the Orchard Worker
+// at startup.
+func TestVMGarbageCollection(t *testing.T) {
+	ctx := context.Background()
+
+	logger, err := zap.NewDevelopment()
+	require.NoError(t, err)
+
+	// Create on-disk Tart VM that looks like it's managed by Orchard
+	vmName := ondiskname.New("test", uuid.New().String()).String()
+	_, _, err = tart.Tart(ctx, logger.Sugar(), "clone",
+		"ghcr.io/cirruslabs/macos-ventura-base:latest", vmName)
+	require.NoError(t, err)
+
+	// Make sure that this VM exists
+	hasVM := func(name string) bool {
+		vmInfos, err := tart.List(ctx, logger.Sugar())
+		require.NoError(t, err)
+
+		return slices.ContainsFunc(vmInfos, func(vmInfo tart.VMInfo) bool {
+			return vmInfo.Name == name
+		})
+	}
+	require.True(t, hasVM(vmName))
+
+	// Start the Orchard Worker
+	_ = StartIntegrationTestEnvironment(t)
+
+	// Wait for the Orchard Worker to garbage-collect this VM
+	require.True(t, Wait(2*time.Minute, func() bool {
+		t.Logf("Waiting for the on-disk VM to be cleaned up by the worker")
+
+		return !hasVM(vmName)
+	}), "failed to wait for the VM %s to be garbage-collected", vmName)
 }

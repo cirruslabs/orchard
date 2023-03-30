@@ -3,6 +3,7 @@ package controller
 import (
 	"crypto/tls"
 	"go.uber.org/zap"
+	"time"
 )
 
 type Option func(*Controller)
@@ -34,6 +35,12 @@ func WithInsecureAuthDisabled() Option {
 func WithSwaggerDocs() Option {
 	return func(controller *Controller) {
 		controller.enableSwaggerDocs = true
+	}
+}
+
+func WithWorkerOfflineTimeout(workerOfflineTimeout time.Duration) Option {
+	return func(controller *Controller) {
+		controller.workerOfflineTimeout = workerOfflineTimeout
 	}
 }
 

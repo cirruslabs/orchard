@@ -52,7 +52,8 @@ func runDev(cmd *cobra.Command, args []string) error {
 	}
 
 	devController, devWorker, err := CreateDevControllerAndWorker(devDataDirPath,
-		fmt.Sprintf(":%d", netconstants.DefaultControllerPort), resources)
+		fmt.Sprintf(":%d", netconstants.DefaultControllerPort), resources,
+		nil, nil)
 
 	if err != nil {
 		return err
@@ -79,6 +80,8 @@ func CreateDevControllerAndWorker(
 	devDataDirPath string,
 	controllerListenAddr string,
 	resources v1.Resources,
+	additionalControllerOpts []controller.Option,
+	additionalWorkerOpts []worker.Option,
 ) (*controller.Controller, *worker.Worker, error) {
 	// Initialize the logger
 	logger, err := zap.NewDevelopment()
@@ -96,13 +99,17 @@ func CreateDevControllerAndWorker(
 		return nil, nil, err
 	}
 
-	devController, err := controller.New(
+	controllerOpts := []controller.Option{
 		controller.WithDataDir(dataDir),
 		controller.WithListenAddr(controllerListenAddr),
 		controller.WithInsecureAuthDisabled(),
 		controller.WithSwaggerDocs(),
 		controller.WithLogger(logger),
-	)
+	}
+
+	controllerOpts = append(controllerOpts, additionalControllerOpts...)
+
+	devController, err := controller.New(controllerOpts...)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -111,7 +118,15 @@ func CreateDevControllerAndWorker(
 	if err != nil {
 		return nil, nil, err
 	}
-	devWorker, err := worker.New(defaultClient, worker.WithResources(resources), worker.WithLogger(logger))
+
+	workerOpts := []worker.Option{
+		worker.WithResources(resources),
+		worker.WithLogger(logger),
+	}
+
+	workerOpts = append(workerOpts, additionalWorkerOpts...)
+
+	devWorker, err := worker.New(defaultClient, workerOpts...)
 	if err != nil {
 		return nil, nil, err
 	}

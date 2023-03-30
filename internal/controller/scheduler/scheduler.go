@@ -14,18 +14,25 @@ import (
 const schedulerInterval = 5 * time.Second
 
 type Scheduler struct {
-	store               storepkg.Store
-	notifier            *notifier.Notifier
-	logger              *zap.SugaredLogger
-	schedulingRequested chan bool
+	store                storepkg.Store
+	notifier             *notifier.Notifier
+	workerOfflineTimeout time.Duration
+	logger               *zap.SugaredLogger
+	schedulingRequested  chan bool
 }
 
-func NewScheduler(store storepkg.Store, notifier *notifier.Notifier, logger *zap.SugaredLogger) *Scheduler {
+func NewScheduler(
+	store storepkg.Store,
+	notifier *notifier.Notifier,
+	workerOfflineTimeout time.Duration,
+	logger *zap.SugaredLogger,
+) *Scheduler {
 	return &Scheduler{
-		store:               store,
-		notifier:            notifier,
-		logger:              logger,
-		schedulingRequested: make(chan bool, 1),
+		store:                store,
+		notifier:             notifier,
+		workerOfflineTimeout: workerOfflineTimeout,
+		logger:               logger,
+		schedulingRequested:  make(chan bool, 1),
 	}
 }
 
@@ -76,7 +83,8 @@ func (scheduler *Scheduler) schedulingLoopIteration() error {
 				resourcesUsed := workerToResources.Get(worker.Name)
 				resourcesRemaining := worker.Resources.Subtracted(resourcesUsed)
 
-				if resourcesRemaining.CanFit(unscheduledVM.Resources) && !worker.Offline() {
+				if resourcesRemaining.CanFit(unscheduledVM.Resources) &&
+					!worker.Offline(scheduler.workerOfflineTimeout) {
 					unscheduledVM.Worker = worker.Name
 
 					if err := txn.SetVM(unscheduledVM); err != nil {
@@ -155,7 +163,7 @@ func (scheduler *Scheduler) healthCheckingLoopIteration() error {
 
 		// Process scheduled VMs
 		for _, scheduledVM := range scheduledVMs {
-			if err := healthCheckVM(txn, nameToWorker, scheduledVM); err != nil {
+			if err := scheduler.healthCheckVM(txn, nameToWorker, scheduledVM); err != nil {
 				return err
 			}
 		}
@@ -164,7 +172,7 @@ func (scheduler *Scheduler) healthCheckingLoopIteration() error {
 	})
 }
 
-func healthCheckVM(txn storepkg.Transaction, nameToWorker map[string]v1.Worker, vm v1.VM) error {
+func (scheduler *Scheduler) healthCheckVM(txn storepkg.Transaction, nameToWorker map[string]v1.Worker, vm v1.VM) error {
 	worker, ok := nameToWorker[vm.Worker]
 	if !ok {
 		vm.Status = v1.VMStatusFailed
@@ -174,7 +182,7 @@ func healthCheckVM(txn storepkg.Transaction, nameToWorker map[string]v1.Worker, 
 		return txn.SetVM(vm)
 	}
 
-	if worker.Offline() && !vm.TerminalState() {
+	if worker.Offline(scheduler.workerOfflineTimeout) && !vm.TerminalState() {
 		vm.Status = v1.VMStatusFailed
 		vm.StatusMessage = "VM is assigned to a worker that " +
 			"lost connection with the controller"
