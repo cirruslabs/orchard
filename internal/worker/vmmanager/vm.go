@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"github.com/avast/retry-go"
+	"github.com/cirruslabs/orchard/internal/worker/ondiskname"
+	"github.com/cirruslabs/orchard/internal/worker/tart"
 	"github.com/cirruslabs/orchard/pkg/resource/v1"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/ssh"
@@ -34,7 +36,7 @@ func NewVM(ctx context.Context, vmResource v1.VM, logger *zap.SugaredLogger) (*V
 	vmContext, vmContextCancel := context.WithCancel(context.Background())
 
 	vm := &VM{
-		id:       fmt.Sprintf("orchard-%s-%s", vmResource.Name, vmResource.UID),
+		id:       ondiskname.New(vmResource.Name, vmResource.UID).String(),
 		Resource: vmResource,
 		logger:   logger,
 
@@ -64,20 +66,22 @@ func NewVM(ctx context.Context, vmResource v1.VM, logger *zap.SugaredLogger) (*V
 }
 
 func (vm *VM) cloneAndConfigure(ctx context.Context) error {
-	_, _, err := vm.tart(ctx, "clone", vm.Resource.Image, vm.id)
+	_, _, err := tart.Tart(ctx, vm.logger, "clone", vm.Resource.Image, vm.id)
 	if err != nil {
 		return err
 	}
 
 	if vm.Resource.Memory != 0 {
-		_, _, err = vm.tart(ctx, "set", "--memory", strconv.FormatUint(vm.Resource.Memory, 10), vm.id)
+		_, _, err = tart.Tart(ctx, vm.logger, "set", "--memory",
+			strconv.FormatUint(vm.Resource.Memory, 10), vm.id)
 		if err != nil {
 			return err
 		}
 	}
 
 	if vm.Resource.CPU != 0 {
-		_, _, err = vm.tart(ctx, "set", "--cpu", strconv.FormatUint(vm.Resource.CPU, 10), vm.id)
+		_, _, err = tart.Tart(ctx, vm.logger, "set", "--cpu",
+			strconv.FormatUint(vm.Resource.CPU, 10), vm.id)
 		if err != nil {
 			return err
 		}
@@ -97,7 +101,7 @@ func (vm *VM) run(ctx context.Context) error {
 	}
 
 	runArgs = append(runArgs, vm.id)
-	_, _, err := vm.tart(ctx, runArgs...)
+	_, _, err := tart.Tart(ctx, vm.logger, runArgs...)
 	if err != nil {
 		return err
 	}
@@ -106,7 +110,7 @@ func (vm *VM) run(ctx context.Context) error {
 }
 
 func (vm *VM) IP(ctx context.Context) (string, error) {
-	stdout, _, err := vm.tart(ctx, "ip", "--wait", "60", vm.id)
+	stdout, _, err := tart.Tart(ctx, vm.logger, "ip", "--wait", "60", vm.id)
 	if err != nil {
 		return "", err
 	}
@@ -115,7 +119,7 @@ func (vm *VM) IP(ctx context.Context) (string, error) {
 }
 
 func (vm *VM) Stop() error {
-	_, _, _ = vm.tart(context.Background(), "stop", vm.id)
+	_, _, _ = tart.Tart(context.Background(), vm.logger, "stop", vm.id)
 
 	vm.cancel()
 
@@ -125,7 +129,7 @@ func (vm *VM) Stop() error {
 }
 
 func (vm *VM) Delete() error {
-	_, _, err := vm.tart(context.Background(), "delete", vm.id)
+	_, _, err := tart.Tart(context.Background(), vm.logger, "delete", vm.id)
 	if err != nil {
 		return fmt.Errorf("%w: failed to delete VM %s: %v", ErrFailed, vm.id, err)
 	}

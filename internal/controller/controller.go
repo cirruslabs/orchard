@@ -43,14 +43,16 @@ type Controller struct {
 	workerNotifier       *notifier.Notifier
 	proxy                *proxy.Proxy
 	enableSwaggerDocs    bool
+	workerOfflineTimeout time.Duration
 
 	rpc.UnimplementedControllerServer
 }
 
 func New(opts ...Option) (*Controller, error) {
 	controller := &Controller{
-		workerNotifier: notifier.NewNotifier(),
-		proxy:          proxy.NewProxy(),
+		workerNotifier:       notifier.NewNotifier(),
+		proxy:                proxy.NewProxy(),
+		workerOfflineTimeout: 3 * time.Minute,
 	}
 
 	// Apply options
@@ -76,7 +78,8 @@ func New(opts ...Option) (*Controller, error) {
 		return nil, err
 	}
 	controller.store = store
-	controller.scheduler = scheduler.NewScheduler(store, controller.workerNotifier, controller.logger)
+	controller.scheduler = scheduler.NewScheduler(store, controller.workerNotifier,
+		controller.workerOfflineTimeout, controller.logger)
 
 	listener, err := net.Listen("tcp", controller.listenAddr)
 	if err != nil {
