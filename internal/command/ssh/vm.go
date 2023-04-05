@@ -22,9 +22,9 @@ var wait uint16
 
 func newSSHVMCommand() *cobra.Command {
 	command := &cobra.Command{
-		Use:   "vm VM_NAME",
+		Use:   "vm VM_NAME [COMMAND]",
 		Short: "SSH into the VM",
-		Args:  cobra.ExactArgs(1),
+		Args:  cobra.RangeArgs(1, 2),
 		RunE:  runSSHVM,
 	}
 
@@ -39,7 +39,15 @@ func newSSHVMCommand() *cobra.Command {
 }
 
 func runSSHVM(cmd *cobra.Command, args []string) error {
+	// Required NAME argument
 	name := args[0]
+
+	// Optional [COMMAND] argument
+	var command string
+
+	if len(args) > 1 {
+		command = args[1]
+	}
 
 	client, err := client.New()
 	if err != nil {
@@ -70,12 +78,26 @@ func runSSHVM(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("%w: failed to establish an SSH connection: %v", ErrFailed, err)
 	}
+	defer func() {
+		_ = sshConn.Close()
+	}()
 
 	sshClient := ssh.NewClient(sshConn, chans, reqs)
 
 	sshSess, err := sshClient.NewSession()
 	if err != nil {
 		return fmt.Errorf("%w: failed to open an SSH session: %v", ErrFailed, err)
+	}
+	defer func() {
+		_ = sshSess.Close()
+	}()
+
+	if command != "" {
+		sshSess.Stdout = os.Stdout
+		sshSess.Stderr = os.Stderr
+		sshSess.Stdin = os.Stdin
+
+		return sshSess.Run(command)
 	}
 
 	// Switch controlling terminal into raw mode,
@@ -109,7 +131,6 @@ func runSSHVM(cmd *cobra.Command, args []string) error {
 	go func() {
 		_, _ = io.Copy(sshSessStdinPipe, os.Stdin)
 		_ = sshSessStdinPipe.Close()
-		_ = sshSess.Close()
 	}()
 
 	// Periodically adjust remote terminal size
@@ -176,7 +197,7 @@ func ChooseUsernameAndPassword(
 	}
 
 	// Fall back
-	fmt.Println("no credentials specified or found, trying default admin:admin credentials...")
+	_, _ = fmt.Fprintf(os.Stderr, "no credentials specified or found, trying default admin:admin credentials...")
 
 	return "admin", "admin"
 }
