@@ -32,6 +32,8 @@ orchard list vms
 
 ### Accessing Virtual Machines
 
+#### SSH
+
 To SSH into a VM use the `orchard ssh` command:
 
 ```shell
@@ -39,6 +41,20 @@ orchard ssh vm ventura-base
 ```
 
 You can specify the `--username` and `--password` flags to specify the username/password pair to SSH. By default, `admin`/`admin` is used.
+
+You can also execute remote commands instead of spawning a login shell, similarly to the OpenSSH's `ssh` command:
+
+```shell
+orchard ssh vm ventura-base "uname -a"
+```
+
+You can execute scripts remotely this way, by telling the remote command-line interpreter to read from the standard input and using the redirection operator as follows:
+
+```shell
+orchard ssh vm ventura-base "bash -s" < script.sh
+```
+
+#### VNC
 
 Similar to `ssh` command, you can use `vnc` command to open Screen Sharing into a remote VM:
 
