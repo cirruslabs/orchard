@@ -8,7 +8,7 @@ func NewCommand() *cobra.Command {
 		Short: "Pause a resource",
 	}
 
-	command.AddCommand(newPauseVMCommand())
+	command.AddCommand(newPauseWorkerCommand())
 
 	return command
 }

@@ -9,11 +9,11 @@ import (
 
 var wait uint64
 
-func newPauseVMCommand() *cobra.Command {
+func newPauseWorkerCommand() *cobra.Command {
 	command := &cobra.Command{
 		Use:   "worker NAME",
 		Short: "Pause a worker",
-		RunE:  runPauseVM,
+		RunE:  runPauseWorker,
 		Args:  cobra.ExactArgs(1),
 	}
 
@@ -23,7 +23,7 @@ func newPauseVMCommand() *cobra.Command {
 	return command
 }
 
-func runPauseVM(cmd *cobra.Command, args []string) error {
+func runPauseWorker(cmd *cobra.Command, args []string) error {
 	name := args[0]
 
 	client, err := client.New()

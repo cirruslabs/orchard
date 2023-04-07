@@ -8,7 +8,7 @@ func NewCommand() *cobra.Command {
 		Short: "Resume a resource",
 	}
 
-	command.AddCommand(newResumeVMCommand())
+	command.AddCommand(newResumeWorkerCommand())
 
 	return command
 }

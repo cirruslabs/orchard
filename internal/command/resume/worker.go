@@ -5,18 +5,18 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newResumeVMCommand() *cobra.Command {
+func newResumeWorkerCommand() *cobra.Command {
 	command := &cobra.Command{
 		Use:   "worker NAME",
 		Short: "Resume a worker",
-		RunE:  runResumeVM,
+		RunE:  runResumeWorker,
 		Args:  cobra.ExactArgs(1),
 	}
 
 	return command
 }
 
-func runResumeVM(cmd *cobra.Command, args []string) error {
+func runResumeWorker(cmd *cobra.Command, args []string) error {
 	name := args[0]
 
 	client, err := client.New()
