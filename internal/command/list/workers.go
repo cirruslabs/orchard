@@ -39,10 +39,10 @@ func runListWorkers(cmd *cobra.Command, args []string) error {
 
 	table := uitable.New()
 
-	table.AddRow("Name", "Last seen")
+	table.AddRow("Name", "Last seen", "Unschedulable")
 
 	for _, worker := range workers {
-		table.AddRow(worker.Name, humanize.Time(worker.LastSeen))
+		table.AddRow(worker.Name, humanize.Time(worker.LastSeen), worker.Unschedulable)
 	}
 
 	fmt.Println(table)
