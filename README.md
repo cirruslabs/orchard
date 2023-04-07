@@ -73,7 +73,6 @@ In addition to controlling the Orchard via the CLI arguments, there are environm
 
 | Variable name                   | Description                                                                        |
 |---------------------------------|------------------------------------------------------------------------------------|
-| `ORCHARD_CONTEXT`               | Override the default context on per-command basis                                  |
 | `ORCHARD_URL`                   | Override controller URL on per-command basis                                       |
 | `ORCHARD_SERVICE_ACCOUNT_NAME`  | Override service account name (used for controller API auth) on per-command basis  |
 | `ORCHARD_SERVICE_ACCOUNT_TOKEN` | Override service account token (used for controller API auth) on per-command basis |

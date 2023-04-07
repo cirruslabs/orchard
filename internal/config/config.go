@@ -2,7 +2,6 @@ package config
 
 import (
 	"fmt"
-	"os"
 )
 
 type Config struct {
@@ -25,11 +24,6 @@ func (config *Config) RetrieveContext(name string) (Context, bool) {
 }
 
 func (config *Config) RetrieveDefaultContext() (Context, bool) {
-	// Environment variable overrides
-	if contextName, ok := os.LookupEnv(OrchardContext); ok {
-		return config.RetrieveContext(contextName)
-	}
-
 	if config.DefaultContext == "" {
 		return Context{}, false
 	}
