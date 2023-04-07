@@ -66,3 +66,13 @@ From architecture perspective, Orchard has a lower level API for port forwarding
 All port forwarding connections are done via the Orchard Controller instance which "proxies" a secure connection to the Orchard Workers.
 Therefore, your workers can be located under a stricter firewall that only allows connections to the Orchard Controller instance.
 Orchard Controller instance is secured by default and all API calls are authenticated and authorized.
+
+### Environment variables
+
+In addition to controlling the Orchard via the CLI arguments, there are environment variables that may be beneficial both when automating Orchard and in daily use:
+
+| Variable name                   | Description                                                                        |
+|---------------------------------|------------------------------------------------------------------------------------|
+| `ORCHARD_URL`                   | Override controller URL on per-command basis                                       |
+| `ORCHARD_SERVICE_ACCOUNT_NAME`  | Override service account name (used for controller API auth) on per-command basis  |
+| `ORCHARD_SERVICE_ACCOUNT_TOKEN` | Override service account token (used for controller API auth) on per-command basis |

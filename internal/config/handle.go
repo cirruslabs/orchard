@@ -116,6 +116,17 @@ func (handle *Handle) DefaultContext() (Context, error) {
 		}
 	}
 
+	// Environment variable overrides
+	if url, ok := os.LookupEnv(OrchardURL); ok {
+		defaultContext.URL = url
+	}
+	if serviceAccountName, ok := os.LookupEnv(OrchardServiceAccountName); ok {
+		defaultContext.ServiceAccountName = serviceAccountName
+	}
+	if serviceAccountToken, ok := os.LookupEnv(OrchardServiceAccountToken); ok {
+		defaultContext.ServiceAccountToken = serviceAccountToken
+	}
+
 	return defaultContext, nil
 }
 
