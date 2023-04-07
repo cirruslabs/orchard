@@ -9,7 +9,7 @@ type Worker struct {
 
 	MachineID string
 
-	Unschedulable bool
+	SchedulingPaused bool
 
 	// Resources available on this Worker.
 	Resources Resources `json:"resources"`

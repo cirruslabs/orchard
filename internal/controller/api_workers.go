@@ -73,7 +73,7 @@ func (controller *Controller) updateWorker(ctx *gin.Context) responder.Responder
 		}
 
 		dbWorker.LastSeen = userWorker.LastSeen
-		dbWorker.Unschedulable = userWorker.Unschedulable
+		dbWorker.SchedulingPaused = userWorker.SchedulingPaused
 
 		if err := txn.SetWorker(*dbWorker); err != nil {
 			return responder.Code(http.StatusInternalServerError)

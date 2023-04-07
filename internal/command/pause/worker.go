@@ -36,8 +36,8 @@ func runPauseWorker(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	if !worker.Unschedulable {
-		worker.Unschedulable = true
+	if !worker.SchedulingPaused {
+		worker.SchedulingPaused = true
 
 		_, err = client.Workers().Update(cmd.Context(), *worker)
 		if err != nil {

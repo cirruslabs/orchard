@@ -29,8 +29,8 @@ func runResumeWorker(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	if worker.Unschedulable {
-		worker.Unschedulable = false
+	if worker.SchedulingPaused {
+		worker.SchedulingPaused = false
 
 		_, err = client.Workers().Update(cmd.Context(), *worker)
 		if err != nil {

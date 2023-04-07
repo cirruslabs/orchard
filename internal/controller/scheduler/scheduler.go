@@ -85,7 +85,7 @@ func (scheduler *Scheduler) schedulingLoopIteration() error {
 
 				if resourcesRemaining.CanFit(unscheduledVM.Resources) &&
 					!worker.Offline(scheduler.workerOfflineTimeout) &&
-					!worker.Unschedulable {
+					!worker.SchedulingPaused {
 					unscheduledVM.Worker = worker.Name
 
 					if err := txn.SetVM(unscheduledVM); err != nil {
