@@ -7,7 +7,6 @@ import (
 	"github.com/cirruslabs/orchard/api"
 	storepkg "github.com/cirruslabs/orchard/internal/controller/store"
 	"github.com/cirruslabs/orchard/internal/responder"
-	"github.com/cirruslabs/orchard/internal/version"
 	v1pkg "github.com/cirruslabs/orchard/pkg/resource/v1"
 	"github.com/cirruslabs/orchard/rpc"
 	"github.com/deckarep/golang-set/v2"
@@ -31,7 +30,8 @@ func (controller *Controller) initAPI() *gin.Engine {
 	// Auth
 	v1.Use(controller.authenticateMiddleware)
 
-	// A way to for the clients to check that the API is working
+	// OpenAPI docs/spec (if enabled) and a way to for the clients
+	// to check that the API is working
 	v1.GET("/", func(c *gin.Context) {
 		if controller.enableSwaggerDocs {
 			middleware.SwaggerUI(middleware.SwaggerUIOpts{
@@ -42,17 +42,16 @@ func (controller *Controller) initAPI() *gin.Engine {
 			c.Status(http.StatusOK)
 		}
 	})
-
-	// Controller's information
-	v1.GET("/info", func(c *gin.Context) {
-		controller.info(c).Respond(c)
-	})
-
 	if controller.enableSwaggerDocs {
 		v1.GET("/openapi.yaml", func(c *gin.Context) {
 			c.Data(200, "text/yaml", api.Spec)
 		})
 	}
+
+	// Controller information
+	v1.GET("/controller/info", func(c *gin.Context) {
+		controller.controllerInfo(c).Respond(c)
+	})
 
 	// Service accounts
 	v1.POST("/service-accounts", func(c *gin.Context) {
@@ -142,19 +141,6 @@ func (controller *Controller) fetchServiceAccount(name string, token string) (*v
 	}
 
 	return serviceAccount, nil
-}
-
-func (controller *Controller) info(ctx *gin.Context) responder.Responder {
-	// Only require the service account to be valid,
-	// no roles are needed to query this endpoint
-	if responder := controller.authorize(ctx); responder != nil {
-		return responder
-	}
-
-	return responder.JSON(http.StatusOK, map[string]interface{}{
-		"version": version.Version,
-		"commit":  version.Commit,
-	})
 }
 
 func (controller *Controller) authenticateMiddleware(c *gin.Context) {

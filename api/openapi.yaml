@@ -4,11 +4,11 @@ info:
   description: Orchard orchestration API
   version: 0.1.0
 paths:
-  /info:
+  /controller/info:
     get:
       summary: "Retrieve controller's information"
       tags:
-        - info
+        - controller
       responses:
         '200':
           description: OK
