@@ -46,16 +46,23 @@ func (streamer *EventStreamer) stream() {
 }
 
 func (streamer *EventStreamer) readAvailableEvents() ([]v1.Event, bool) {
-	// blocking wait for at least one event
-	result := []v1.Event{<-streamer.eventsChannel}
+	var result []v1.Event
 
+	// blocking wait for at least one event
+	nextEvent, ok := <-streamer.eventsChannel
+	if !ok {
+		return result, true
+	}
+	result = append(result, nextEvent)
+
+	// non-blocking wait for more events, if any
 	for {
 		select {
-		case nextEvent, more := <-streamer.eventsChannel:
-			result = append(result, nextEvent)
-			if !more {
+		case nextEvent, ok := <-streamer.eventsChannel:
+			if !ok {
 				return result, true
 			}
+			result = append(result, nextEvent)
 		default:
 			return result, false
 		}
