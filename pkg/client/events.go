@@ -20,7 +20,7 @@ func NewEventStreamer(client *Client, endpoint string) *EventStreamer {
 	streamer := &EventStreamer{
 		client:        client,
 		endpoint:      endpoint,
-		eventsChannel: make(chan v1.Event),
+		eventsChannel: make(chan v1.Event, 64),
 	}
 	go streamer.stream()
 	return streamer
