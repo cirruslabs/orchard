@@ -4,6 +4,18 @@ info:
   description: Orchard orchestration API
   version: 0.1.0
 paths:
+  /info:
+    get:
+      summary: "Retrieve controller's information"
+      tags:
+        - info
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#components/schemas/ControllerInfo'
   /service-accounts:
     post:
       summary: "Create a Service Account"
@@ -321,3 +333,13 @@ components:
           type: array
           items:
             type: string
+    ControllerInfo:
+      title: Controller's Information
+      type: object
+      properties:
+        version:
+          type: string
+          description: Version number
+        commit:
+          type: string
+          description: Commit hash
