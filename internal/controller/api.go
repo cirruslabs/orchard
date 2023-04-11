@@ -30,7 +30,8 @@ func (controller *Controller) initAPI() *gin.Engine {
 	// Auth
 	v1.Use(controller.authenticateMiddleware)
 
-	// A way to for the clients to check that the API is working
+	// OpenAPI docs/spec (if enabled) and a way to for the clients
+	// to check that the API is working
 	v1.GET("/", func(c *gin.Context) {
 		if controller.enableSwaggerDocs {
 			middleware.SwaggerUI(middleware.SwaggerUIOpts{
@@ -41,12 +42,16 @@ func (controller *Controller) initAPI() *gin.Engine {
 			c.Status(http.StatusOK)
 		}
 	})
-
 	if controller.enableSwaggerDocs {
 		v1.GET("/openapi.yaml", func(c *gin.Context) {
 			c.Data(200, "text/yaml", api.Spec)
 		})
 	}
+
+	// Controller information
+	v1.GET("/controller/info", func(c *gin.Context) {
+		controller.controllerInfo(c).Respond(c)
+	})
 
 	// Service accounts
 	v1.POST("/service-accounts", func(c *gin.Context) {

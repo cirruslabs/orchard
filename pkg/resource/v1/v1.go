@@ -90,3 +90,8 @@ const (
 	// (either via API or from within a VM via `sudo shutdown -now`).
 	VMStatusStopped VMStatus = "stopped"
 )
+
+type ControllerInfo struct {
+	Version string `json:"version"`
+	Commit  string `json:"commit"`
+}

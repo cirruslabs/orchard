@@ -266,3 +266,9 @@ func (client *Client) ServiceAccounts() *ServiceAccountsService {
 		client: client,
 	}
 }
+
+func (client *Client) Controller() *ControllerService {
+	return &ControllerService{
+		client: client,
+	}
+}

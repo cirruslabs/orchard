@@ -161,6 +161,7 @@ func (controller *Controller) deleteVM(ctx *gin.Context) responder.Responder {
 		return responder.Code(http.StatusOK)
 	})
 }
+
 func (controller *Controller) appendVMEvents(ctx *gin.Context) responder.Responder {
 	if responder := controller.authorize(ctx, v1.ServiceAccountRoleComputeWrite); responder != nil {
 		return responder
