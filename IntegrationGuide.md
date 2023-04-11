@@ -8,7 +8,7 @@ You can run `orchard dev` locally and navigate to http://127.0.0.1:6120/v1/ for 
 
 ## Using the API
 
-Since everything is relative, we'll show how to consume the API using Python's request library (lower level abstraction) and our Golang package (higher level abstraction) in the hope that this will aid in understanding.
+Below you'll find examples of using Orchard API via vanilla Python's request library and Golang package that Orchard CLI build on top of.
 
 ### Authentication
 
