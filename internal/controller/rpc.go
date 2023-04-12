@@ -14,7 +14,7 @@ import (
 )
 
 func (controller *Controller) Watch(_ *emptypb.Empty, stream rpc.Controller_WatchServer) error {
-	if !controller.authorizeGRPC(stream.Context(), v1pkg.ServiceAccountRoleWorker) {
+	if !controller.authorizeGRPC(stream.Context(), v1pkg.ServiceAccountRoleComputeWrite) {
 		return status.Errorf(codes.Unauthenticated, "auth failed")
 	}
 
@@ -40,7 +40,7 @@ func (controller *Controller) Watch(_ *emptypb.Empty, stream rpc.Controller_Watc
 }
 
 func (controller *Controller) PortForward(stream rpc.Controller_PortForwardServer) error {
-	if !controller.authorizeGRPC(stream.Context(), v1pkg.ServiceAccountRoleWorker) {
+	if !controller.authorizeGRPC(stream.Context(), v1pkg.ServiceAccountRoleComputeWrite) {
 		return status.Errorf(codes.Unauthenticated, "auth failed")
 	}
 

@@ -11,8 +11,7 @@ import (
 )
 
 func (controller *Controller) createWorker(ctx *gin.Context) responder.Responder {
-	if responder := controller.authorize(ctx, v1.ServiceAccountRoleComputeWrite,
-		v1.ServiceAccountRoleWorker); responder != nil {
+	if responder := controller.authorize(ctx, v1.ServiceAccountRoleComputeWrite); responder != nil {
 		return responder
 	}
 
@@ -55,8 +54,7 @@ func (controller *Controller) createWorker(ctx *gin.Context) responder.Responder
 }
 
 func (controller *Controller) updateWorker(ctx *gin.Context) responder.Responder {
-	if responder := controller.authorize(ctx, v1.ServiceAccountRoleComputeWrite,
-		v1.ServiceAccountRoleWorker); responder != nil {
+	if responder := controller.authorize(ctx, v1.ServiceAccountRoleComputeWrite); responder != nil {
 		return responder
 	}
 
@@ -84,8 +82,7 @@ func (controller *Controller) updateWorker(ctx *gin.Context) responder.Responder
 }
 
 func (controller *Controller) getWorker(ctx *gin.Context) responder.Responder {
-	if responder := controller.authorize(ctx, v1.ServiceAccountRoleComputeRead,
-		v1.ServiceAccountRoleWorker); responder != nil {
+	if responder := controller.authorize(ctx, v1.ServiceAccountRoleComputeRead); responder != nil {
 		return responder
 	}
 
@@ -102,8 +99,7 @@ func (controller *Controller) getWorker(ctx *gin.Context) responder.Responder {
 }
 
 func (controller *Controller) listWorkers(ctx *gin.Context) responder.Responder {
-	if responder := controller.authorize(ctx, v1.ServiceAccountRoleComputeRead,
-		v1.ServiceAccountRoleWorker); responder != nil {
+	if responder := controller.authorize(ctx, v1.ServiceAccountRoleComputeRead); responder != nil {
 		return responder
 	}
 
@@ -118,8 +114,7 @@ func (controller *Controller) listWorkers(ctx *gin.Context) responder.Responder 
 }
 
 func (controller *Controller) deleteWorker(ctx *gin.Context) responder.Responder {
-	if responder := controller.authorize(ctx, v1.ServiceAccountRoleComputeWrite,
-		v1.ServiceAccountRoleWorker); responder != nil {
+	if responder := controller.authorize(ctx, v1.ServiceAccountRoleComputeWrite); responder != nil {
 		return responder
 	}
 

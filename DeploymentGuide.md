@@ -64,7 +64,7 @@ orchard context default production
 ## Configuring Orchard Workers
 
 ```bash
-orchard create service-account worker-pool-m1 --roles "worker" --roles "compute:write" --roles "compute:read"
+orchard create service-account worker-pool-m1 --roles "compute:read" --roles "compute:write"
 orchard get bootstrap-token worker-pool-m1
 ```
 

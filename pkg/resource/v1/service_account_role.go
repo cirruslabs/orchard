@@ -10,7 +10,6 @@ var ErrUnsupportedServiceAccountRole = errors.New("unsupported service account r
 type ServiceAccountRole string
 
 const (
-	ServiceAccountRoleWorker       ServiceAccountRole = "worker"
 	ServiceAccountRoleComputeRead  ServiceAccountRole = "compute:read"
 	ServiceAccountRoleComputeWrite ServiceAccountRole = "compute:write"
 	ServiceAccountRoleAdminRead    ServiceAccountRole = "admin:read"
@@ -19,8 +18,6 @@ const (
 
 func NewServiceAccountRole(name string) (ServiceAccountRole, error) {
 	switch name {
-	case string(ServiceAccountRoleWorker):
-		return ServiceAccountRoleWorker, nil
 	case string(ServiceAccountRoleComputeRead):
 		return ServiceAccountRoleComputeRead, nil
 	case string(ServiceAccountRoleComputeWrite):
@@ -36,7 +33,6 @@ func NewServiceAccountRole(name string) (ServiceAccountRole, error) {
 
 func AllServiceAccountRoles() []ServiceAccountRole {
 	return []ServiceAccountRole{
-		ServiceAccountRoleWorker,
 		ServiceAccountRoleComputeRead,
 		ServiceAccountRoleComputeWrite,
 		ServiceAccountRoleAdminRead,
