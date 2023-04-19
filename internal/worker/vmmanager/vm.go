@@ -92,8 +92,11 @@ func (vm *VM) cloneAndConfigure(ctx context.Context) error {
 func (vm *VM) run(ctx context.Context) error {
 	var runArgs = []string{"run"}
 
-	if vm.Resource.Softnet {
+	if vm.Resource.NetSoftnet {
 		runArgs = append(runArgs, "--net-softnet")
+	}
+	if vm.Resource.NetBridged != "" {
+		runArgs = append(runArgs, fmt.Sprintf("--net-bridged=%s", vm.Resource.NetBridged))
 	}
 
 	if vm.Resource.Headless {
