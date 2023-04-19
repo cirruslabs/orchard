@@ -77,8 +77,8 @@ func New(vmResource v1.VM, eventStreamer *client.EventStreamer, logger *zap.Suga
 		Permit(ActionInit, StateStopped).
 		Permit(ActionFail, StateFailed).
 		OnExit(func(ctx context.Context, args ...interface{}) error {
-			if err := vm.cloneAndConfigure(vm.ctx); err != nil {
-				return vm.stateMachine.Fire(ActionFail, err)
+			if err := vm.cloneAndConfigure(ctx); err != nil {
+				return vm.stateMachine.FireCtx(ctx, ActionFail, err)
 			}
 
 			return nil
