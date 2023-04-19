@@ -66,6 +66,20 @@ func (service *VMsService) Get(ctx context.Context, name string) (*v1.VM, error)
 	return &vm, nil
 }
 
+func (service *VMsService) Start(ctx context.Context, name string) (*v1.VM, error) {
+	var vm v1.VM
+
+	err := service.client.request(ctx, http.MethodGet, fmt.Sprintf("vms/%s", name),
+		nil, &vm, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	vm.Status = v1.VMStatusPending
+
+	return service.Update(ctx, vm)
+}
+
 func (service *VMsService) Stop(ctx context.Context, name string) (*v1.VM, error) {
 	var vm v1.VM
 

@@ -65,8 +65,34 @@ type VMScript struct {
 	Env           map[string]string `json:"env"`
 }
 
+func (vm VM) Active() bool {
+	return vm.Status == VMStatusRunning || vm.Status == VMStatusStopping
+}
+
 func (vm VM) TerminalState() bool {
-	return vm.Status == VMStatusStopped || vm.Status == VMStatusFailed
+	return vm.Status == VMStatusFailed
+}
+
+func (vm VM) AllowedStateTransition(newStatus VMStatus) bool {
+	if vm.Status == newStatus {
+		return true
+	}
+
+	allowedTransitions := map[VMStatus][]VMStatus{
+		VMStatusPending:  {VMStatusRunning, VMStatusFailed},
+		VMStatusRunning:  {VMStatusStopping, VMStatusFailed},
+		VMStatusStopping: {VMStatusStopped, VMStatusFailed},
+		VMStatusStopped:  {VMStatusPending, VMStatusFailed},
+		VMStatusFailed:   { /* none allowed */ },
+	}
+
+	for _, allowedStatus := range allowedTransitions[vm.Status] {
+		if newStatus == allowedStatus {
+			return true
+		}
+	}
+
+	return false
 }
 
 type VMStatus string
@@ -79,16 +105,16 @@ const (
 	// the Virtual Machine associated with this VM resource.
 	VMStatusRunning VMStatus = "running"
 
-	// VMStatusFailed is set by both the Controller and the Worker to indicate a failure
-	// that prevented the VM resource from reaching the VMStatusRunning state.
-	VMStatusFailed VMStatus = "failed"
-
 	// VMStatusStopping is set by the Controller to indicate that a VM resource needs to be stopped but not deleted.
 	VMStatusStopping VMStatus = "stopping"
 
 	// VMStatusStopped is set by both the Worker to indicate that a particular VM resource has been stopped successfully
 	// (either via API or from within a VM via `sudo shutdown -now`).
 	VMStatusStopped VMStatus = "stopped"
+
+	// VMStatusFailed is set by both the Controller and the Worker to indicate a failure
+	// that prevented the VM resource from reaching the VMStatusRunning state.
+	VMStatusFailed VMStatus = "failed"
 )
 
 type ControllerInfo struct {

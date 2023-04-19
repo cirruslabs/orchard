@@ -89,9 +89,10 @@ func (controller *Controller) updateVM(ctx *gin.Context) responder.Responder {
 			return responder.Error(err)
 		}
 
-		if dbVM.TerminalState() && dbVM.Status != userVM.Status {
+		if !dbVM.AllowedStateTransition(userVM.Status) {
 			return responder.JSON(http.StatusPreconditionFailed,
-				NewErrorResponse("cannot update status for a VM in a terminal state"))
+				NewErrorResponse("cannot update VM status: invalid state transition from %s to %s",
+					dbVM.Status, userVM.Status))
 		}
 
 		dbVM.Status = userVM.Status

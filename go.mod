@@ -3,7 +3,6 @@ module github.com/cirruslabs/orchard
 go 1.19
 
 require (
-	github.com/avast/retry-go v3.0.0+incompatible
 	github.com/avast/retry-go/v4 v4.3.3
 	github.com/deckarep/golang-set/v2 v2.1.0
 	github.com/dgraph-io/badger/v3 v3.2103.5
@@ -18,6 +17,8 @@ require (
 	github.com/hashicorp/go-version v1.6.0
 	github.com/manifoldco/promptui v0.9.0
 	github.com/mitchellh/go-grpc-net-conn v0.0.0-20200427190222-eb030e4876f0
+	github.com/qmuntal/stateless v1.6.3
+	github.com/samber/lo v1.38.1
 	github.com/skratchdot/open-golang v0.0.0-20200116055534-eef842397966
 	github.com/spf13/cobra v1.6.0
 	github.com/stretchr/testify v1.8.1

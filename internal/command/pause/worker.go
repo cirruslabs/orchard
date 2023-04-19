@@ -59,7 +59,7 @@ func runPauseWorker(cmd *cobra.Command, args []string) error {
 			}
 
 			hasActiveVMs := slices.ContainsFunc(maps.Values(vms), func(vm v1.VM) bool {
-				return !vm.TerminalState()
+				return vm.Active()
 			})
 			if !hasActiveVMs {
 				break

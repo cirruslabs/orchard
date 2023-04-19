@@ -135,7 +135,7 @@ func TestFailedStartupScript(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	assert.Equal(t, "failed to run script: Process exited with status 123", runningVM.StatusMessage)
+	assert.Equal(t, "VM failed: failed to run startup script: Process exited with status 123", runningVM.StatusMessage)
 }
 
 func Wait(duration time.Duration, condition func() bool) bool {
@@ -174,7 +174,7 @@ func StartIntegrationTestEnvironmentWithAdditionalOpts(
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		_ = devWorker.DeleteAllVMs()
+		_ = devWorker.Close()
 	})
 	devContext, cancelDevFunc := context.WithCancel(context.Background())
 	t.Cleanup(cancelDevFunc)

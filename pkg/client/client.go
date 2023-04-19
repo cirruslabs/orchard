@@ -173,8 +173,14 @@ func (client *Client) request(
 	}()
 
 	if response.StatusCode != http.StatusOK {
-		return fmt.Errorf("%w to make a request: %d %s",
-			ErrFailed, response.StatusCode, http.StatusText(response.StatusCode))
+		errorDetails := errorDetailsFromResponseBody(response.Body)
+
+		if errorDetails != "" {
+			errorDetails = " (" + errorDetails + ")"
+		}
+
+		return fmt.Errorf("%w to make a request: %d %s%s",
+			ErrFailed, response.StatusCode, http.StatusText(response.StatusCode), errorDetails)
 	}
 
 	if out != nil {
@@ -189,6 +195,23 @@ func (client *Client) request(
 	}
 
 	return nil
+}
+
+func errorDetailsFromResponseBody(body io.Reader) string {
+	bodyBytes, err := io.ReadAll(body)
+	if err != nil {
+		return ""
+	}
+
+	var errorResponseBody struct {
+		Message string `json:"message"`
+	}
+
+	if err := json.Unmarshal(bodyBytes, &errorResponseBody); err != nil {
+		return ""
+	}
+
+	return errorResponseBody.Message
 }
 
 func (client *Client) wsRequest(

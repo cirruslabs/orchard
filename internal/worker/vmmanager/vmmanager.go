@@ -1,22 +1,17 @@
 package vmmanager
 
 import (
-	"context"
-	"errors"
-	"fmt"
+	vmpkg "github.com/cirruslabs/orchard/internal/worker/vm"
 	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
-	"go.uber.org/zap"
 )
 
-var ErrFailed = errors.New("VM manager failed")
-
 type VMManager struct {
-	vms map[string]*VM
+	vms map[string]*vmpkg.VM
 }
 
 func New() *VMManager {
 	return &VMManager{
-		vms: map[string]*VM{},
+		vms: map[string]*vmpkg.VM{},
 	}
 }
 
@@ -26,56 +21,28 @@ func (vmm *VMManager) Exists(vmResource v1.VM) bool {
 	return ok
 }
 
-func (vmm *VMManager) Get(vmResource v1.VM) (*VM, error) {
-	managedVM, ok := vmm.vms[vmResource.UID]
-	if !ok {
-		return nil, fmt.Errorf("%w: VM does not exist", ErrFailed)
-	}
+func (vmm *VMManager) Get(vmResource v1.VM) (*vmpkg.VM, bool) {
+	vm, ok := vmm.vms[vmResource.UID]
 
-	return managedVM, nil
+	return vm, ok
 }
 
-func (vmm *VMManager) Create(ctx context.Context, vmResource v1.VM, logger *zap.SugaredLogger) (*VM, error) {
-	if _, ok := vmm.vms[vmResource.UID]; ok {
-		return nil, fmt.Errorf("%w: VM already exists", ErrFailed)
-	}
+func (vmm *VMManager) Put(vm *vmpkg.VM) *vmpkg.VM {
+	vmm.vms[vm.Resource.UID] = vm
 
-	managedVM, err := NewVM(ctx, vmResource, logger)
-	if err != nil {
-		return nil, err
-	}
-
-	vmm.vms[vmResource.UID] = managedVM
-
-	return managedVM, nil
+	return vm
 }
 
-func (vmm *VMManager) Stop(vmResource v1.VM) error {
-	managedVM, ok := vmm.vms[vmResource.UID]
-	if !ok {
-		return fmt.Errorf("%w: VM does not exist", ErrFailed)
-	}
-
-	return managedVM.Stop()
-}
-
-func (vmm *VMManager) Delete(vmResource v1.VM) error {
-	managedVM, ok := vmm.vms[vmResource.UID]
-	if !ok {
-		return fmt.Errorf("%w: VM does not exist", ErrFailed)
-	}
-
-	if err := managedVM.Delete(); err != nil {
-		return err
-	}
-
+func (vmm *VMManager) Delete(vmResource v1.VM) {
 	delete(vmm.vms, vmResource.UID)
-
-	return nil
 }
 
-func (vmm *VMManager) List() []*VM {
-	var vms []*VM
+func (vmm *VMManager) Len() int {
+	return len(vmm.vms)
+}
+
+func (vmm *VMManager) List() []*vmpkg.VM {
+	var vms []*vmpkg.VM
 
 	for _, vm := range vmm.vms {
 		vms = append(vms, vm)
