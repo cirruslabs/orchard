@@ -1,8 +1,8 @@
 # Orchard
 
-Orchard is an orchestration system for [Tart](https://github.com/cirruslabs/tart).
+<img src="https://github.com/cirruslabs/orchard/raw/main/docs/OrchardSocial.png"/>
 
-Create a cluster of bare-metal Apple Silicon machines and manage dozens of VMs with ease!
+Orchard is an orchestration system for [Tart](https://github.com/cirruslabs/tart). Create a cluster of bare-metal Apple Silicon machines and manage dozens of VMs with ease!
 
 ## Quick start
 
