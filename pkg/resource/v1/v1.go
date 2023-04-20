@@ -19,11 +19,12 @@ type Meta struct {
 }
 
 type VM struct {
-	Image    string `json:"image"`
-	CPU      uint64 `json:"cpu"`
-	Memory   uint64 `json:"memory"`
-	Softnet  bool   `json:"softnet"`
-	Headless bool   `json:"headless"`
+	Image      string `json:"image"`
+	CPU        uint64 `json:"cpu"`
+	Memory     uint64 `json:"memory"`
+	NetSoftnet bool   `json:"net-softnet"`
+	NetBridged string `json:"net-bridged"`
+	Headless   bool   `json:"headless"`
 
 	// Status field is used to track the lifecycle of the VM associated with this resource.
 	Status        VMStatus `json:"status"`

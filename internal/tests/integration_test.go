@@ -37,7 +37,6 @@ func TestSingleVM(t *testing.T) {
 		Image:    "ghcr.io/cirruslabs/macos-ventura-base:latest",
 		CPU:      4,
 		Memory:   8 * 1024,
-		Softnet:  false,
 		Headless: true,
 		Status:   v1.VMStatusPending,
 		StartupScript: &v1.VMScript{
@@ -113,7 +112,6 @@ func TestFailedStartupScript(t *testing.T) {
 		Image:    "ghcr.io/cirruslabs/macos-ventura-base:latest",
 		CPU:      4,
 		Memory:   8 * 1024,
-		Softnet:  false,
 		Headless: true,
 		Status:   v1.VMStatusPending,
 		StartupScript: &v1.VMScript{
@@ -213,7 +211,6 @@ func TestPortForwarding(t *testing.T) {
 		Image:    "ghcr.io/cirruslabs/macos-ventura-base:latest",
 		CPU:      4,
 		Memory:   8 * 1024,
-		Softnet:  false,
 		Headless: true,
 	})
 	require.NoError(t, err)
