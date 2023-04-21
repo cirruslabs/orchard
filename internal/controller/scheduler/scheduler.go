@@ -6,12 +6,26 @@ import (
 	storepkg "github.com/cirruslabs/orchard/internal/controller/store"
 	"github.com/cirruslabs/orchard/pkg/resource/v1"
 	"github.com/cirruslabs/orchard/rpc"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.uber.org/zap"
 	"sort"
 	"time"
 )
 
 const schedulerInterval = 5 * time.Second
+
+var (
+	schedulerLoopIterationStat = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "orchard_scheduler_loop_iteration_total",
+	})
+	workersStat = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "orchard_workers",
+	}, []string{"status"})
+	vmsStat = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "orchard_vms",
+	}, []string{"status"})
+)
 
 type Scheduler struct {
 	store                storepkg.Store
@@ -49,7 +63,22 @@ func (scheduler *Scheduler) Run() {
 		}
 		if err := scheduler.schedulingLoopIteration(); err != nil {
 			scheduler.logger.Errorf("Failed to schedule VMs: %v", err)
+		} else {
+			schedulerLoopIterationStat.Inc()
 		}
+	}
+}
+
+func (scheduler *Scheduler) reportStats(workers []v1.Worker, vms []v1.VM) {
+	for _, worker := range workers {
+		if worker.Offline(scheduler.workerOfflineTimeout) {
+			workersStat.With(map[string]string{"status": "offline"}).Inc()
+		} else {
+			workersStat.With(map[string]string{"status": "online"}).Inc()
+		}
+	}
+	for _, vm := range vms {
+		vmsStat.With(map[string]string{"status": string(vm.Status)}).Inc()
 	}
 }
 
@@ -161,6 +190,8 @@ func (scheduler *Scheduler) healthCheckingLoopIteration() error {
 		for _, worker := range workers {
 			nameToWorker[worker.Name] = worker
 		}
+
+		scheduler.reportStats(workers, vms)
 
 		// Process scheduled VMs
 		for _, scheduledVM := range scheduledVMs {

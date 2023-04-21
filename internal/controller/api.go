@@ -12,6 +12,7 @@ import (
 	"github.com/deckarep/golang-set/v2"
 	"github.com/gin-gonic/gin"
 	"github.com/go-openapi/runtime/middleware"
+	"github.com/penglongli/gin-metrics/ginmetrics"
 	"google.golang.org/grpc/metadata"
 	"net/http"
 	"strings"
@@ -23,6 +24,11 @@ var ErrUnauthorized = errors.New("unauthorized")
 
 func (controller *Controller) initAPI() *gin.Engine {
 	ginEngine := gin.Default()
+
+	// expose metrics
+	monitor := ginmetrics.GetMonitor()
+	monitor.SetMetricPath("/metrics")
+	monitor.Use(ginEngine)
 
 	// v1 API
 	v1 := ginEngine.Group("/v1")
