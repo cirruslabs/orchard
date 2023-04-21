@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/cirruslabs/orchard/internal/proxy"
-	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
+	"github.com/cirruslabs/orchard/internal/worker/vmmanager"
 	"github.com/cirruslabs/orchard/rpc"
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -16,6 +16,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 	"net"
+
+	"github.com/samber/lo"
 )
 
 func (worker *Worker) watchRPC(ctx context.Context) error {
@@ -31,7 +33,7 @@ func (worker *Worker) watchRPC(ctx context.Context) error {
 
 	client := rpc.NewControllerClient(conn)
 
-	ctxWithMetadata := metadata.NewOutgoingContext(ctx, worker.GPRCMetadata())
+	ctxWithMetadata := metadata.NewOutgoingContext(ctx, worker.grpcMetadata())
 
 	stream, err := client.Watch(ctxWithMetadata, &emptypb.Empty{})
 	if err != nil {
@@ -48,7 +50,7 @@ func (worker *Worker) watchRPC(ctx context.Context) error {
 		case *rpc.WatchInstruction_PortForwardAction:
 			go worker.handlePortForward(ctxWithMetadata, client, action.PortForwardAction)
 		case *rpc.WatchInstruction_SyncVmsAction:
-			worker.RequestVMSyncing()
+			worker.requestVMSyncing()
 		}
 	}
 }
@@ -62,7 +64,7 @@ func (worker *Worker) handlePortForward(
 	defer cancel()
 
 	grpcMetadata := metadata.Join(
-		worker.GPRCMetadata(),
+		worker.grpcMetadata(),
 		metadata.Pairs(rpc.MetadataWorkerPortForwardingSessionKey, portForwardAction.Session),
 	)
 	ctxWithMetadata := metadata.NewOutgoingContext(subCtx, grpcMetadata)
@@ -74,10 +76,10 @@ func (worker *Worker) handlePortForward(
 	}
 
 	// Obtain VM
-	vm, err := worker.vmm.Get(v1.VM{
-		UID: portForwardAction.VmUid,
+	vm, ok := lo.Find(worker.vmm.List(), func(item *vmmanager.VM) bool {
+		return item.Resource.UID == portForwardAction.VmUid
 	})
-	if err != nil {
+	if !ok {
 		worker.logger.Warnf("port forwarding failed: failed to get the VM: %v", err)
 
 		return

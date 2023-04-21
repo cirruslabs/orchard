@@ -29,6 +29,7 @@ type Worker struct {
 	syncRequested chan bool
 	vmm           *vmmanager.VMManager
 	client        *client.Client
+	pollTicker    *time.Ticker
 	resources     v1.Resources
 	logger        *zap.SugaredLogger
 }
@@ -36,6 +37,7 @@ type Worker struct {
 func New(client *client.Client, opts ...Option) (*Worker, error) {
 	worker := &Worker{
 		client:        client,
+		pollTicker:    time.NewTicker(pollInterval),
 		vmm:           vmmanager.New(),
 		syncRequested: make(chan bool, 1),
 	}
@@ -72,7 +74,31 @@ func (worker *Worker) Run(ctx context.Context) error {
 		if err := worker.runNewSession(ctx); err != nil {
 			return err
 		}
+
+		select {
+		case <-worker.pollTicker.C:
+			// continue
+		case <-ctx.Done():
+			return ctx.Err()
+		}
 	}
+}
+
+func (worker *Worker) Close() error {
+	var result error
+	for _, vm := range worker.vmm.List() {
+		err := vm.Stop()
+		if err != nil {
+			result = multierror.Append(result, err)
+		}
+	}
+	for _, vm := range worker.vmm.List() {
+		err := vm.Delete()
+		if err != nil {
+			result = multierror.Append(result, err)
+		}
+	}
+	return result
 }
 
 func (worker *Worker) runNewSession(ctx context.Context) error {
@@ -113,7 +139,7 @@ func (worker *Worker) runNewSession(ctx context.Context) error {
 
 		select {
 		case <-worker.syncRequested:
-		case <-time.After(pollInterval):
+		case <-worker.pollTicker.C:
 			// continue
 		case <-subCtx.Done():
 			return subCtx.Err()
@@ -168,43 +194,47 @@ func (worker *Worker) syncVMs(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-
-	worker.logger.Infof("syncing %d VMs...", len(remoteVMs))
-
-	// Check if we need to stop any of the VMs
-	for _, vmResource := range remoteVMs {
-		if vmResource.Status == v1.VMStatusStopping && worker.vmm.Exists(vmResource) {
-			if err := worker.stopVM(vmResource); err != nil {
-				return err
-			}
-		}
+	remoteVMsIndex := map[ondiskname.OnDiskName]v1.VM{}
+	for _, remoteVM := range remoteVMs {
+		remoteVMsIndex[ondiskname.NewFromResource(remoteVM)] = remoteVM
 	}
 
-	// Handle pending VMs
-	for _, vmResource := range remoteVMs {
-		// handle pending VMs
-		if vmResource.Status == v1.VMStatusPending && !worker.vmm.Exists(vmResource) {
-			if err := worker.createVM(ctx, vmResource); err != nil {
-				return err
-			}
-		}
-	}
+	worker.logger.Infof("syncing %d local VMs against %d remote VMs...",
+		len(remoteVMsIndex), worker.vmm.Len())
 
-	// Sync in-memory VMs
 	for _, vm := range worker.vmm.List() {
-		remoteVM, ok := remoteVMs[vm.Resource.UID]
+		remoteVM, ok := remoteVMsIndex[vm.OnDiskName()]
 		if !ok {
-			if err := worker.deleteVM(vm.Resource); err != nil {
+			// Remote VM was deleted, delete local VM
+			//
+			// Note: this check needs to run for each VM
+			// before we attempt to create any VMs below.
+			if err := worker.deleteVM(vm); err != nil {
 				return err
 			}
-		} else if remoteVM.Status != v1.VMStatusFailed && vm.RunError != nil {
+		} else if remoteVM.Status != v1.VMStatusFailed && vm.Err() != nil {
+			// Local VM has failed, update remote VM
 			remoteVM.Status = v1.VMStatusFailed
-			remoteVM.StatusMessage = fmt.Sprintf("failed to run VM: %v", vm.RunError)
-			updatedVM, err := worker.client.VMs().Update(ctx, vm.Resource)
-			if err != nil {
+			remoteVM.StatusMessage = vm.Err().Error()
+			if _, err := worker.client.VMs().Update(ctx, remoteVM); err != nil {
 				return err
 			}
-			vm.Resource = *updatedVM
+		}
+	}
+
+	for _, vmResource := range remoteVMsIndex {
+		odn := ondiskname.NewFromResource(vmResource)
+
+		if vmResource.Status == v1.VMStatusPending && !worker.vmm.Exists(odn) {
+			// Remote VM was created, create local VM
+			if err := worker.createVM(ctx, odn, vmResource); err != nil {
+				return err
+			}
+
+			vmResource.Status = v1.VMStatusRunning
+			if _, err := worker.client.VMs().Update(ctx, vmResource); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -215,6 +245,10 @@ func (worker *Worker) syncOnDiskVMs(ctx context.Context) error {
 	remoteVMs, err := worker.client.VMs().FindForWorker(ctx, worker.name)
 	if err != nil {
 		return err
+	}
+	remoteVMsIndex := map[ondiskname.OnDiskName]v1.VM{}
+	for _, remoteVM := range remoteVMs {
+		remoteVMsIndex[ondiskname.NewFromResource(remoteVM)] = remoteVM
 	}
 
 	worker.logger.Infof("syncing on-disk VMs...")
@@ -238,14 +272,14 @@ func (worker *Worker) syncOnDiskVMs(ctx context.Context) error {
 			return err
 		}
 
-		remoteVM, ok := remoteVMs[onDiskName.UID]
+		remoteVM, ok := remoteVMsIndex[onDiskName]
 		if !ok {
 			// On-disk VM doesn't exist on the controller, delete it
 			_, _, err := tart.Tart(ctx, worker.logger, "delete", vmInfo.Name)
 			if err != nil {
 				return err
 			}
-		} else if remoteVM.Status == v1.VMStatusRunning && !worker.vmm.Exists(v1.VM{UID: onDiskName.UID}) {
+		} else if remoteVM.Status == v1.VMStatusRunning && !worker.vmm.Exists(onDiskName) {
 			// On-disk VM exist on the controller,
 			// but we don't know about it, so
 			// mark it as failed
@@ -261,148 +295,41 @@ func (worker *Worker) syncOnDiskVMs(ctx context.Context) error {
 	return nil
 }
 
-func (worker *Worker) deleteVM(vmResource v1.VM) error {
-	worker.logger.Debugf("deleting VM %s (%s)", vmResource.Name, vmResource.UID)
-
-	if !vmResource.TerminalState() {
-		if err := worker.stopVM(vmResource); err != nil {
-			return err
-		}
-	}
-
-	// Delete VM locally, report to the controller
-	if worker.vmm.Exists(vmResource) {
-		if err := worker.vmm.Delete(vmResource); err != nil {
-			return err
-		}
-	}
-
-	worker.logger.Infof("deleted VM %s (%s)", vmResource.Name, vmResource.UID)
-
-	return nil
-}
-
-func (worker *Worker) createVM(ctx context.Context, vmResource v1.VM) error {
-	worker.logger.Debugf("creating VM %s (%s)", vmResource.Name, vmResource.UID)
-
-	// Create or update VM locally
-	vm, err := worker.vmm.Create(ctx, vmResource, worker.logger)
-	if err != nil {
-		vmResource.Status = v1.VMStatusFailed
-		vmResource.StatusMessage = fmt.Sprintf("VM creation failed: %v", err)
-		_, updateErr := worker.client.VMs().Update(context.Background(), vmResource)
-		if updateErr != nil {
-			worker.logger.Errorf("failed to update VM %s (%s) remotely: %s", vmResource.Name, vmResource.UID, updateErr.Error())
-		}
+func (worker *Worker) deleteVM(vm *vmmanager.VM) error {
+	if err := vm.Stop(); err != nil {
 		return err
 	}
 
-	worker.logger.Infof("spawned VM %s (%s)", vmResource.Name, vmResource.UID)
-
-	vmResource.Status = v1.VMStatusRunning
-	_, updateErr := worker.client.VMs().Update(context.Background(), vmResource)
-	if updateErr != nil {
-		worker.logger.Errorf("failed to update VM %s (%s) remotely: %s", vmResource.Name, vmResource.UID, updateErr.Error())
+	if err := vm.Delete(); err != nil {
+		return err
 	}
 
-	go func() {
-		err := worker.execScript(vmResource, vm.Resource.StartupScript)
-		if err != nil {
-			vmResource.Status = v1.VMStatusFailed
-			vmResource.StatusMessage = fmt.Sprintf("failed to run script: %v", err)
-			_, updateErr := worker.client.VMs().Update(context.Background(), vmResource)
-			if updateErr != nil {
-				worker.logger.Errorf("failed to update VM %s (%s) remotely: %s", vmResource.Name, vmResource.UID, updateErr.Error())
-			}
-		}
-	}()
+	worker.vmm.Delete(vm.OnDiskName())
 
 	return nil
 }
 
-func (worker *Worker) execScript(vmResource v1.VM, script *v1.VMScript) error {
-	if script == nil {
-		return nil
-	}
-	vm, err := worker.vmm.Get(vmResource)
+func (worker *Worker) createVM(ctx context.Context, odn ondiskname.OnDiskName, vmResource v1.VM) error {
+	eventStreamer := worker.client.VMs().StreamEvents(vmResource.Name)
+
+	vm, err := vmmanager.NewVM(ctx, vmResource, eventStreamer, worker.logger)
 	if err != nil {
-		return nil
+		return err
 	}
 
-	eventsStreamer := worker.client.VMs().StreamEvents(vmResource.Name)
-	defer func() {
-		err := eventsStreamer.Close()
-		if err != nil {
-			worker.logger.Errorf("errored during streaming events for %s (%s): %w", vmResource.Name, vmResource.UID, err)
-		}
-	}()
-	err = vm.Shell(context.Background(), vmResource.Username, vmResource.Password,
-		script.ScriptContent, script.Env,
-		func(line string) {
-			eventsStreamer.Stream(v1.Event{
-				Kind:      v1.EventKindLogLine,
-				Timestamp: time.Now().Unix(),
-				Payload:   line,
-			})
-		})
-	if err != nil {
-		worker.logger.Errorf("failed to run script for VM %s (%s): %s", vmResource.Name, vmResource.UID, err.Error())
-	}
-	return err
+	worker.vmm.Put(odn, vm)
+
+	return nil
 }
 
-func (worker *Worker) stopVM(vmResource v1.VM) error {
-	worker.logger.Debugf("stopping VM %s (%s)", vmResource.Name, vmResource.UID)
-
-	// Create or update VM locally
-	if !worker.vmm.Exists(vmResource) {
-		return nil
-	}
-
-	shutdownScriptErr := worker.execScript(vmResource, vmResource.ShutdownScript)
-	stopErr := worker.vmm.Stop(vmResource)
-	vmResource.Status = v1.VMStatusStopped
-	if stopErr != nil {
-		vmResource.Status = v1.VMStatusFailed
-		vmResource.StatusMessage = fmt.Sprintf("failed to stop vm: %v", stopErr)
-	}
-	if shutdownScriptErr != nil {
-		vmResource.Status = v1.VMStatusFailed
-		vmResource.StatusMessage = fmt.Sprintf("failed to run shutdown script: %v", shutdownScriptErr)
-	}
-
-	_, err := worker.client.VMs().Update(context.Background(), vmResource)
-	if err != nil {
-		worker.logger.Errorf("failed to update VM %s (%s) remotely: %s", vmResource.Name, vmResource.UID, err.Error())
-	}
-	return stopErr
-}
-
-func (worker *Worker) DeleteAllVMs() error {
-	var result error
-	for _, vm := range worker.vmm.List() {
-		err := vm.Stop()
-		if err != nil {
-			result = multierror.Append(result, err)
-		}
-	}
-	for _, vm := range worker.vmm.List() {
-		err := vm.Delete()
-		if err != nil {
-			result = multierror.Append(result, err)
-		}
-	}
-	return result
-}
-
-func (worker *Worker) GPRCMetadata() metadata.MD {
+func (worker *Worker) grpcMetadata() metadata.MD {
 	return metadata.Join(
 		worker.client.GPRCMetadata(),
 		metadata.Pairs(rpc.MetadataWorkerNameKey, worker.name),
 	)
 }
 
-func (worker *Worker) RequestVMSyncing() {
+func (worker *Worker) requestVMSyncing() {
 	select {
 	case worker.syncRequested <- true:
 		worker.logger.Debugf("Successfully requested syncing")

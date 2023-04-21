@@ -13,7 +13,11 @@ import (
 	"time"
 )
 
-const schedulerInterval = 5 * time.Second
+const (
+	schedulerInterval = 5 * time.Second
+
+	schedulerVMRestartDelay = 15 * time.Second
+)
 
 var (
 	schedulerLoopIterationStat = promauto.NewCounter(prometheus.CounterOpts{
@@ -205,6 +209,25 @@ func (scheduler *Scheduler) healthCheckingLoopIteration() error {
 }
 
 func (scheduler *Scheduler) healthCheckVM(txn storepkg.Transaction, nameToWorker map[string]v1.Worker, vm v1.VM) error {
+	logger := scheduler.logger.With("vm_name", vm.Name, "vm_uid", vm.UID, "vm_restart_count", vm.RestartCount)
+
+	// Schedule a VM restart if the restart policy mandates it
+	needsRestart := vm.RestartPolicy == v1.RestartPolicyOnFailure &&
+		vm.Status == v1.VMStatusFailed &&
+		time.Since(vm.RestartedAt) > schedulerVMRestartDelay
+
+	if needsRestart {
+		logger.Debugf("restarting VM")
+
+		vm.Status = v1.VMStatusPending
+		vm.StatusMessage = ""
+		vm.Worker = ""
+		vm.RestartedAt = time.Now()
+		vm.RestartCount++
+
+		return txn.SetVM(vm)
+	}
+
 	worker, ok := nameToWorker[vm.Worker]
 	if !ok {
 		vm.Status = v1.VMStatusFailed

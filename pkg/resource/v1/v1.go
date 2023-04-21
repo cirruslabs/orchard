@@ -33,10 +33,13 @@ type VM struct {
 	// Worker field is set by the Controller to assign this VM to a specific Worker.
 	Worker string `json:"worker"`
 
-	Username       string    `json:"username"`
-	Password       string    `json:"password"`
-	StartupScript  *VMScript `json:"startup_script"`
-	ShutdownScript *VMScript `json:"shutdown_script"`
+	Username      string    `json:"username"`
+	Password      string    `json:"password"`
+	StartupScript *VMScript `json:"startup_script"`
+
+	RestartPolicy RestartPolicy `json:"restart_policy"`
+	RestartedAt   time.Time     `json:"restarted_at"`
+	RestartCount  uint64        `json:"restart_count"`
 
 	// UID is a useful field for avoiding data races within a single Name.
 	//
@@ -67,7 +70,7 @@ type VMScript struct {
 }
 
 func (vm VM) TerminalState() bool {
-	return vm.Status == VMStatusStopped || vm.Status == VMStatusFailed
+	return vm.Status == VMStatusFailed
 }
 
 type VMStatus string
@@ -83,13 +86,6 @@ const (
 	// VMStatusFailed is set by both the Controller and the Worker to indicate a failure
 	// that prevented the VM resource from reaching the VMStatusRunning state.
 	VMStatusFailed VMStatus = "failed"
-
-	// VMStatusStopping is set by the Controller to indicate that a VM resource needs to be stopped but not deleted.
-	VMStatusStopping VMStatus = "stopping"
-
-	// VMStatusStopped is set by both the Worker to indicate that a particular VM resource has been stopped successfully
-	// (either via API or from within a VM via `sudo shutdown -now`).
-	VMStatusStopped VMStatus = "stopped"
 )
 
 type ControllerInfo struct {

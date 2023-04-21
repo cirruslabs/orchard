@@ -5,7 +5,6 @@ import (
 	"github.com/cirruslabs/orchard/pkg/client"
 	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
 	"github.com/spf13/cobra"
-	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	"time"
 )
@@ -58,7 +57,7 @@ func runPauseWorker(cmd *cobra.Command, args []string) error {
 				return err
 			}
 
-			hasActiveVMs := slices.ContainsFunc(maps.Values(vms), func(vm v1.VM) bool {
+			hasActiveVMs := slices.ContainsFunc(vms, func(vm v1.VM) bool {
 				return !vm.TerminalState()
 			})
 			if !hasActiveVMs {

@@ -1,77 +1,41 @@
 package vmmanager
 
 import (
-	"context"
-	"errors"
-	"fmt"
-	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
-	"go.uber.org/zap"
+	"github.com/cirruslabs/orchard/internal/worker/ondiskname"
 )
 
-var ErrFailed = errors.New("VM manager failed")
-
 type VMManager struct {
-	vms map[string]*VM
+	vms map[ondiskname.OnDiskName]*VM
 }
 
 func New() *VMManager {
 	return &VMManager{
-		vms: map[string]*VM{},
+		vms: map[ondiskname.OnDiskName]*VM{},
 	}
 }
 
-func (vmm *VMManager) Exists(vmResource v1.VM) bool {
-	_, ok := vmm.vms[vmResource.UID]
+func (vmm *VMManager) Exists(key ondiskname.OnDiskName) bool {
+	_, ok := vmm.vms[key]
 
 	return ok
 }
 
-func (vmm *VMManager) Get(vmResource v1.VM) (*VM, error) {
-	managedVM, ok := vmm.vms[vmResource.UID]
-	if !ok {
-		return nil, fmt.Errorf("%w: VM does not exist", ErrFailed)
-	}
+func (vmm *VMManager) Get(key ondiskname.OnDiskName) (*VM, bool) {
+	vm, ok := vmm.vms[key]
 
-	return managedVM, nil
+	return vm, ok
 }
 
-func (vmm *VMManager) Create(ctx context.Context, vmResource v1.VM, logger *zap.SugaredLogger) (*VM, error) {
-	if _, ok := vmm.vms[vmResource.UID]; ok {
-		return nil, fmt.Errorf("%w: VM already exists", ErrFailed)
-	}
-
-	managedVM, err := NewVM(ctx, vmResource, logger)
-	if err != nil {
-		return nil, err
-	}
-
-	vmm.vms[vmResource.UID] = managedVM
-
-	return managedVM, nil
+func (vmm *VMManager) Put(key ondiskname.OnDiskName, vm *VM) {
+	vmm.vms[key] = vm
 }
 
-func (vmm *VMManager) Stop(vmResource v1.VM) error {
-	managedVM, ok := vmm.vms[vmResource.UID]
-	if !ok {
-		return fmt.Errorf("%w: VM does not exist", ErrFailed)
-	}
-
-	return managedVM.Stop()
+func (vmm *VMManager) Delete(key ondiskname.OnDiskName) {
+	delete(vmm.vms, key)
 }
 
-func (vmm *VMManager) Delete(vmResource v1.VM) error {
-	managedVM, ok := vmm.vms[vmResource.UID]
-	if !ok {
-		return fmt.Errorf("%w: VM does not exist", ErrFailed)
-	}
-
-	if err := managedVM.Delete(); err != nil {
-		return err
-	}
-
-	delete(vmm.vms, vmResource.UID)
-
-	return nil
+func (vmm *VMManager) Len() int {
+	return len(vmm.vms)
 }
 
 func (vmm *VMManager) List() []*VM {

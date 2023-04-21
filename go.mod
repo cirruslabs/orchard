@@ -20,6 +20,7 @@ require (
 	github.com/mitchellh/go-grpc-net-conn v0.0.0-20200427190222-eb030e4876f0
 	github.com/penglongli/gin-metrics v0.1.10
 	github.com/prometheus/client_golang v1.15.0
+	github.com/samber/lo v1.38.1
 	github.com/skratchdot/open-golang v0.0.0-20200116055534-eef842397966
 	github.com/spf13/cobra v1.6.0
 	github.com/stretchr/testify v1.8.1

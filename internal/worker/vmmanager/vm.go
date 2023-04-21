@@ -8,6 +8,7 @@ import (
 	"github.com/avast/retry-go"
 	"github.com/cirruslabs/orchard/internal/worker/ondiskname"
 	"github.com/cirruslabs/orchard/internal/worker/tart"
+	"github.com/cirruslabs/orchard/pkg/client"
 	"github.com/cirruslabs/orchard/pkg/resource/v1"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/ssh"
@@ -16,15 +17,18 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
-var ErrVMFailed = errors.New("VM errored")
+var ErrVMFailed = errors.New("VM failed")
 
 type VM struct {
-	id       string
-	Resource v1.VM
-	logger   *zap.SugaredLogger
-	RunError error
+	onDiskName ondiskname.OnDiskName
+	Resource   v1.VM
+	logger     *zap.SugaredLogger
+
+	err    error
+	errMtx sync.Mutex
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -32,13 +36,22 @@ type VM struct {
 	wg *sync.WaitGroup
 }
 
-func NewVM(ctx context.Context, vmResource v1.VM, logger *zap.SugaredLogger) (*VM, error) {
+func NewVM(
+	ctx context.Context,
+	vmResource v1.VM,
+	eventStreamer *client.EventStreamer,
+	logger *zap.SugaredLogger,
+) (*VM, error) {
 	vmContext, vmContextCancel := context.WithCancel(context.Background())
 
 	vm := &VM{
-		id:       ondiskname.New(vmResource.Name, vmResource.UID).String(),
-		Resource: vmResource,
-		logger:   logger,
+		onDiskName: ondiskname.NewFromResource(vmResource),
+		Resource:   vmResource,
+		logger: logger.With(
+			"vm_uid", vmResource.UID,
+			"vm_name", vmResource.Name,
+			"vm_restart_count", vmResource.RestartCount,
+		),
 
 		ctx:    vmContext,
 		cancel: vmContextCancel,
@@ -47,6 +60,8 @@ func NewVM(ctx context.Context, vmResource v1.VM, logger *zap.SugaredLogger) (*V
 	}
 
 	// Clone the VM so `run` and `ip` are not racing
+	vm.logger.Debugf("creating VM")
+
 	if err := vm.cloneAndConfigure(ctx); err != nil {
 		return nil, fmt.Errorf("failed to clone the VM: %w", err)
 	}
@@ -56,24 +71,57 @@ func NewVM(ctx context.Context, vmResource v1.VM, logger *zap.SugaredLogger) (*V
 	go func() {
 		defer vm.wg.Done()
 
+		vm.logger.Debugf("spawned VM")
+
 		if err := vm.run(vm.ctx); err != nil {
-			logger.Errorf("VM %s failed: %v", vm.id, err)
-			vm.RunError = err
+			vm.setErr(fmt.Errorf("%w: %v", ErrVMFailed, err))
 		}
+
+		vm.setErr(fmt.Errorf("%w: VM exited unexpectedly", ErrVMFailed))
 	}()
+
+	if vm.Resource.StartupScript != nil {
+		go vm.runScript(vm.Resource.StartupScript, eventStreamer)
+	}
 
 	return vm, nil
 }
 
+func (vm *VM) OnDiskName() ondiskname.OnDiskName {
+	return vm.onDiskName
+}
+
+func (vm *VM) id() string {
+	return vm.onDiskName.String()
+}
+
+func (vm *VM) Err() error {
+	vm.errMtx.Lock()
+	defer vm.errMtx.Unlock()
+
+	return vm.err
+}
+
+func (vm *VM) setErr(err error) {
+	vm.errMtx.Lock()
+	defer vm.errMtx.Unlock()
+
+	if vm.err == nil {
+		vm.logger.Error(err)
+		vm.err = err
+		vm.Resource.Status = v1.VMStatusFailed
+	}
+}
+
 func (vm *VM) cloneAndConfigure(ctx context.Context) error {
-	_, _, err := tart.Tart(ctx, vm.logger, "clone", vm.Resource.Image, vm.id)
+	_, _, err := tart.Tart(ctx, vm.logger, "clone", vm.Resource.Image, vm.id())
 	if err != nil {
 		return err
 	}
 
 	if vm.Resource.Memory != 0 {
 		_, _, err = tart.Tart(ctx, vm.logger, "set", "--memory",
-			strconv.FormatUint(vm.Resource.Memory, 10), vm.id)
+			strconv.FormatUint(vm.Resource.Memory, 10), vm.id())
 		if err != nil {
 			return err
 		}
@@ -81,7 +129,7 @@ func (vm *VM) cloneAndConfigure(ctx context.Context) error {
 
 	if vm.Resource.CPU != 0 {
 		_, _, err = tart.Tart(ctx, vm.logger, "set", "--cpu",
-			strconv.FormatUint(vm.Resource.CPU, 10), vm.id)
+			strconv.FormatUint(vm.Resource.CPU, 10), vm.id())
 		if err != nil {
 			return err
 		}
@@ -103,7 +151,7 @@ func (vm *VM) run(ctx context.Context) error {
 		runArgs = append(runArgs, "--no-graphics")
 	}
 
-	runArgs = append(runArgs, vm.id)
+	runArgs = append(runArgs, vm.id())
 	_, _, err := tart.Tart(ctx, vm.logger, runArgs...)
 	if err != nil {
 		return err
@@ -113,7 +161,7 @@ func (vm *VM) run(ctx context.Context) error {
 }
 
 func (vm *VM) IP(ctx context.Context) (string, error) {
-	stdout, _, err := tart.Tart(ctx, vm.logger, "ip", "--wait", "60", vm.id)
+	stdout, _, err := tart.Tart(ctx, vm.logger, "ip", "--wait", "60", vm.id())
 	if err != nil {
 		return "", err
 	}
@@ -122,7 +170,11 @@ func (vm *VM) IP(ctx context.Context) (string, error) {
 }
 
 func (vm *VM) Stop() error {
-	_, _, _ = tart.Tart(context.Background(), vm.logger, "stop", vm.id)
+	vm.logger.Debugf("stopping VM")
+
+	_, _, _ = tart.Tart(context.Background(), vm.logger, "stop", vm.id())
+
+	vm.logger.Debugf("VM stopped")
 
 	vm.cancel()
 
@@ -132,15 +184,19 @@ func (vm *VM) Stop() error {
 }
 
 func (vm *VM) Delete() error {
-	_, _, err := tart.Tart(context.Background(), vm.logger, "delete", vm.id)
+	vm.logger.Debugf("deleting VM")
+
+	_, _, err := tart.Tart(context.Background(), vm.logger, "delete", vm.id())
 	if err != nil {
-		return fmt.Errorf("%w: failed to delete VM %s: %v", ErrFailed, vm.id, err)
+		return fmt.Errorf("%w: failed to delete VM: %v", ErrVMFailed, err)
 	}
+
+	vm.logger.Debugf("deleted VM")
 
 	return nil
 }
 
-func (vm *VM) Shell(
+func (vm *VM) shell(
 	ctx context.Context,
 	sshUser string,
 	sshPassword string,
@@ -191,17 +247,17 @@ func (vm *VM) Shell(
 
 	sess, err := cli.NewSession()
 	if err != nil {
-		return fmt.Errorf("%w: failed to open SSH session: %v", ErrFailed, err)
+		return fmt.Errorf("%w: failed to open SSH session: %v", ErrVMFailed, err)
 	}
 
 	// Log output from the virtual machine
 	stdout, err := sess.StdoutPipe()
 	if err != nil {
-		return fmt.Errorf("%w: while opening stdout pipe: %v", ErrFailed, err)
+		return fmt.Errorf("%w: while opening stdout pipe: %v", ErrVMFailed, err)
 	}
 	stderr, err := sess.StderrPipe()
 	if err != nil {
-		return fmt.Errorf("%w: while opening stderr pipe: %v", ErrFailed, err)
+		return fmt.Errorf("%w: while opening stderr pipe: %v", ErrVMFailed, err)
 	}
 	var outputReaderWG sync.WaitGroup
 	outputReaderWG.Add(1)
@@ -218,13 +274,13 @@ func (vm *VM) Shell(
 
 	stdinBuf, err := sess.StdinPipe()
 	if err != nil {
-		return fmt.Errorf("%w: while opening stdin pipe: %v", ErrFailed, err)
+		return fmt.Errorf("%w: while opening stdin pipe: %v", ErrVMFailed, err)
 	}
 
 	// start a login shell so all the customization from ~/.zprofile will be picked up
 	err = sess.Shell()
 	if err != nil {
-		return fmt.Errorf("%w: failed to start a shell: %v", ErrFailed, err)
+		return fmt.Errorf("%w: failed to start a shell: %v", ErrVMFailed, err)
 	}
 
 	var scriptBuilder strings.Builder
@@ -239,8 +295,36 @@ func (vm *VM) Shell(
 
 	_, err = stdinBuf.Write([]byte(scriptBuilder.String()))
 	if err != nil {
-		return fmt.Errorf("%w: failed to start script: %v", ErrFailed, err)
+		return fmt.Errorf("%w: failed to start script: %v", ErrVMFailed, err)
 	}
 	outputReaderWG.Wait()
 	return sess.Wait()
+}
+
+func (vm *VM) runScript(script *v1.VMScript, eventStreamer *client.EventStreamer) {
+	if eventStreamer != nil {
+		defer func() {
+			if err := eventStreamer.Close(); err != nil {
+				vm.logger.Errorf("errored during streaming events for startup script: %v", err)
+			}
+		}()
+	}
+
+	consumeLine := func(line string) {
+		if eventStreamer == nil {
+			return
+		}
+
+		eventStreamer.Stream(v1.Event{
+			Kind:      v1.EventKindLogLine,
+			Timestamp: time.Now().Unix(),
+			Payload:   line,
+		})
+	}
+
+	err := vm.shell(context.Background(), vm.Resource.Username, vm.Resource.Password,
+		script.ScriptContent, script.Env, consumeLine)
+	if err != nil {
+		vm.setErr(fmt.Errorf("%w: failed to run startup script: %v", ErrVMFailed, err))
+	}
 }

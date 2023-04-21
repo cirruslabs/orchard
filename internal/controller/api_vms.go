@@ -37,6 +37,8 @@ func (controller *Controller) createVM(ctx *gin.Context) responder.Responder {
 
 	vm.Status = v1.VMStatusPending
 	vm.CreatedAt = time.Now()
+	vm.RestartedAt = time.Time{}
+	vm.RestartCount = 0
 	vm.UID = uuid.New().String()
 
 	// Provide resource defaults
@@ -45,6 +47,16 @@ func (controller *Controller) createVM(ctx *gin.Context) responder.Responder {
 	}
 	if _, ok := vm.Resources[v1.ResourceTartVMs]; !ok {
 		vm.Resources[v1.ResourceTartVMs] = 1
+	}
+
+	// Validate restart policy and provide a default value if it's missing
+	if vm.RestartPolicy != "" {
+		if _, err := v1.NewRestartPolicyFromString(string(vm.RestartPolicy)); err != nil {
+			return responder.JSON(http.StatusPreconditionFailed,
+				NewErrorResponse("unsupported restart policy: %q", vm.RestartPolicy))
+		}
+	} else {
+		vm.RestartPolicy = v1.RestartPolicyNever
 	}
 
 	response := controller.storeUpdate(func(txn storepkg.Transaction) responder.Responder {
