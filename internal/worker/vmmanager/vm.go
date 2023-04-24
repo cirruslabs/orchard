@@ -109,7 +109,6 @@ func (vm *VM) setErr(err error) {
 	if vm.err == nil {
 		vm.logger.Error(err)
 		vm.err = err
-		vm.Resource.Status = v1.VMStatusFailed
 	}
 }
 
