@@ -17,6 +17,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -27,8 +28,7 @@ type VM struct {
 	Resource   v1.VM
 	logger     *zap.SugaredLogger
 
-	err    error
-	errMtx sync.Mutex
+	err atomic.Pointer[error]
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -96,19 +96,16 @@ func (vm *VM) id() string {
 }
 
 func (vm *VM) Err() error {
-	vm.errMtx.Lock()
-	defer vm.errMtx.Unlock()
+	if err := vm.err.Load(); err != nil {
+		return *err
+	}
 
-	return vm.err
+	return nil
 }
 
 func (vm *VM) setErr(err error) {
-	vm.errMtx.Lock()
-	defer vm.errMtx.Unlock()
-
-	if vm.err == nil {
+	if vm.err.CompareAndSwap(nil, &err) {
 		vm.logger.Error(err)
-		vm.err = err
 	}
 }
 
