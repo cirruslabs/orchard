@@ -18,6 +18,7 @@ import (
 	"golang.org/x/exp/slices"
 	"net"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 )
@@ -42,9 +43,6 @@ func TestSingleVM(t *testing.T) {
 		StartupScript: &v1.VMScript{
 			ScriptContent: "echo \"Hello, $FOO!\"",
 			Env:           map[string]string{"FOO": "Bar"},
-		},
-		ShutdownScript: &v1.VMScript{
-			ScriptContent: "echo \"Buy!\"",
 		},
 	})
 	if err != nil {
@@ -77,24 +75,22 @@ func TestSingleVM(t *testing.T) {
 	}
 	assert.Equal(t, []string{"Hello, Bar!"}, logLines)
 
-	stoppingVM, err := devClient.VMs().Stop(context.Background(), "test-vm")
-	if err != nil {
-		t.Fatal(err)
-	}
-	assert.Equal(t, v1.VMStatusStopping, stoppingVM.Status)
+	// Ensure that the VM exists on disk before deleting it
+	require.True(t, hasVMByPredicate(t, func(info tart.VMInfo) bool {
+		return strings.Contains(info.Name, runningVM.UID)
+	}, nil))
+
+	// Delete the VM from the controller
+	require.NoError(t, devClient.VMs().Delete(context.Background(), "test-vm"))
+
+	// Ensure that the worker has deleted this VM from disk
 	assert.True(t, Wait(2*time.Minute, func() bool {
-		vm, err := devClient.VMs().Get(context.Background(), "test-vm")
-		if err != nil {
-			t.Fatal(err)
-		}
-		t.Logf("Waiting for the VM to stop. Current status: %s", vm.Status)
-		return vm.Status == v1.VMStatusStopped
-	}), "failed to stop a VM")
-	logLines, err = devClient.VMs().Logs(context.Background(), "test-vm")
-	if err != nil {
-		t.Fatal(err)
-	}
-	assert.Equal(t, []string{"Hello, Bar!", "Buy!"}, logLines)
+		t.Logf("Waiting for the VM to be garbage collected...")
+
+		return !hasVMByPredicate(t, func(info tart.VMInfo) bool {
+			return strings.Contains(info.Name, runningVM.UID)
+		}, nil)
+	}), "VM was not garbage collected in a timely manner")
 }
 
 func TestFailedStartupScript(t *testing.T) {
@@ -133,7 +129,8 @@ func TestFailedStartupScript(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	assert.Equal(t, "failed to run script: Process exited with status 123", runningVM.StatusMessage)
+	assert.Contains(t, runningVM.StatusMessage,
+		"failed to run startup script: Process exited with status 123")
 }
 
 func Wait(duration time.Duration, condition func() bool) bool {
@@ -172,7 +169,7 @@ func StartIntegrationTestEnvironmentWithAdditionalOpts(
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		_ = devWorker.DeleteAllVMs()
+		_ = devWorker.Close()
 	})
 	devContext, cancelDevFunc := context.WithCancel(context.Background())
 	t.Cleanup(cancelDevFunc)
@@ -401,21 +398,13 @@ func TestVMGarbageCollection(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create on-disk Tart VM that looks like it's managed by Orchard
-	vmName := ondiskname.New("test", uuid.New().String()).String()
+	vmName := ondiskname.New("test", uuid.New().String(), 0).String()
 	_, _, err = tart.Tart(ctx, logger.Sugar(), "clone",
 		"ghcr.io/cirruslabs/macos-ventura-base:latest", vmName)
 	require.NoError(t, err)
 
 	// Make sure that this VM exists
-	hasVM := func(name string) bool {
-		vmInfos, err := tart.List(ctx, logger.Sugar())
-		require.NoError(t, err)
-
-		return slices.ContainsFunc(vmInfos, func(vmInfo tart.VMInfo) bool {
-			return vmInfo.Name == name
-		})
-	}
-	require.True(t, hasVM(vmName))
+	require.True(t, hasVM(t, vmName, logger))
 
 	// Start the Orchard Worker
 	_ = StartIntegrationTestEnvironment(t)
@@ -424,6 +413,23 @@ func TestVMGarbageCollection(t *testing.T) {
 	require.True(t, Wait(2*time.Minute, func() bool {
 		t.Logf("Waiting for the on-disk VM to be cleaned up by the worker")
 
-		return !hasVM(vmName)
+		return !hasVM(t, vmName, logger)
 	}), "failed to wait for the VM %s to be garbage-collected", vmName)
+}
+
+func hasVM(t *testing.T, name string, logger *zap.Logger) bool {
+	return hasVMByPredicate(t, func(vmInfo tart.VMInfo) bool {
+		return vmInfo.Name == name
+	}, logger)
+}
+
+func hasVMByPredicate(t *testing.T, predicate func(tart.VMInfo) bool, logger *zap.Logger) bool {
+	if logger == nil {
+		logger = zap.Must(zap.NewDevelopment())
+	}
+
+	vmInfos, err := tart.List(context.Background(), logger.Sugar())
+	require.NoError(t, err)
+
+	return slices.ContainsFunc(vmInfos, predicate)
 }

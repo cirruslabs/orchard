@@ -13,7 +13,6 @@ import (
 	"github.com/cirruslabs/orchard/internal/command/portforward"
 	"github.com/cirruslabs/orchard/internal/command/resume"
 	"github.com/cirruslabs/orchard/internal/command/ssh"
-	"github.com/cirruslabs/orchard/internal/command/stop"
 	"github.com/cirruslabs/orchard/internal/command/vnc"
 	"github.com/cirruslabs/orchard/internal/command/worker"
 	"github.com/cirruslabs/orchard/internal/version"
@@ -39,7 +38,6 @@ func NewRootCmd() *cobra.Command {
 		ssh.NewCommand(),
 		vnc.NewCommand(),
 		deletepkg.NewCommand(),
-		stop.NewCommand(),
 	)
 
 	addGroupedCommands(command, "Administrative Tasks:",

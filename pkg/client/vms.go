@@ -23,23 +23,23 @@ func (service *VMsService) Create(ctx context.Context, vm *v1.VM) error {
 	return nil
 }
 
-func (service *VMsService) FindForWorker(ctx context.Context, worker string) (map[string]v1.VM, error) {
+func (service *VMsService) FindForWorker(ctx context.Context, worker string) ([]v1.VM, error) {
 	allVms, err := service.List(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	var filteredVms = make(map[string]v1.VM)
+	var result []v1.VM
 
 	for _, vmResource := range allVms {
 		if vmResource.Worker != worker {
 			continue
 		}
 
-		filteredVms[vmResource.UID] = vmResource
+		result = append(result, vmResource)
 	}
 
-	return filteredVms, nil
+	return result, nil
 }
 
 func (service *VMsService) List(ctx context.Context) ([]v1.VM, error) {
@@ -64,20 +64,6 @@ func (service *VMsService) Get(ctx context.Context, name string) (*v1.VM, error)
 	}
 
 	return &vm, nil
-}
-
-func (service *VMsService) Stop(ctx context.Context, name string) (*v1.VM, error) {
-	var vm v1.VM
-
-	err := service.client.request(ctx, http.MethodGet, fmt.Sprintf("vms/%s", name),
-		nil, &vm, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	vm.Status = v1.VMStatusStopping
-
-	return service.Update(ctx, vm)
 }
 
 func (service *VMsService) Update(ctx context.Context, vm v1.VM) (*v1.VM, error) {

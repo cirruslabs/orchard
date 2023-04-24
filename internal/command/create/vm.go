@@ -6,6 +6,8 @@ import (
 	"github.com/cirruslabs/orchard/pkg/client"
 	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
 	"github.com/spf13/cobra"
+	"os"
+	"strings"
 )
 
 var ErrVMFailed = errors.New("failed to create VM")
@@ -16,7 +18,9 @@ var memory uint64
 var netSoftnet bool
 var netBridged string
 var headless bool
-var stringToStringResources map[string]string
+var resources map[string]string
+var restartPolicy string
+var startupScript string
 
 func newCreateVMCommand() *cobra.Command {
 	command := &cobra.Command{
@@ -32,8 +36,14 @@ func newCreateVMCommand() *cobra.Command {
 	command.PersistentFlags().BoolVar(&netSoftnet, "net-softnet", false, "whether to use Softnet network isolation")
 	command.PersistentFlags().StringVar(&netBridged, "net-bridged", "", "whether to use Bridged network mode")
 	command.PersistentFlags().BoolVar(&headless, "headless", true, "whether to run without graphics")
-	command.PersistentFlags().StringToStringVar(&stringToStringResources, "resources", map[string]string{},
+	command.PersistentFlags().StringToStringVar(&resources, "resources", map[string]string{},
 		"resources to request for this VM")
+	command.PersistentFlags().StringVar(&restartPolicy, "restart-policy", "Never",
+		"restart policy for this VM: specify \"Never\" to never restart or \"OnFailure\" "+
+			"to only restart when the VM fails")
+	command.PersistentFlags().StringVar(&startupScript, "startup-script", "",
+		"startup script (e.g. --startup-script=\"sync\") or a path to a script file prefixed with \"@\" "+
+			"(e.g. \"--startup-script=@script.sh\")")
 
 	return command
 }
@@ -41,18 +51,7 @@ func newCreateVMCommand() *cobra.Command {
 func runCreateVM(cmd *cobra.Command, args []string) error {
 	name := args[0]
 
-	// Convert resources
-	resources, err := v1.NewResourcesFromStringToString(stringToStringResources)
-	if err != nil {
-		return fmt.Errorf("%w: %v", ErrVMFailed, err)
-	}
-
-	client, err := client.New()
-	if err != nil {
-		return err
-	}
-
-	return client.VMs().Create(cmd.Context(), &v1.VM{
+	vm := &v1.VM{
 		Meta: v1.Meta{
 			Name: name,
 		},
@@ -62,6 +61,44 @@ func runCreateVM(cmd *cobra.Command, args []string) error {
 		NetSoftnet: netSoftnet,
 		NetBridged: netBridged,
 		Headless:   headless,
-		Resources:  resources,
-	})
+	}
+
+	// Convert resources
+	var err error
+
+	vm.Resources, err = v1.NewResourcesFromStringToString(resources)
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrVMFailed, err)
+	}
+
+	// Convert restart policy
+	vm.RestartPolicy, err = v1.NewRestartPolicyFromString(restartPolicy)
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrVMFailed, err)
+	}
+
+	// Convert startup script, optionally reading it from the file system
+	const scriptFilePrefix = "@"
+
+	if strings.HasPrefix(startupScript, scriptFilePrefix) {
+		startupScriptBytes, err := os.ReadFile(strings.TrimPrefix(startupScript, scriptFilePrefix))
+		if err != nil {
+			return err
+		}
+
+		vm.StartupScript = &v1.VMScript{
+			ScriptContent: string(startupScriptBytes),
+		}
+	} else if startupScript != "" {
+		vm.StartupScript = &v1.VMScript{
+			ScriptContent: startupScript,
+		}
+	}
+
+	client, err := client.New()
+	if err != nil {
+		return err
+	}
+
+	return client.VMs().Create(cmd.Context(), vm)
 }
