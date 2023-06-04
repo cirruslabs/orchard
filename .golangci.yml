@@ -12,7 +12,6 @@ linters:
   enable:
     - asciicheck
     - bodyclose
-    - depguard
     - dupl
     - errcheck
     - exhaustive
@@ -113,6 +112,9 @@ linters:
 
     # Unfortunately too much false-positives, e.g. for a 0700 umask or number 10 when using strconv.FormatInt()
     - gomnd
+
+    # Needs package whitelists
+    - depguard
 
 issues:
   # Don't hide multiple issues that belong to one class since GitHub annotations can handle them all nicely.

@@ -31,7 +31,7 @@ func runLogsVM(cmd *cobra.Command, args []string) error {
 	}
 
 	for _, line := range lines {
-		fmt.Print(line)
+		fmt.Println(line)
 	}
 
 	return nil
