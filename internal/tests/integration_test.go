@@ -18,6 +18,7 @@ import (
 	"golang.org/x/exp/slices"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -41,7 +42,7 @@ func TestSingleVM(t *testing.T) {
 		Headless: true,
 		Status:   v1.VMStatusPending,
 		StartupScript: &v1.VMScript{
-			ScriptContent: "echo \"Hello, $FOO!\"",
+			ScriptContent: "echo \"Hello, $FOO!\"\nfor i in $(seq 1 1000); do echo \"$i\"; done",
 			Env:           map[string]string{"FOO": "Bar"},
 		},
 	})
@@ -73,7 +74,11 @@ func TestSingleVM(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	assert.Equal(t, []string{"Hello, Bar!"}, logLines)
+	expectedLogs := []string{"Hello, Bar!"}
+	for i := 1; i <= 1000; i++ {
+		expectedLogs = append(expectedLogs, strconv.Itoa(i))
+	}
+	assert.Equal(t, expectedLogs, logLines)
 
 	// Ensure that the VM exists on disk before deleting it
 	require.True(t, hasVMByPredicate(t, func(info tart.VMInfo) bool {
