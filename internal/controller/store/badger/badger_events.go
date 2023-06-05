@@ -28,7 +28,6 @@ func (txn *Transaction) AppendEvents(events []v1.Event, scope ...string) (err er
 		if err != nil {
 			return err
 		}
-		//nolint:gosec
 		eventUID := fmt.Sprintf("/%d-%d-%06d",
 			event.Timestamp,
 			injectionTime, // to preserve order in case two sequential batches have events with the same timestamp
