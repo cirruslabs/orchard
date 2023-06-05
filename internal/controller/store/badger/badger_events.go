@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"github.com/cirruslabs/orchard/pkg/resource/v1"
 	"github.com/dgraph-io/badger/v3"
-	"math/rand"
 	"path"
+	"time"
 )
 
 const SpaceEvents = "/events"
@@ -21,16 +21,18 @@ func (txn *Transaction) AppendEvents(events []v1.Event, scope ...string) (err er
 		err = mapErr(err)
 	}()
 
+	injectionTime := time.Now().UnixNano()
+
 	for index, event := range events {
 		valueBytes, err := json.Marshal(event)
 		if err != nil {
 			return err
 		}
 		//nolint:gosec
-		eventUID := fmt.Sprintf("/%d-%d-%d",
+		eventUID := fmt.Sprintf("/%d-%d-%06d",
 			event.Timestamp,
+			injectionTime, // to preserve order in case two sequential batches have events with the same timestamp
 			index,         // to preserve order in case a batch of events has some events with the same timestamp
-			rand.Uint32(), // extra cautions to avoid collisions in case several batches of events are appended at the same time
 		)
 
 		eventKey := scopePrefix(scope)
