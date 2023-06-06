@@ -26,7 +26,7 @@ func (context *Context) TLSConfig() (*tls.Config, error) {
 	}
 
 	return &tls.Config{
-		MinVersion: tls.VersionTLS13,
+		MinVersion: tls.VersionTLS12,
 		ServerName: netconstants.DefaultControllerServerName,
 		RootCAs:    privatePool,
 	}, nil

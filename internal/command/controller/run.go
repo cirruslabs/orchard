@@ -80,7 +80,7 @@ func runController(cmd *cobra.Command, args []string) (err error) {
 		controller.WithDataDir(dataDir),
 		controller.WithLogger(logger),
 		controller.WithTLSConfig(&tls.Config{
-			MinVersion: tls.VersionTLS13,
+			MinVersion: tls.VersionTLS12,
 			Certificates: []tls.Certificate{
 				controllerCert,
 			},

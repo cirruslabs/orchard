@@ -109,7 +109,7 @@ func probeControllerCertificate(controllerURL *url.URL) (*x509.Certificate, erro
 
 	//nolint:gosec // since we're not using PKI, InsecureSkipVerify is a must here
 	insecureTLSConfig := &tls.Config{
-		MinVersion:         tls.VersionTLS13,
+		MinVersion:         tls.VersionTLS12,
 		RootCAs:            emptyPool,
 		ServerName:         netconstants.DefaultControllerServerName,
 		InsecureSkipVerify: true,

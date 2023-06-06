@@ -21,7 +21,7 @@ func WithTrustedCertificate(cert *x509.Certificate) Option {
 		privatePool.AddCert(cert)
 
 		client.tlsConfig = &tls.Config{
-			MinVersion: tls.VersionTLS13,
+			MinVersion: tls.VersionTLS12,
 			RootCAs:    privatePool,
 			ServerName: netconstants.DefaultControllerServerName,
 		}
