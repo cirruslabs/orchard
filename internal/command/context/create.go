@@ -123,11 +123,17 @@ func probeControllerCertificate(controllerURL *url.URL) (*x509.Certificate, erro
 				ErrCreateFailed)
 		}
 
-		if len(state.PeerCertificates) != 1 {
-			return fmt.Errorf("%w: controller presented %d certificate(s), expected only one",
-				ErrCreateFailed, len(state.PeerCertificates))
+		if len(state.PeerCertificates) == 0 {
+			return fmt.Errorf("%w: controller presented no certificates, expected at least one",
+				ErrCreateFailed)
 		}
 
+		// According to TLS 1.2[1] and TLS 1.3[2] specs:
+		//
+		// "The sender's certificate MUST come first in the list."
+		//
+		// [1]: https://www.rfc-editor.org/rfc/rfc5246#section-7.4.2
+		// [2]: https://www.rfc-editor.org/rfc/rfc8446#section-4.4.2
 		controllerCert = state.PeerCertificates[0]
 		controllerCertFingerprint := sha256.Sum256(controllerCert.Raw)
 		formattedControllerCertFingerprint := formatFingerprint(controllerCertFingerprint[:])
