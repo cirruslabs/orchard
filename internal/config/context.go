@@ -1,10 +1,9 @@
 package config
 
 import (
-	"crypto/tls"
 	"crypto/x509"
+	"encoding/pem"
 	"fmt"
-	"github.com/cirruslabs/orchard/internal/netconstants"
 )
 
 type Context struct {
@@ -14,20 +13,22 @@ type Context struct {
 	ServiceAccountToken string `yaml:"serviceAccountToken,omitempty"`
 }
 
-func (context *Context) TLSConfig() (*tls.Config, error) {
+func (context *Context) TrustedCertificate() (*x509.Certificate, error) {
 	if len(context.Certificate) == 0 {
 		return nil, nil
 	}
 
-	privatePool := x509.NewCertPool()
-
-	if ok := privatePool.AppendCertsFromPEM(context.Certificate); !ok {
-		return nil, fmt.Errorf("%w: failed to load context's certificate", ErrConfigReadFailed)
+	block, _ := pem.Decode(context.Certificate)
+	if block == nil {
+		return nil, fmt.Errorf("%w: failed to load context's certificate: no PEM data found",
+			ErrConfigReadFailed)
 	}
 
-	return &tls.Config{
-		MinVersion: tls.VersionTLS12,
-		ServerName: netconstants.DefaultControllerServerName,
-		RootCAs:    privatePool,
-	}, nil
+	trustedCertificate, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return nil, fmt.Errorf("%w: failed to load context's certificate: %v",
+			ErrConfigReadFailed, err)
+	}
+
+	return trustedCertificate, nil
 }

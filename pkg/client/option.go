@@ -1,9 +1,7 @@
 package client
 
 import (
-	"crypto/tls"
 	"crypto/x509"
-	"github.com/cirruslabs/orchard/internal/netconstants"
 )
 
 type Option func(*Client)
@@ -14,17 +12,9 @@ func WithAddress(address string) Option {
 	}
 }
 
-func WithTrustedCertificate(cert *x509.Certificate) Option {
+func WithTrustedCertificate(trustedCertificate *x509.Certificate) Option {
 	return func(client *Client) {
-		// Check that the API is accessible
-		privatePool := x509.NewCertPool()
-		privatePool.AddCert(cert)
-
-		client.tlsConfig = &tls.Config{
-			MinVersion: tls.VersionTLS12,
-			RootCAs:    privatePool,
-			ServerName: netconstants.DefaultControllerServerName,
-		}
+		client.trustedCertificate = trustedCertificate
 	}
 }
 
