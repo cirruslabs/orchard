@@ -111,7 +111,6 @@ func probeControllerCertificate(controllerURL *url.URL) (*x509.Certificate, erro
 	insecureTLSConfig := &tls.Config{
 		MinVersion:         tls.VersionTLS12,
 		RootCAs:            emptyPool,
-		ServerName:         netconstants.DefaultControllerServerName,
 		InsecureSkipVerify: true,
 	}
 
