@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/cirruslabs/orchard/internal/config"
+	"github.com/cirruslabs/orchard/internal/netconstants"
 	"github.com/cirruslabs/orchard/rpc"
 	"golang.org/x/net/websocket"
 	"google.golang.org/grpc/credentials"
@@ -21,13 +23,15 @@ import (
 
 var (
 	ErrFailed       = errors.New("API client failed")
+	ErrAPI          = errors.New("API client encountered an API error")
 	ErrInvalidState = errors.New("invalid state")
 )
 
 type Client struct {
-	address   string
-	insecure  bool
-	tlsConfig *tls.Config
+	address            string
+	insecure           bool
+	trustedCertificate *x509.Certificate
+	tlsConfig          *tls.Config
 
 	httpClient *http.Client
 	baseURL    *url.URL
@@ -51,28 +55,23 @@ func New(opts ...Option) (*Client, error) {
 
 	// Apply defaults
 	if client.address == "" {
-		configHandle, err := config.NewHandle()
-		if err != nil {
+		if err := client.configureFromDefaultContext(); err != nil {
 			return nil, err
 		}
-
-		defaultContext, err := configHandle.DefaultContext()
-		if err != nil {
-			return nil, err
-		}
-
-		client.address = defaultContext.URL
-		client.serviceAccountName = defaultContext.ServiceAccountName
-		client.serviceAccountToken = defaultContext.ServiceAccountToken
-
-		tlsConfig, err := defaultContext.TLSConfig()
-		if err != nil {
-			return nil, err
-		}
-		client.tlsConfig = tlsConfig
 	}
 
-	// Instantiate client
+	if client.trustedCertificate != nil {
+		privatePool := x509.NewCertPool()
+		privatePool.AddCert(client.trustedCertificate)
+
+		client.tlsConfig = &tls.Config{
+			MinVersion: tls.VersionTLS12,
+			RootCAs:    privatePool,
+			ServerName: netconstants.DefaultControllerServerName,
+		}
+	}
+
+	// Instantiate the HTTP client
 	client.httpClient = &http.Client{
 		Transport: &http.Transport{
 			TLSClientConfig: client.tlsConfig,
@@ -125,6 +124,31 @@ func (client *Client) GPRCMetadata() metadata.MD {
 	return metadata.New(result)
 }
 
+func (client *Client) configureFromDefaultContext() error {
+	configHandle, err := config.NewHandle()
+	if err != nil {
+		return err
+	}
+
+	defaultContext, err := configHandle.DefaultContext()
+	if err != nil {
+		return err
+	}
+
+	client.address = defaultContext.URL
+	client.serviceAccountName = defaultContext.ServiceAccountName
+	client.serviceAccountToken = defaultContext.ServiceAccountToken
+
+	if client.trustedCertificate == nil {
+		client.trustedCertificate, err = defaultContext.TrustedCertificate()
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (client *Client) request(
 	ctx context.Context,
 	method string,
@@ -174,18 +198,18 @@ func (client *Client) request(
 
 	if response.StatusCode != http.StatusOK {
 		return fmt.Errorf("%w to make a request: %d %s%s",
-			ErrFailed, response.StatusCode, http.StatusText(response.StatusCode),
+			ErrAPI, response.StatusCode, http.StatusText(response.StatusCode),
 			detailsFromErrorResponseBody(response.Body))
 	}
 
 	if out != nil {
 		bodyBytes, err := io.ReadAll(response.Body)
 		if err != nil {
-			return fmt.Errorf("%w to read response body: %v", ErrFailed, err)
+			return fmt.Errorf("%w to read response body: %v", ErrAPI, err)
 		}
 
 		if err := json.Unmarshal(bodyBytes, out); err != nil {
-			return fmt.Errorf("%w to unmarshal response body: %v", ErrFailed, err)
+			return fmt.Errorf("%w to unmarshal response body: %v", ErrAPI, err)
 		}
 	}
 

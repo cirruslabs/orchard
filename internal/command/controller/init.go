@@ -27,7 +27,7 @@ func FindControllerCertificate(dataDir *controller.DataDir) (controllerCert tls.
 		if err = checkBothCertAndKeyAreSpecified(); err != nil {
 			return controllerCert, err
 		}
-		return tls.LoadX509KeyPair(controllerCertPath, controllerCertPath)
+		return tls.LoadX509KeyPair(controllerCertPath, controllerKeyPath)
 	} else if !dataDir.ControllerCertificateExists() {
 		// otherwise, generate a self-signed certificate if it's not already present
 		controllerCert, err = GenerateSelfSignedControllerCertificate()
