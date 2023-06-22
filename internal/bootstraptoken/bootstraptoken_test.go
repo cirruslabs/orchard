@@ -10,9 +10,6 @@ import (
 )
 
 func TestBootstrapTokenTwoWay(t *testing.T) {
-	serviceAccountName := "admin"
-	serviceAccountToken := uuid.New().String()
-
 	tlsCert, err := controllercmd.GenerateSelfSignedControllerCertificate()
 	require.NoError(t, err)
 
@@ -22,7 +19,19 @@ func TestBootstrapTokenTwoWay(t *testing.T) {
 	}
 	certificatePEM := pem.EncodeToMemory(block)
 
-	bootstrapTokenOld, err := bootstraptoken.New(certificatePEM, serviceAccountName, serviceAccountToken)
+	bootstrapTokenOld, err := bootstraptoken.New(certificatePEM, uuid.NewString(), uuid.NewString())
+	require.NoError(t, err)
+
+	bootstrapTokenNew, err := bootstraptoken.NewFromString(bootstrapTokenOld.String())
+	require.NoError(t, err)
+
+	require.Equal(t, bootstrapTokenOld.ServiceAccountName(), bootstrapTokenNew.ServiceAccountName())
+	require.Equal(t, bootstrapTokenOld.ServiceAccountToken(), bootstrapTokenNew.ServiceAccountToken())
+	require.Equal(t, bootstrapTokenOld.Certificate(), bootstrapTokenNew.Certificate())
+}
+
+func TestBootstrapTokenTwoWayEmptyCertificate(t *testing.T) {
+	bootstrapTokenOld, err := bootstraptoken.New([]byte{}, uuid.NewString(), uuid.NewString())
 	require.NoError(t, err)
 
 	bootstrapTokenNew, err := bootstraptoken.NewFromString(bootstrapTokenOld.String())

@@ -30,10 +30,6 @@ type BootstrapToken struct {
 }
 
 func New(rawCertificate []byte, serviceAccountName string, serviceAccountToken string) (*BootstrapToken, error) {
-	if len(rawCertificate) == 0 {
-		return nil, fmt.Errorf("%w: empty certificate", ErrFailedToCreateBootstrapToken)
-	}
-
 	if serviceAccountName == "" {
 		return nil, fmt.Errorf("%w: empty service account name", ErrFailedToCreateBootstrapToken)
 	}
@@ -42,17 +38,22 @@ func New(rawCertificate []byte, serviceAccountName string, serviceAccountToken s
 		return nil, fmt.Errorf("%w: empty service account token", ErrFailedToCreateBootstrapToken)
 	}
 
-	// Parse certificate
-	block, _ := pem.Decode(rawCertificate)
-	if block == nil {
-		return nil, fmt.Errorf("%w: failed to parse certificate: expected a PEM format",
-			ErrFailedToCreateBootstrapToken)
-	}
+	// Optionally parse a certificate
+	var certificate *x509.Certificate
+	var err error
 
-	certificate, err := x509.ParseCertificate(block.Bytes)
-	if err != nil {
-		return nil, fmt.Errorf("%w: failed to parse certificate: %v",
-			ErrFailedToCreateBootstrapToken, err)
+	if len(rawCertificate) != 0 {
+		block, _ := pem.Decode(rawCertificate)
+		if block == nil {
+			return nil, fmt.Errorf("%w: failed to parse certificate: expected a PEM format",
+				ErrFailedToCreateBootstrapToken)
+		}
+
+		certificate, err = x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			return nil, fmt.Errorf("%w: failed to parse certificate: %v",
+				ErrFailedToCreateBootstrapToken, err)
+		}
 	}
 
 	return &BootstrapToken{
@@ -78,10 +79,6 @@ func NewFromString(rawBootstrapToken string) (*BootstrapToken, error) {
 		return nil, fmt.Errorf("%w: missing service account credentials", ErrInvalidBootstrapTokenFormat)
 	}
 
-	if len(splits) < 4 {
-		return nil, fmt.Errorf("%w: missing certificate", ErrInvalidBootstrapTokenFormat)
-	}
-
 	if len(splits) > 4 {
 		return nil, fmt.Errorf("%w: extraneous data", ErrInvalidBootstrapTokenFormat)
 	}
@@ -96,19 +93,25 @@ func NewFromString(rawBootstrapToken string) (*BootstrapToken, error) {
 		return nil, fmt.Errorf("%w: failed to decode service account token: %v",
 			ErrInvalidBootstrapTokenFormat, err)
 	}
-	rawCertificate, err := encoding.DecodeString(splits[3])
-	if err != nil {
-		return nil, fmt.Errorf("%w: failed to decode certificate: %v",
-			ErrInvalidBootstrapTokenFormat, err)
-	}
 
-	// Parse certificate
-	block, _ := pem.Decode(rawCertificate)
+	// Optionally parse the certificate
+	var certificate *x509.Certificate
+	var rawCertificate []byte
 
-	certificate, err := x509.ParseCertificate(block.Bytes)
-	if err != nil {
-		return nil, fmt.Errorf("%w: failed to parse certificate: %v",
-			ErrFailedToCreateBootstrapToken, err)
+	if len(splits) == 4 {
+		rawCertificate, err = encoding.DecodeString(splits[3])
+		if err != nil {
+			return nil, fmt.Errorf("%w: failed to decode certificate: %v",
+				ErrInvalidBootstrapTokenFormat, err)
+		}
+
+		block, _ := pem.Decode(rawCertificate)
+
+		certificate, err = x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			return nil, fmt.Errorf("%w: failed to parse certificate: %v",
+				ErrFailedToCreateBootstrapToken, err)
+		}
 	}
 
 	return &BootstrapToken{
@@ -121,12 +124,19 @@ func NewFromString(rawBootstrapToken string) (*BootstrapToken, error) {
 }
 
 func (bt *BootstrapToken) String() string {
-	return fmt.Sprintf("%s%d.%s.%s.%s",
+	var certificatePart string
+
+	// Certificate is optional
+	if len(bt.rawCertificate) != 0 {
+		certificatePart = fmt.Sprintf(".%s", encoding.EncodeToString(bt.rawCertificate))
+	}
+
+	return fmt.Sprintf("%s%d.%s.%s%s",
 		versionPrefix,
 		version,
 		encoding.EncodeToString([]byte(bt.serviceAccountName)),
 		encoding.EncodeToString([]byte(bt.serviceAccountToken)),
-		encoding.EncodeToString(bt.rawCertificate),
+		certificatePart,
 	)
 }
 
