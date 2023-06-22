@@ -21,6 +21,7 @@ var ErrBootstrapTokenNotProvided = errors.New("no bootstrap token provided")
 var bootstrapTokenRaw string
 var logFilePath string
 var stringToStringResources map[string]string
+var noPKI bool
 
 func newRunCommand() *cobra.Command {
 	cmd := &cobra.Command{
@@ -36,15 +37,22 @@ func newRunCommand() *cobra.Command {
 		"optional path to a file where logs (up to 100 Mb) will be written.")
 	cmd.PersistentFlags().StringToStringVar(&stringToStringResources, "resources", map[string]string{},
 		"resources that this worker provides")
+	cmd.PersistentFlags().BoolVar(&noPKI, "no-pki", false,
+		"do not use the host's root CA set and instead validate the Controller's presented "+
+			"certificate using a bootstrap token (or manually via fingerprint, "+
+			"if no bootstrap token is provided)")
 
 	return cmd
 }
 
 func runWorker(cmd *cobra.Command, args []string) (err error) {
+	// Parse controller URL
 	controllerURL, err := netconstants.NormalizeAddress(args[0])
 	if err != nil {
 		return err
 	}
+
+	// Parse bootstrap token
 	if bootstrapTokenRaw == "" {
 		return ErrBootstrapTokenNotProvided
 	}
@@ -59,11 +67,19 @@ func runWorker(cmd *cobra.Command, args []string) (err error) {
 		return fmt.Errorf("%w: %v", ErrRunFailed, err)
 	}
 
-	controllerClient, err := client.New(
+	clientOpts := []client.Option{
 		client.WithAddress(controllerURL.String()),
-		client.WithTrustedCertificate(bootstrapToken.Certificate()),
 		client.WithCredentials(bootstrapToken.ServiceAccountName(), bootstrapToken.ServiceAccountToken()),
-	)
+	}
+
+	if trustedCertificate := bootstrapToken.Certificate(); trustedCertificate != nil {
+		clientOpts = append(clientOpts, client.WithTrustedCertificate(trustedCertificate))
+	} else if noPKI {
+		return fmt.Errorf("%w: --no-pki was specified, but not trusted certificate was provided "+
+			"in the bootstrap token", ErrRunFailed)
+	}
+
+	controllerClient, err := client.New(clientOpts...)
 	if err != nil {
 		return err
 	}
