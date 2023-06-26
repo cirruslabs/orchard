@@ -71,8 +71,9 @@ Orchard Controller instance is secured by default and all API calls are authenti
 
 In addition to controlling the Orchard via the CLI arguments, there are environment variables that may be beneficial both when automating Orchard and in daily use:
 
-| Variable name                   | Description                                                                        |
-|---------------------------------|------------------------------------------------------------------------------------|
-| `ORCHARD_URL`                   | Override controller URL on per-command basis                                       |
-| `ORCHARD_SERVICE_ACCOUNT_NAME`  | Override service account name (used for controller API auth) on per-command basis  |
-| `ORCHARD_SERVICE_ACCOUNT_TOKEN` | Override service account token (used for controller API auth) on per-command basis |
+| Variable name                   | Description                                                                                                          |
+|---------------------------------|----------------------------------------------------------------------------------------------------------------------|
+| `ORCHARD_URL`                   | Override controller URL on per-command basis                                                                         |
+| `ORCHARD_SERVICE_ACCOUNT_NAME`  | Override service account name (used for controller API auth) on per-command basis                                    |
+| `ORCHARD_SERVICE_ACCOUNT_TOKEN` | Override service account token (used for controller API auth) on per-command basis                                   |
+| `ORCHARD_HOME`                  | Override Orchard's home directory. Useful when running multiple Orchard instances on the same host and when testing. |
