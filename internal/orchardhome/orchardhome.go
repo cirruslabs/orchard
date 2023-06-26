@@ -21,7 +21,7 @@ func Path() (string, error) {
 
 	orchardDir := filepath.Join(homeDir, ".orchard")
 
-	if err := os.Mkdir(orchardDir, 0700); err != nil && !os.IsExist(err) {
+	if err := os.MkdirAll(orchardDir, 0700); err != nil && !os.IsExist(err) {
 		return "", fmt.Errorf("%w: cannot create directory %s: %v",
 			ErrFailed, orchardDir, err)
 	}
