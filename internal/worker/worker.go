@@ -22,7 +22,6 @@ import (
 const pollInterval = 5 * time.Second
 
 var ErrPollFailed = errors.New("failed to poll controller")
-var ErrRegistrationFailed = errors.New("failed to register worker on the controller")
 
 type Worker struct {
 	name          string
@@ -108,7 +107,7 @@ func (worker *Worker) runNewSession(ctx context.Context) error {
 	if err := worker.registerWorker(subCtx); err != nil {
 		worker.logger.Warnf("failed to register worker: %v", err)
 
-		return ErrRegistrationFailed
+		return nil
 	}
 
 	go func() {
