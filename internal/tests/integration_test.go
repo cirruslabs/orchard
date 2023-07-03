@@ -396,6 +396,9 @@ func TestSchedulerHealthCheckingOfflineWorker(t *testing.T) {
 		runningVM.StatusMessage)
 }
 
+// TestVMGarbageCollection ensures that on-disk Tart VMs that are managed by Orchard
+// and are not present in the API anymore are garbage-collected by the Orchard Worker
+// at startup.
 func TestVMGarbageCollection(t *testing.T) {
 	ctx := context.Background()
 
