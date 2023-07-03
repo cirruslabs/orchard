@@ -318,3 +318,9 @@ func (client *Client) Controller() *ControllerService {
 		client: client,
 	}
 }
+
+func (client *Client) ClusterSettings() *ClusterSettingsService {
+	return &ClusterSettingsService{
+		client: client,
+	}
+}

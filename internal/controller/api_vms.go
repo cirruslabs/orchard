@@ -7,6 +7,7 @@ import (
 	"github.com/cirruslabs/orchard/pkg/resource/v1"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/samber/lo"
 	"net/http"
 	"time"
 )
@@ -57,6 +58,11 @@ func (controller *Controller) createVM(ctx *gin.Context) responder.Responder {
 		}
 	} else {
 		vm.RestartPolicy = v1.RestartPolicyNever
+	}
+
+	// Validate hostDirs
+	if responder := controller.validateHostDirs(vm.HostDirs); responder != nil {
+		return responder
 	}
 
 	response := controller.storeUpdate(func(txn storepkg.Transaction) responder.Responder {
@@ -219,4 +225,44 @@ func (controller *Controller) listVMEvents(ctx *gin.Context) responder.Responder
 
 		return responder.JSON(http.StatusOK, events)
 	})
+}
+
+func (controller *Controller) validateHostDirs(hostDirs []v1.HostDir) responder.Responder {
+	if len(hostDirs) == 0 {
+		return nil
+	}
+
+	// Retrieve cluster settings
+	var clusterSettings *v1.ClusterSettings
+	var err error
+
+	err = controller.store.View(func(txn storepkg.Transaction) error {
+		clusterSettings, err = txn.GetClusterSettings()
+
+		return err
+	})
+	if err != nil {
+		return responder.Code(http.StatusInternalServerError)
+	}
+
+	for _, hostDir := range hostDirs {
+		if hostDir.Name == "" {
+			return responder.JSON(http.StatusBadRequest,
+				NewErrorResponse("hostDir volume's \"name\" field cannot be empty"))
+		}
+
+		if hostDir.Path == "" {
+			return responder.JSON(http.StatusBadRequest,
+				NewErrorResponse("hostDir volume's \"path\" field cannot be empty"))
+		}
+
+		if !lo.SomeBy(clusterSettings.HostDirPolicies, func(hostDirPolicy v1.HostDirPolicy) bool {
+			return hostDirPolicy.Validate(hostDir.Path, hostDir.ReadOnly)
+		}) {
+			return responder.JSON(http.StatusBadRequest, NewErrorResponse("host directory %q is disallowed "+
+				"by policy, check your cluster settings", hostDir.String()))
+		}
+	}
+
+	return nil
 }

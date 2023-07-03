@@ -147,6 +147,10 @@ func (vm *VM) run(ctx context.Context) error {
 		runArgs = append(runArgs, "--no-graphics")
 	}
 
+	for _, hostDir := range vm.Resource.HostDirs {
+		runArgs = append(runArgs, fmt.Sprintf("--dir=%s", hostDir.String()))
+	}
+
 	runArgs = append(runArgs, vm.id())
 	_, _, err := tart.Tart(ctx, vm.logger, runArgs...)
 	if err != nil {

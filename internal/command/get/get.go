@@ -13,7 +13,11 @@ func NewCommand() *cobra.Command {
 		Short: "Retrieve resources from the controller",
 	}
 
-	command.AddCommand(newGetServiceAccountCommand(), newGetBootstrapTokenCommand())
+	command.AddCommand(
+		newGetBootstrapTokenCommand(),
+		newGetClusterSettingsCommand(),
+		newGetServiceAccountCommand(),
+	)
 
 	return command
 }

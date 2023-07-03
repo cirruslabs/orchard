@@ -21,6 +21,7 @@ var headless bool
 var resources map[string]string
 var restartPolicy string
 var startupScript string
+var hostDirsRaw []string
 
 func newCreateVMCommand() *cobra.Command {
 	command := &cobra.Command{
@@ -44,12 +45,27 @@ func newCreateVMCommand() *cobra.Command {
 	command.PersistentFlags().StringVar(&startupScript, "startup-script", "",
 		"startup script (e.g. --startup-script=\"sync\") or a path to a script file prefixed with \"@\" "+
 			"(e.g. \"--startup-script=@script.sh\")")
+	command.PersistentFlags().StringSliceVar(&hostDirsRaw, "host-dirs", []string{},
+		"host directories to mount to the VM, can be specified multiple times and/or be comma-separated "+
+			"(see \"tart run\"'s --dir argument for syntax)")
 
 	return command
 }
 
 func runCreateVM(cmd *cobra.Command, args []string) error {
 	name := args[0]
+
+	// Convert arguments
+	var hostDirs []v1.HostDir
+
+	for _, hostDirRaw := range hostDirsRaw {
+		hostDir, err := v1.NewHostDirFromString(hostDirRaw)
+		if err != nil {
+			return err
+		}
+
+		hostDirs = append(hostDirs, hostDir)
+	}
 
 	vm := &v1.VM{
 		Meta: v1.Meta{
@@ -61,6 +77,7 @@ func runCreateVM(cmd *cobra.Command, args []string) error {
 		NetSoftnet: netSoftnet,
 		NetBridged: netBridged,
 		Headless:   headless,
+		HostDirs:   hostDirs,
 	}
 
 	// Convert resources

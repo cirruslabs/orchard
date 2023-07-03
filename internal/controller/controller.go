@@ -113,6 +113,19 @@ func New(opts ...Option) (*Controller, error) {
 		ReadHeaderTimeout: 60 * time.Second,
 	}
 
+	// Ensure cluster settings object is present
+	if err := controller.store.Update(func(txn storepkg.Transaction) error {
+		_, err := txn.GetClusterSettings()
+		if errors.Is(err, storepkg.ErrNotFound) {
+			return txn.SetClusterSettings(v1.ClusterSettings{})
+		}
+
+		return err
+	}); err != nil {
+		return nil, fmt.Errorf("%w: failed to ensure cluster settings object is present: %v",
+			ErrInitFailed, err)
+	}
+
 	return controller, nil
 }
 
