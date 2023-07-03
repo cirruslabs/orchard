@@ -3,6 +3,7 @@ package tests_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"github.com/cirruslabs/orchard/internal/command/dev"
 	"github.com/cirruslabs/orchard/internal/controller"
 	"github.com/cirruslabs/orchard/internal/worker"
@@ -18,6 +19,8 @@ import (
 	"golang.org/x/exp/slices"
 	"net"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -393,9 +396,6 @@ func TestSchedulerHealthCheckingOfflineWorker(t *testing.T) {
 		runningVM.StatusMessage)
 }
 
-// TestVMGarbageCollection ensures that on-disk Tart VMs that are managed by Orchard
-// and are not present in the API anymore are garbage-collected by the Orchard Worker
-// at startup.
 func TestVMGarbageCollection(t *testing.T) {
 	ctx := context.Background()
 
@@ -420,6 +420,112 @@ func TestVMGarbageCollection(t *testing.T) {
 
 		return !hasVM(t, vmName, logger)
 	}), "failed to wait for the VM %s to be garbage-collected", vmName)
+}
+
+func TestHostDirs(t *testing.T) {
+	devClient := StartIntegrationTestEnvironment(t)
+
+	dirToMount := t.TempDir()
+
+	vmName := "test-host-dirs-" + uuid.NewString()
+
+	err := devClient.ClusterSettings().Set(context.Background(), &v1.ClusterSettings{
+		HostDirPolicies: []v1.HostDirPolicy{{PathPrefix: dirToMount}},
+	})
+	require.NoError(t, err)
+
+	scriptContent, err := os.ReadFile(filepath.Join("testdata", "host-dirs.sh"))
+	require.NoError(t, err)
+
+	err = devClient.VMs().Create(context.Background(), &v1.VM{
+		Meta: v1.Meta{
+			Name: vmName,
+		},
+		Image:    "ghcr.io/cirruslabs/macos-ventura-base:latest",
+		CPU:      4,
+		Memory:   8 * 1024,
+		Headless: true,
+		Status:   v1.VMStatusPending,
+		StartupScript: &v1.VMScript{
+			ScriptContent: string(scriptContent),
+		},
+		HostDirs: []v1.HostDir{
+			{Name: "readwrite", Path: dirToMount},
+			{Name: "readonly", Path: dirToMount, ReadOnly: true},
+		},
+	})
+	require.NoError(t, err)
+
+	var vm *v1.VM
+
+	require.True(t, Wait(2*time.Minute, func() bool {
+		vm, err = devClient.VMs().Get(context.Background(), vmName)
+		require.NoError(t, err)
+
+		t.Logf("Waiting for the VM to start. Current status: %s", vm.Status)
+
+		return vm.Status == v1.VMStatusRunning || vm.Status == v1.VMStatusFailed
+	}), "failed to start a VM")
+
+	require.Empty(t, vm.StatusMessage)
+	require.Equal(t, v1.VMStatusRunning, vm.Status)
+
+	var logLines []string
+
+	require.True(t, Wait(2*time.Minute, func() bool {
+		logLines, err = devClient.VMs().Logs(context.Background(), vmName)
+		require.NoError(t, err)
+
+		return len(logLines) > 0
+	}), "failed to wait for logs to become available")
+
+	fmt.Println(logLines)
+
+	require.EqualValues(t, []string{
+		"Read-write mount exists",
+		"Read-only mount exists",
+		"Failed to create a file in read-only mount",
+		"Successfully created a file in read-write mount",
+	}, logLines)
+	require.FileExists(t, filepath.Join(dirToMount, "test-rw.txt"))
+	require.NoFileExists(t, filepath.Join(dirToMount, "test-ro.txt"))
+}
+
+func TestHostDirsInvalidPolicy(t *testing.T) {
+	devClient := StartIntegrationTestEnvironment(t)
+
+	dirToMount := t.TempDir()
+
+	vmName := "test-host-dirs-" + uuid.NewString()
+
+	// Create a VM without creating any directory policies
+	// and make sure we get an error
+	vmSpec := &v1.VM{
+		Meta: v1.Meta{
+			Name: vmName,
+		},
+		Image:    "ghcr.io/cirruslabs/macos-ventura-base:latest",
+		CPU:      4,
+		Memory:   8 * 1024,
+		Headless: true,
+		Status:   v1.VMStatusPending,
+		HostDirs: []v1.HostDir{
+			{Name: "test" + uuid.NewString(), Path: dirToMount},
+		},
+	}
+
+	err := devClient.VMs().Create(context.Background(), vmSpec)
+	require.Error(t, err)
+
+	// Create a policy for our directory, but do not allow for writing
+	err = devClient.ClusterSettings().Set(context.Background(), &v1.ClusterSettings{
+		HostDirPolicies: []v1.HostDirPolicy{{PathPrefix: dirToMount, ReadOnly: true}},
+	})
+	require.NoError(t, err)
+
+	// Make sure we get error with the same spec
+	err = devClient.VMs().Create(context.Background(), vmSpec)
+	require.Error(t, err)
 }
 
 func hasVM(t *testing.T, name string, logger *zap.Logger) bool {
