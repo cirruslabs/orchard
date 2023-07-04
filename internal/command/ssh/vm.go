@@ -183,12 +183,11 @@ func ChooseUsernameAndPassword(
 
 	// Try to get the credentials from the VM's object stored on controller
 	vm, err := client.VMs().Get(ctx, vmName)
-	if err != nil {
-		fmt.Printf("failed to retrieve VM %s's credentials from the API server: %v\n", vmName, err)
-	}
-
-	if vm.Username != "" && vm.Password != "" {
+	if err == nil && vm.Username != "" && vm.Password != "" {
 		return vm.Username, vm.Password
+	} else if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to retrieve VM %s's credentials from the API server: %v\n",
+			vmName, err)
 	}
 
 	// Fall back
