@@ -59,6 +59,14 @@ func (controller *Controller) initAPI() *gin.Engine {
 		controller.controllerInfo(c).Respond(c)
 	})
 
+	// Cluster settings
+	v1.GET("/cluster-settings", func(c *gin.Context) {
+		controller.getClusterSettings(c).Respond(c)
+	})
+	v1.PUT("/cluster-settings", func(c *gin.Context) {
+		controller.updateClusterSettings(c).Respond(c)
+	})
+
 	// Service accounts
 	v1.POST("/service-accounts", func(c *gin.Context) {
 		controller.createServiceAccount(c).Respond(c)

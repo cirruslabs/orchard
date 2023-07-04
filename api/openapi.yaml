@@ -16,6 +16,29 @@ paths:
             application/json:
               schema:
                 $ref: '#components/schemas/ControllerInfo'
+  /cluster-settings:
+    get:
+      summary: "Retrieve cluster settings"
+      tags:
+        - cluster-settings
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#components/schemas/ClusterSettings'
+    put:
+      summary: "Update cluster settings"
+      tags:
+        - cluster-settings
+      responses:
+        '200':
+          description: Cluster settings were successfully updated
+          content:
+            application/json:
+              schema:
+                $ref: '#components/schemas/ClusterSettings'
   /service-accounts:
     post:
       summary: "Create a Service Account"
@@ -301,6 +324,17 @@ components:
             for this VM to be scheduled
           additionalProperties:
             type: integer
+        hostDirs:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              path:
+                type: string
+              ro:
+                type: boolean
     Events:
       title: Events
       type: object
@@ -343,3 +377,17 @@ components:
         commit:
           type: string
           description: Commit hash
+    ClusterSettings:
+      title: Cluster settings
+      type: object
+      properties:
+        hostDirPolicies:
+          type: array
+          description: If not empty, enables instantiating VMs with hostDir volumes that match the policies listed in this array.
+          items:
+            type: object
+            properties:
+              pathPrefix:
+                type: string
+              ro:
+                type: boolean

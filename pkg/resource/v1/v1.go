@@ -49,6 +49,9 @@ type VM struct {
 	// Resources required by this VM.
 	Resources Resources `json:"resources"`
 
+	// HostDir is a list of host directories to be mounted to the VM.
+	HostDirs []HostDir `json:"hostDirs"`
+
 	Meta
 }
 

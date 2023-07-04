@@ -26,4 +26,7 @@ type Transaction interface {
 	AppendEvents(event []v1.Event, scope ...string) (err error)
 	ListEvents(scope ...string) (result []v1.Event, err error)
 	DeleteEvents(scope ...string) (err error)
+
+	GetClusterSettings() (*v1.ClusterSettings, error)
+	SetClusterSettings(clusterSettings v1.ClusterSettings) error
 }

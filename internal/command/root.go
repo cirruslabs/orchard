@@ -12,6 +12,7 @@ import (
 	"github.com/cirruslabs/orchard/internal/command/pause"
 	"github.com/cirruslabs/orchard/internal/command/portforward"
 	"github.com/cirruslabs/orchard/internal/command/resume"
+	"github.com/cirruslabs/orchard/internal/command/set"
 	"github.com/cirruslabs/orchard/internal/command/ssh"
 	"github.com/cirruslabs/orchard/internal/command/vnc"
 	"github.com/cirruslabs/orchard/internal/command/worker"
@@ -29,15 +30,16 @@ func NewRootCmd() *cobra.Command {
 
 	addGroupedCommands(command, "Working With Resources:",
 		create.NewCommand(),
+		deletepkg.NewCommand(),
 		get.NewCommand(),
 		list.NewCommand(),
 		logs.NewCommand(),
 		pause.NewCommand(),
 		portforward.NewCommand(),
 		resume.NewCommand(),
+		set.NewCommand(),
 		ssh.NewCommand(),
 		vnc.NewCommand(),
-		deletepkg.NewCommand(),
 	)
 
 	addGroupedCommands(command, "Administrative Tasks:",
