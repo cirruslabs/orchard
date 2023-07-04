@@ -56,7 +56,7 @@ func runSSHVM(cmd *cobra.Command, args []string) error {
 
 	wsConn, err := client.VMs().PortForward(cmd.Context(), name, 22, wait)
 	if err != nil {
-		return fmt.Errorf("%w: failed setup port-forwarding to the VM %q: %v", ErrFailed, name, err)
+		return fmt.Errorf("%w: failed to setup port-forwarding to the VM %q: %v", ErrFailed, name, err)
 	}
 	defer wsConn.Close()
 
