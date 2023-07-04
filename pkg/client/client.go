@@ -304,7 +304,7 @@ func (client *Client) modifyHeader(header http.Header) {
 	if client.serviceAccountName != "" && client.serviceAccountToken != "" {
 		authPlain := fmt.Sprintf("%s:%s", client.serviceAccountName, client.serviceAccountToken)
 		authEncoded := base64.StdEncoding.EncodeToString([]byte(authPlain))
-		header.Add("Authorization", fmt.Sprintf("Basic %s", authEncoded))
+		header.Set("Authorization", fmt.Sprintf("Basic %s", authEncoded))
 	}
 }
 
