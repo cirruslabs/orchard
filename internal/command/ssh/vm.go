@@ -56,9 +56,7 @@ func runSSHVM(cmd *cobra.Command, args []string) error {
 
 	wsConn, err := client.VMs().PortForward(cmd.Context(), name, 22, wait)
 	if err != nil {
-		fmt.Printf("failed to forward an SSH port to VM %s: %v\n", name, err)
-
-		return err
+		return fmt.Errorf("%w: failed setup port-forwarding to the VM %q: %v", ErrFailed, name, err)
 	}
 	defer wsConn.Close()
 
@@ -78,9 +76,6 @@ func runSSHVM(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("%w: failed to establish an SSH connection: %v", ErrFailed, err)
 	}
-	defer func() {
-		_ = sshConn.Close()
-	}()
 
 	sshClient := ssh.NewClient(sshConn, chans, reqs)
 

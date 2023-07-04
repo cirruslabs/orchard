@@ -9,8 +9,8 @@ import (
 	"github.com/cirruslabs/orchard/rpc"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"golang.org/x/net/websocket"
 	"net/http"
+	"nhooyr.io/websocket"
 	"strconv"
 	"time"
 )
@@ -95,11 +95,26 @@ func (controller *Controller) portForwardVM(ctx *gin.Context) responder.Responde
 	// worker will asynchronously start port-forwarding so we wait
 	select {
 	case fromWorkerConnection := <-boomerangConnCh:
-		websocket.Handler(func(wsConn *websocket.Conn) {
-			if err := proxy.Connections(wsConn, fromWorkerConnection); err != nil {
-				controller.logger.Warnf("failed to port-forward: %v", err)
-			}
-		}).ServeHTTP(ctx.Writer, ctx.Request)
+		wsConn, err := websocket.Accept(ctx.Writer, ctx.Request, &websocket.AcceptOptions{
+			OriginPatterns: []string{"*"},
+		})
+		if err != nil {
+			return responder.Error(err)
+		}
+
+		expectedMsgType := websocket.MessageBinary
+
+		// Backwards compatibility with older Orchard clients
+		// using "golang.org/x/net/websocket" package
+		if ctx.Request.Header.Get("User-Agent") == "" {
+			expectedMsgType = websocket.MessageText
+		}
+
+		wsConnAsNetConn := websocket.NetConn(ctx, wsConn, expectedMsgType)
+
+		if err := proxy.Connections(wsConnAsNetConn, fromWorkerConnection); err != nil {
+			controller.logger.Warnf("failed to port-forward: %v", err)
+		}
 
 		return responder.Empty()
 	case <-ctx.Done():

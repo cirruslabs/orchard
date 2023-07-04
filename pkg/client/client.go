@@ -11,14 +11,16 @@ import (
 	"fmt"
 	"github.com/cirruslabs/orchard/internal/config"
 	"github.com/cirruslabs/orchard/internal/netconstants"
+	"github.com/cirruslabs/orchard/internal/version"
 	"github.com/cirruslabs/orchard/rpc"
-	"golang.org/x/net/websocket"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
+	"nhooyr.io/websocket"
 )
 
 var (
@@ -184,9 +186,7 @@ func (client *Client) request(
 		return fmt.Errorf("%w instantiate a request: %v", ErrFailed, err)
 	}
 
-	if client.serviceAccountName != "" && client.serviceAccountToken != "" {
-		request.SetBasicAuth(client.serviceAccountName, client.serviceAccountToken)
-	}
+	client.modifyHeader(request.Header)
 
 	response, err := client.httpClient.Do(request)
 	if err != nil {
@@ -238,10 +238,10 @@ func detailsFromErrorResponseBody(body io.Reader) string {
 }
 
 func (client *Client) wsRequest(
-	_ context.Context,
+	ctx context.Context,
 	path string,
 	params map[string]string,
-) (*websocket.Conn, error) {
+) (net.Conn, error) {
 	endpointURL, err := client.parsePath(path)
 	if err != nil {
 		return nil, err
@@ -260,20 +260,27 @@ func (client *Client) wsRequest(
 	}
 	endpointURL.RawQuery = values.Encode()
 
-	config, err := websocket.NewConfig(endpointURL.String(), "http://127.0.0.1/")
+	dialOptions := &websocket.DialOptions{
+		HTTPClient: client.httpClient,
+		HTTPHeader: make(http.Header),
+	}
+
+	client.modifyHeader(dialOptions.HTTPHeader)
+
+	conn, resp, err := websocket.Dial(ctx, endpointURL.String(), dialOptions)
 	if err != nil {
-		return nil, fmt.Errorf("%w to create WebSocket configuration: %v", ErrFailed, err)
+		if resp != nil {
+			_ = resp.Body.Close()
+		}
+
+		if resp.StatusCode == http.StatusNotFound {
+			err = fmt.Errorf("%w (are you sure this VM exists on the controller?)", err)
+		}
+
+		return nil, err
 	}
 
-	if client.serviceAccountName != "" && client.serviceAccountToken != "" {
-		authPlain := fmt.Sprintf("%s:%s", client.serviceAccountName, client.serviceAccountToken)
-		authEncoded := base64.StdEncoding.EncodeToString([]byte(authPlain))
-		config.Header.Add("Authorization", fmt.Sprintf("Basic %s", authEncoded))
-	}
-
-	config.TlsConfig = client.tlsConfig
-
-	return websocket.DialConfig(config)
+	return websocket.NetConn(ctx, conn, websocket.MessageBinary), nil
 }
 
 func (client *Client) parsePath(path string) (*url.URL, error) {
@@ -289,6 +296,16 @@ func (client *Client) parsePath(path string) (*url.URL, error) {
 		Path:    endpointURL.Path,
 		RawPath: endpointURL.RawPath,
 	}, nil
+}
+
+func (client *Client) modifyHeader(header http.Header) {
+	header.Set("User-Agent", fmt.Sprintf("Orchard/%s", version.FullVersion))
+
+	if client.serviceAccountName != "" && client.serviceAccountToken != "" {
+		authPlain := fmt.Sprintf("%s:%s", client.serviceAccountName, client.serviceAccountToken)
+		authEncoded := base64.StdEncoding.EncodeToString([]byte(authPlain))
+		header.Add("Authorization", fmt.Sprintf("Basic %s", authEncoded))
+	}
 }
 
 func (client *Client) Check(ctx context.Context) error {

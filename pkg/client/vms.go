@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/cirruslabs/orchard/pkg/resource/v1"
-	"golang.org/x/net/websocket"
+	"net"
 	"net/http"
 	"strconv"
 )
@@ -92,7 +92,7 @@ func (service *VMsService) PortForward(
 	name string,
 	port uint16,
 	waitSeconds uint16,
-) (*websocket.Conn, error) {
+) (net.Conn, error) {
 	return service.client.wsRequest(ctx, fmt.Sprintf("vms/%s/port-forward", name),
 		map[string]string{
 			"port": strconv.FormatUint(uint64(port), 10),
