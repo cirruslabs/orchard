@@ -56,9 +56,7 @@ func runSSHVM(cmd *cobra.Command, args []string) error {
 
 	wsConn, err := client.VMs().PortForward(cmd.Context(), name, 22, wait)
 	if err != nil {
-		fmt.Printf("failed to forward an SSH port to VM %s: %v\n", name, err)
-
-		return err
+		return fmt.Errorf("%w: failed to setup port-forwarding to the VM %q: %v", ErrFailed, name, err)
 	}
 	defer wsConn.Close()
 
@@ -78,9 +76,6 @@ func runSSHVM(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("%w: failed to establish an SSH connection: %v", ErrFailed, err)
 	}
-	defer func() {
-		_ = sshConn.Close()
-	}()
 
 	sshClient := ssh.NewClient(sshConn, chans, reqs)
 
@@ -188,16 +183,16 @@ func ChooseUsernameAndPassword(
 
 	// Try to get the credentials from the VM's object stored on controller
 	vm, err := client.VMs().Get(ctx, vmName)
-	if err != nil {
-		fmt.Printf("failed to retrieve VM %s's credentials from the API server: %v\n", vmName, err)
-	}
-
-	if vm.Username != "" && vm.Password != "" {
+	if err == nil && vm.Username != "" && vm.Password != "" {
 		return vm.Username, vm.Password
+	} else if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to retrieve VM %s's credentials from the API server: %v\n",
+			vmName, err)
 	}
 
 	// Fall back
-	_, _ = fmt.Fprintf(os.Stderr, "no credentials specified or found, trying default admin:admin credentials...")
+	_, _ = fmt.Fprintf(os.Stderr, "no credentials specified or found, "+
+		"trying default admin:admin credentials...\n")
 
 	return "admin", "admin"
 }

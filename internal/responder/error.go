@@ -20,9 +20,12 @@ func Error(err error) Responder {
 
 func (responder *ErrorResponder) Respond(c *gin.Context) {
 	var code = http.StatusInternalServerError
+
 	if errors.Is(responder.err, storepkg.ErrNotFound) {
 		code = http.StatusNotFound
+	} else {
+		_ = c.Error(responder.err)
 	}
-	_ = c.Error(responder.err)
+
 	c.Status(code)
 }

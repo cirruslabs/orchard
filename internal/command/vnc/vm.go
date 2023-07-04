@@ -72,6 +72,7 @@ func runVNCVM(cmd *cobra.Command, args []string) (err error) {
 
 					return
 				}
+				defer wsConn.Close()
 
 				if err := proxy.Connections(wsConn, conn); err != nil {
 					fmt.Printf("failed to forward port: %v\n", err)
