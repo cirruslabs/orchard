@@ -192,7 +192,8 @@ func ChooseUsernameAndPassword(
 	}
 
 	// Fall back
-	_, _ = fmt.Fprintf(os.Stderr, "no credentials specified or found, trying default admin:admin credentials...")
+	_, _ = fmt.Fprintf(os.Stderr, "no credentials specified or found, "+
+		"trying default admin:admin credentials...\n")
 
 	return "admin", "admin"
 }
