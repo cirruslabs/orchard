@@ -39,7 +39,7 @@ func Connections(left net.Conn, right net.Conn) (finalErr error) {
 		recordErr(<-rightErrCh)
 	}
 
-	if strings.Contains(finalErr.Error(), "use of closed network connection") {
+	if finalErr != nil && strings.Contains(finalErr.Error(), "use of closed network connection") {
 		finalErr = nil
 	}
 
