@@ -7,7 +7,7 @@ require (
 	github.com/avast/retry-go/v4 v4.3.3
 	github.com/deckarep/golang-set/v2 v2.1.0
 	github.com/dgraph-io/badger/v3 v3.2103.5
-	github.com/dustin/go-humanize v1.0.0
+	github.com/dustin/go-humanize v1.0.1
 	github.com/gin-gonic/gin v1.9.0
 	github.com/go-openapi/runtime v0.25.0
 	github.com/gofrs/flock v0.8.1

@@ -6,6 +6,7 @@ import (
 	"github.com/dustin/go-humanize"
 	"github.com/gosuri/uitable"
 	"github.com/spf13/cobra"
+	"time"
 )
 
 func newListWorkersCommand() *cobra.Command {
@@ -42,7 +43,9 @@ func runListWorkers(cmd *cobra.Command, args []string) error {
 	table.AddRow("Name", "Last seen", "Scheduling paused")
 
 	for _, worker := range workers {
-		table.AddRow(worker.Name, humanize.Time(worker.LastSeen), worker.SchedulingPaused)
+		lastSeenInfo := humanize.RelTime(worker.LastSeen, time.Now(), "ago", "in the future")
+
+		table.AddRow(worker.Name, lastSeenInfo, worker.SchedulingPaused)
 	}
 
 	fmt.Println(table)
