@@ -23,17 +23,17 @@ Below we'll explain how Orchard client and Worker handle these two Controller ty
 
 ### Client
 
-We connect (or associate) as a Client with the Controller using a `orchard context create` command.
+Client connects (or in other words, associates) with the Controller using a `orchard context create` command.
 
 The default mode allows for connecting to both Controller types (see above) by leveraging a fall-back mechanism:
 
-* we first try to connect to the Controller and validate its certificate using host's root CA set (can be disabled with [`--no-pki`](#--no-pki-override))
-* if we've encountered a *Controller with a publicly valid certificate*, that would be the last step and the association would succeed
-* if we're dealing with *Controller with a self-signed certificate*, we'd do another connection attempt to probe the Controller's certificate
-* the probed Controller's certificate fingerprint is then presented to the user, and if the user agrees to trust it, we then consider that certificate to be trusted for a given Controller address
-* we finally connect to the Controller again with a trusted CA set containing only that certificate, execute the final API sanity checks and if everything is OK then the association succeeds
+* Client first tries to connect to the Controller and validates its certificate using host's root CA set (can be disabled with [`--no-pki`](#--no-pki-override))
+* if the Client has encountered a *Controller with a publicly valid certificate*, that would be the last step and the association would succeed
+* if the Client is dealing with *Controller with a self-signed certificate*, the Client will do another connection attempt to probe the Controller's certificate
+* the probed Controller's certificate fingerprint is then presented to the user, and if the user agrees to trust it, the Client then considers that certificate to be trusted for a given Controller address
+* Client finally connects to the Controller again with a trusted CA set containing only that certificate, execute the final API sanity checks and if everything is OK then the association succeeds
 
-Afterward, each interaction with the Controller  (e.g. `orchard create vm` command) will stick to the choosen verification method and will re-verify the presented Controller's certificate each time we interact with the Controller against:
+Afterward, each interaction with the Controller  (e.g. `orchard create vm` command) will stick to the chosen verification method and will re-verify the presented Controller's certificate against:
 
 * PKI association: host's root CA set
 * non-PKI association: a trusted certificate stored in the Orchard's configuration file
@@ -45,7 +45,7 @@ Another thing to note is that PKI and non-PKI associations will emit slightly di
 
 ### Worker
 
-We connect as a Worker to the Controller using a `orchard worker run` command.
+Worker connects to the Controller using a `orchard worker run` command.
 
 The default mode allows for connecting to both Controller types (see above) by looking at the Bootstrap Token contents:
 
