@@ -41,7 +41,7 @@ Afterward, each interaction with the Controller  (e.g. `orchard create vm` comma
 Another thing to note is that PKI and non-PKI associations will emit slightly different Boostrap Tokens for use in Worker:
 
 * PKI: Bootstrap Token won't include the Controller's certificate, thus forcing the Worker to validate the Controller's certificate against the Worker's host root CA set
-* non-PKI: Bootstrap Token will include the Controller's certificate, thus forcing the Worker to validate the Controller's certificate against that Controller's certificate
+* non-PKI: Bootstrap Token will include the Controller's certificate, thus forcing the Worker to validate the Controller's certificate only against that Controller's certificate
 
 ### Worker
 
