@@ -33,7 +33,7 @@ The default mode allows for connecting to both Controller types (see above) by l
 * the probed Controller's certificate fingerprint is then presented to the user, and if the user agrees to trust it, we then consider that certificate to be trusted for a given Controller address
 * we finally connect to the Controller again with a trusted CA set containing only that certificate, execute the final API sanity checks and if everything is OK then the association succeeds
 
-Afterward, each interaction with the Controller  (e.g. `orchard create vm` command) will stick to the choosen verification method and re-verify the presented Controller's certificate each time we interact with the Controller against:
+Afterward, each interaction with the Controller  (e.g. `orchard create vm` command) will stick to the choosen verification method and will re-verify the presented Controller's certificate each time we interact with the Controller against:
 
 * PKI association: host's root CA set
 * non-PKI association: a trusted certificate stored in the Orchard's configuration file
