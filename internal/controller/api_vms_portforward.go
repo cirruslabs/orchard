@@ -9,6 +9,7 @@ import (
 	"github.com/cirruslabs/orchard/rpc"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/pkg/errors"
 	"net/http"
 	"nhooyr.io/websocket"
 	"strconv"
@@ -113,6 +114,14 @@ func (controller *Controller) portForwardVM(ctx *gin.Context) responder.Responde
 		wsConnAsNetConn := websocket.NetConn(ctx, wsConn, expectedMsgType)
 
 		if err := proxy.Connections(wsConnAsNetConn, fromWorkerConnection); err != nil {
+			var websocketCloseError websocket.CloseError
+
+			// Normal closure from the user
+			if errors.As(err, &websocketCloseError) &&
+				websocketCloseError.Code == websocket.StatusNormalClosure {
+				return responder.Empty()
+			}
+
 			controller.logger.Warnf("failed to port-forward: %v", err)
 		}
 
