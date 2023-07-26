@@ -70,16 +70,17 @@ func New(opts ...Option) (*Controller, error) {
 	}
 
 	// Apply environment variables
-	orchardLicenseTier := os.Getenv("ORCHARD_LICENSE_TIER")
-
-	switch orchardLicenseTier {
-	case "gold":
-		controller.maxWorkersPerLicense = maxWorkersPerGoldLicense
-	case "platinum":
-		controller.maxWorkersPerLicense = maxWorkersPerPlatinumLicense
-	default:
-		return nil, fmt.Errorf("%w: invalid ORCHARD_LICENSE_TIER value: %q",
-			ErrInitFailed, orchardLicenseTier)
+	orchardLicenseTier, ok := os.LookupEnv("ORCHARD_LICENSE_TIER")
+	if ok {
+		switch orchardLicenseTier {
+		case "gold":
+			controller.maxWorkersPerLicense = maxWorkersPerGoldLicense
+		case "platinum":
+			controller.maxWorkersPerLicense = maxWorkersPerPlatinumLicense
+		default:
+			return nil, fmt.Errorf("%w: invalid ORCHARD_LICENSE_TIER value: %q",
+				ErrInitFailed, orchardLicenseTier)
+		}
 	}
 
 	// Apply defaults
