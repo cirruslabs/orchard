@@ -39,10 +39,7 @@ func runGetClusterSettings(cmd *cobra.Command, args []string) error {
 		return policy.String()
 	})
 	hostDirPoliciesDescription := strings.Join(hostDirPoliciesAsStrings, ",")
-	if hostDirPoliciesDescription == "" {
-		hostDirPoliciesDescription = "none"
-	}
-	table.AddRow("hostDir policies", hostDirPoliciesDescription)
+	table.AddRow("hostDir policies", nonEmptyOrNone(hostDirPoliciesDescription))
 
 	fmt.Println(table)
 

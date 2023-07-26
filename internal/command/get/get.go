@@ -17,7 +17,16 @@ func NewCommand() *cobra.Command {
 		newGetBootstrapTokenCommand(),
 		newGetClusterSettingsCommand(),
 		newGetServiceAccountCommand(),
+		newGetVMCommand(),
 	)
 
 	return command
+}
+
+func nonEmptyOrNone(s string) string {
+	if s != "" {
+		return s
+	}
+
+	return "none"
 }
