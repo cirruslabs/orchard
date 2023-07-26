@@ -44,6 +44,19 @@ func (controller *Controller) createWorker(ctx *gin.Context) responder.Responder
 				NewErrorResponse("this worker is managed from a different machine ID, "+
 					"delete this worker first to be able to re-create it"))
 		}
+		if errors.Is(err, storepkg.ErrNotFound) {
+			// We will be adding a new worker, check if the license capacity allows that
+			workers, err := txn.ListWorkers()
+			if err != nil {
+				return responder.Code(http.StatusInternalServerError)
+			}
+
+			if uint(len(workers)+1) > controller.maxWorkersPerLicense {
+				return responder.JSON(http.StatusConflict, NewErrorResponse("cannot register a new worker "+
+					"because the license capacity of %d workers has been reached, "+
+					"consider upgrading at https://tart.run/licensing/", controller.maxWorkersPerLicense))
+			}
+		}
 
 		if err := txn.SetWorker(worker); err != nil {
 			return responder.Error(err)

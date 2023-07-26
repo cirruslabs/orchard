@@ -20,6 +20,7 @@ import (
 	"google.golang.org/grpc/keepalive"
 	"net"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 )
@@ -27,6 +28,12 @@ import (
 var (
 	ErrInitFailed      = errors.New("controller initialization failed")
 	ErrAdminTaskFailed = errors.New("controller administrative task failed")
+)
+
+const (
+	maxWorkersPerDefaultLicense  = 4
+	maxWorkersPerGoldLicense     = 20
+	maxWorkersPerPlatinumLicense = 200
 )
 
 type Controller struct {
@@ -44,6 +51,7 @@ type Controller struct {
 	proxy                *proxy.Proxy
 	enableSwaggerDocs    bool
 	workerOfflineTimeout time.Duration
+	maxWorkersPerLicense uint
 
 	rpc.UnimplementedControllerServer
 }
@@ -53,11 +61,25 @@ func New(opts ...Option) (*Controller, error) {
 		workerNotifier:       notifier.NewNotifier(),
 		proxy:                proxy.NewProxy(),
 		workerOfflineTimeout: 3 * time.Minute,
+		maxWorkersPerLicense: maxWorkersPerDefaultLicense,
 	}
 
 	// Apply options
 	for _, opt := range opts {
 		opt(controller)
+	}
+
+	// Apply environment variables
+	orchardLicenseTier := os.Getenv("ORCHARD_LICENSE_TIER")
+
+	switch orchardLicenseTier {
+	case "gold":
+		controller.maxWorkersPerLicense = maxWorkersPerGoldLicense
+	case "platinum":
+		controller.maxWorkersPerLicense = maxWorkersPerPlatinumLicense
+	default:
+		return nil, fmt.Errorf("%w: invalid ORCHARD_LICENSE_TIER value: %q",
+			ErrInitFailed, orchardLicenseTier)
 	}
 
 	// Apply defaults
