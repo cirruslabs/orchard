@@ -22,6 +22,7 @@ var resources map[string]string
 var restartPolicy string
 var startupScript string
 var hostDirsRaw []string
+var imagePullPolicy string
 
 func newCreateVMCommand() *cobra.Command {
 	command := &cobra.Command{
@@ -39,15 +40,19 @@ func newCreateVMCommand() *cobra.Command {
 	command.PersistentFlags().BoolVar(&headless, "headless", true, "whether to run without graphics")
 	command.PersistentFlags().StringToStringVar(&resources, "resources", map[string]string{},
 		"resources to request for this VM")
-	command.PersistentFlags().StringVar(&restartPolicy, "restart-policy", "Never",
-		"restart policy for this VM: specify \"Never\" to never restart or \"OnFailure\" "+
-			"to only restart when the VM fails")
+	command.PersistentFlags().StringVar(&restartPolicy, "restart-policy", string(v1.RestartPolicyNever),
+		fmt.Sprintf("restart policy for this VM: specify %q to never restart or %q "+
+			"to only restart when the VM fails", v1.RestartPolicyNever, v1.RestartPolicyOnFailure))
 	command.PersistentFlags().StringVar(&startupScript, "startup-script", "",
 		"startup script (e.g. --startup-script=\"sync\") or a path to a script file prefixed with \"@\" "+
 			"(e.g. \"--startup-script=@script.sh\")")
 	command.PersistentFlags().StringSliceVar(&hostDirsRaw, "host-dirs", []string{},
 		"host directories to mount to the VM, can be specified multiple times and/or be comma-separated "+
 			"(see \"tart run\"'s --dir argument for syntax)")
+	command.PersistentFlags().StringVar(&imagePullPolicy, "image-pull-policy", string(v1.ImagePullPolicyIfNotPresent),
+		fmt.Sprintf("image pull policy for this VM, by default the image is only only pulled if it doesn't "+
+			"exist in the cache (%q), specify %q to always try to pull the image",
+			v1.ImagePullPolicyIfNotPresent, v1.ImagePullPolicyAlways))
 
 	return command
 }
@@ -84,6 +89,12 @@ func runCreateVM(cmd *cobra.Command, args []string) error {
 	var err error
 
 	vm.Resources, err = v1.NewResourcesFromStringToString(resources)
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrVMFailed, err)
+	}
+
+	// Convert image pull policy
+	vm.ImagePullPolicy, err = v1.NewImagePullPolicyFromString(imagePullPolicy)
 	if err != nil {
 		return fmt.Errorf("%w: %v", ErrVMFailed, err)
 	}

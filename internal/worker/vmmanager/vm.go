@@ -59,11 +59,22 @@ func NewVM(
 		wg: &sync.WaitGroup{},
 	}
 
-	// Clone the VM so `run` and `ip` are not racing
+	// Optionally pull and clone the VM so that `run` and `ip` will not be racing
 	vm.logger.Debugf("creating VM")
 
+	if vmResource.ImagePullPolicy == v1.ImagePullPolicyAlways {
+		_, _, err := tart.Tart(ctx, vm.logger, "pull", vm.Resource.Image)
+		if err != nil {
+			vm.setErr(fmt.Errorf("failed to pull the VM: %w", err))
+
+			return vm, nil
+		}
+	}
+
 	if err := vm.cloneAndConfigure(ctx); err != nil {
-		return nil, fmt.Errorf("failed to clone the VM: %w", err)
+		vm.setErr(fmt.Errorf("failed to clone the VM: %w", err))
+
+		return vm, nil
 	}
 
 	vm.wg.Add(1)

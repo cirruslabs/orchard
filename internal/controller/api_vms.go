@@ -50,6 +50,16 @@ func (controller *Controller) createVM(ctx *gin.Context) responder.Responder {
 		vm.Resources[v1.ResourceTartVMs] = 1
 	}
 
+	// Validate image pull policy and provide a default value if it's missing
+	if vm.ImagePullPolicy != "" {
+		if _, err := v1.NewImagePullPolicyFromString(string(vm.ImagePullPolicy)); err != nil {
+			return responder.JSON(http.StatusPreconditionFailed,
+				NewErrorResponse("unsupported image pull policy: %q", vm.ImagePullPolicy))
+		}
+	} else {
+		vm.ImagePullPolicy = v1.ImagePullPolicyIfNotPresent
+	}
+
 	// Validate restart policy and provide a default value if it's missing
 	if vm.RestartPolicy != "" {
 		if _, err := v1.NewRestartPolicyFromString(string(vm.RestartPolicy)); err != nil {

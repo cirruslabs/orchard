@@ -1,6 +1,7 @@
 package structpath
 
 import (
+	"fmt"
 	"reflect"
 	"strings"
 )
@@ -23,9 +24,14 @@ func Lookup(target interface{}, path []string) (s string, ok bool) {
 	}
 
 	result, ok := currentValue.Interface().(string)
-	if !ok {
-		return "", false
+	if ok {
+		return result, true
 	}
 
-	return result, true
+	stringerResult, ok := currentValue.Interface().(fmt.Stringer)
+	if ok {
+		return stringerResult.String(), true
+	}
+
+	return "", false
 }

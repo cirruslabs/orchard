@@ -19,12 +19,13 @@ type Meta struct {
 }
 
 type VM struct {
-	Image      string `json:"image"`
-	CPU        uint64 `json:"cpu"`
-	Memory     uint64 `json:"memory"`
-	NetSoftnet bool   `json:"net-softnet"`
-	NetBridged string `json:"net-bridged"`
-	Headless   bool   `json:"headless"`
+	Image           string          `json:"image"`
+	ImagePullPolicy ImagePullPolicy `json:"imagePullPolicy"`
+	CPU             uint64          `json:"cpu"`
+	Memory          uint64          `json:"memory"`
+	NetSoftnet      bool            `json:"net-softnet"`
+	NetBridged      string          `json:"net-bridged"`
+	Headless        bool            `json:"headless"`
 
 	// Status field is used to track the lifecycle of the VM associated with this resource.
 	Status        VMStatus `json:"status"`
@@ -77,6 +78,10 @@ func (vm VM) TerminalState() bool {
 }
 
 type VMStatus string
+
+func (vmStatus VMStatus) String() string {
+	return string(vmStatus)
+}
 
 const (
 	// VMStatusPending is set by the Controller for all newly-created VM resources.
