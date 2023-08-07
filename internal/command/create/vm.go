@@ -50,7 +50,7 @@ func newCreateVMCommand() *cobra.Command {
 		"host directories to mount to the VM, can be specified multiple times and/or be comma-separated "+
 			"(see \"tart run\"'s --dir argument for syntax)")
 	command.PersistentFlags().StringVar(&imagePullPolicy, "image-pull-policy", string(v1.ImagePullPolicyIfNotPresent),
-		fmt.Sprintf("image pull policy for this VM, by default the image is only only pulled if it doesn't "+
+		fmt.Sprintf("image pull policy for this VM, by default the image is only pulled if it doesn't "+
 			"exist in the cache (%q), specify %q to always try to pull the image",
 			v1.ImagePullPolicyIfNotPresent, v1.ImagePullPolicyAlways))
 
