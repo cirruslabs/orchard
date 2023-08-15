@@ -16,7 +16,8 @@ func (controller *Controller) getClusterSettings(ctx *gin.Context) responder.Res
 	return controller.storeView(func(txn storepkg.Transaction) responder.Responder {
 		clusterSettings, err := txn.GetClusterSettings()
 		if err != nil {
-			controller.logger.Errorf("failed to retrieve cluster settings: %v", err)
+			controller.logger.Errorf("failed to retrieve cluster settings from the DB: %v", err)
+
 			return responder.Code(http.StatusInternalServerError)
 		}
 
@@ -45,6 +46,8 @@ func (controller *Controller) updateClusterSettings(ctx *gin.Context) responder.
 
 	return controller.storeUpdate(func(txn storepkg.Transaction) responder.Responder {
 		if err := txn.SetClusterSettings(clusterSettings); err != nil {
+			controller.logger.Errorf("failed to set cluster settings in the DB: %v", err)
+
 			return responder.Code(http.StatusInternalServerError)
 		}
 

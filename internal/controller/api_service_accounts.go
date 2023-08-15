@@ -45,6 +45,8 @@ func (controller *Controller) createServiceAccount(ctx *gin.Context) responder.R
 		// Does the Service Account resource with this name already exists?
 		_, err := txn.GetServiceAccount(serviceAccount.Name)
 		if err != nil && !errors.Is(err, storepkg.ErrNotFound) {
+			controller.logger.Errorf("failed to check if the service account exists in the DB: %v", err)
+
 			return responder.Code(http.StatusInternalServerError)
 		}
 		if err == nil {
@@ -53,6 +55,8 @@ func (controller *Controller) createServiceAccount(ctx *gin.Context) responder.R
 		}
 
 		if err := txn.SetServiceAccount(&serviceAccount); err != nil {
+			controller.logger.Errorf("failed to create the service account in the DB: %v", err)
+
 			return responder.Code(http.StatusInternalServerError)
 		}
 
@@ -86,6 +90,8 @@ func (controller *Controller) updateServiceAccount(ctx *gin.Context) responder.R
 		}
 
 		if err := txn.SetServiceAccount(dbServiceAccount); err != nil {
+			controller.logger.Errorf("failed to update service account in the DB: %v", err)
+
 			return responder.Code(http.StatusInternalServerError)
 		}
 
