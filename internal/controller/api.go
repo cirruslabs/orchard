@@ -13,6 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/penglongli/gin-metrics/ginmetrics"
+	"go.uber.org/zap"
 	"google.golang.org/grpc/metadata"
 	"net/http"
 	"strings"
@@ -240,16 +241,17 @@ func (controller *Controller) authorizeGRPC(ctx context.Context, scopes ...v1pkg
 type storeTransactionFunc func(operation func(txn storepkg.Transaction) error) error
 
 func (controller *Controller) storeView(view func(txn storepkg.Transaction) responder.Responder) responder.Responder {
-	return adaptResponderToStoreOperation(controller.store.View, view)
+	return adaptResponderToStoreOperation(controller.logger, controller.store.View, view)
 }
 
 func (controller *Controller) storeUpdate(
 	update func(txn storepkg.Transaction) responder.Responder,
 ) responder.Responder {
-	return adaptResponderToStoreOperation(controller.store.Update, update)
+	return adaptResponderToStoreOperation(controller.logger, controller.store.Update, update)
 }
 
 func adaptResponderToStoreOperation(
+	logger *zap.SugaredLogger,
 	storeOperation storeTransactionFunc,
 	responderOperation func(txn storepkg.Transaction) responder.Responder,
 ) responder.Responder {
@@ -260,6 +262,8 @@ func adaptResponderToStoreOperation(
 
 		return nil
 	}); err != nil {
+		logger.Errorf("encountered an error during store operation: %v", err)
+
 		return responder.Code(http.StatusInternalServerError)
 	}
 
