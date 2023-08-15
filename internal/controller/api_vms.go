@@ -79,6 +79,8 @@ func (controller *Controller) createVM(ctx *gin.Context) responder.Responder {
 		// Does the VM resource with this name already exists?
 		_, err := txn.GetVM(vm.Name)
 		if err != nil && !errors.Is(err, storepkg.ErrNotFound) {
+			controller.logger.Errorf("failed to check if the VM exists in the DB: %v", err)
+
 			return responder.Code(http.StatusInternalServerError)
 		}
 		if err == nil {
@@ -86,6 +88,8 @@ func (controller *Controller) createVM(ctx *gin.Context) responder.Responder {
 		}
 
 		if err := txn.SetVM(vm); err != nil {
+			controller.logger.Errorf("failed to create VM in the DB: %v", err)
+
 			return responder.Code(http.StatusInternalServerError)
 		}
 
@@ -126,6 +130,8 @@ func (controller *Controller) updateVM(ctx *gin.Context) responder.Responder {
 		dbVM.StatusMessage = userVM.StatusMessage
 
 		if err := txn.SetVM(*dbVM); err != nil {
+			controller.logger.Errorf("failed to update VM in the DB: %v", err)
+
 			return responder.Code(http.StatusInternalServerError)
 		}
 
@@ -252,6 +258,8 @@ func (controller *Controller) validateHostDirs(hostDirs []v1.HostDir) responder.
 		return err
 	})
 	if err != nil {
+		controller.logger.Errorf("failed to retrieve cluster settings from the DB: %v", err)
+
 		return responder.Code(http.StatusInternalServerError)
 	}
 

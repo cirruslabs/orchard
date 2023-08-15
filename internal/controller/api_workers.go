@@ -37,6 +37,8 @@ func (controller *Controller) createWorker(ctx *gin.Context) responder.Responder
 		// with the same machine ID
 		dbWorker, err := txn.GetWorker(worker.Name)
 		if err != nil && !errors.Is(err, storepkg.ErrNotFound) {
+			controller.logger.Errorf("failed to check if the worker exists in the DB: %v", err)
+
 			return responder.Code(http.StatusInternalServerError)
 		}
 		if err == nil && worker.MachineID != dbWorker.MachineID {
@@ -48,6 +50,8 @@ func (controller *Controller) createWorker(ctx *gin.Context) responder.Responder
 			// We will be adding a new worker, check if the license capacity allows that
 			workers, err := txn.ListWorkers()
 			if err != nil {
+				controller.logger.Errorf("failed to count the number of workers in the DB: %v", err)
+
 				return responder.Code(http.StatusInternalServerError)
 			}
 
@@ -87,6 +91,8 @@ func (controller *Controller) updateWorker(ctx *gin.Context) responder.Responder
 		dbWorker.SchedulingPaused = userWorker.SchedulingPaused
 
 		if err := txn.SetWorker(*dbWorker); err != nil {
+			controller.logger.Errorf("failed to update worker in the DB: %v", err)
+
 			return responder.Code(http.StatusInternalServerError)
 		}
 
