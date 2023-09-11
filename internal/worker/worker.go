@@ -226,9 +226,7 @@ func (worker *Worker) syncVMs(ctx context.Context) error {
 
 		if vmResource.Status == v1.VMStatusPending && !worker.vmm.Exists(odn) {
 			// Remote VM was created, create local VM
-			if err := worker.createVM(ctx, odn, vmResource); err != nil {
-				return err
-			}
+			worker.createVM(ctx, odn, vmResource)
 
 			vmResource.Status = v1.VMStatusRunning
 			if _, err := worker.client.VMs().Update(ctx, vmResource); err != nil {
@@ -308,17 +306,12 @@ func (worker *Worker) deleteVM(vm *vmmanager.VM) error {
 	return nil
 }
 
-func (worker *Worker) createVM(ctx context.Context, odn ondiskname.OnDiskName, vmResource v1.VM) error {
+func (worker *Worker) createVM(ctx context.Context, odn ondiskname.OnDiskName, vmResource v1.VM) {
 	eventStreamer := worker.client.VMs().StreamEvents(vmResource.Name)
 
-	vm, err := vmmanager.NewVM(ctx, vmResource, eventStreamer, worker.logger)
-	if err != nil {
-		return err
-	}
+	vm := vmmanager.NewVM(ctx, vmResource, eventStreamer, worker.logger)
 
 	worker.vmm.Put(odn, vm)
-
-	return nil
 }
 
 func (worker *Worker) grpcMetadata() metadata.MD {

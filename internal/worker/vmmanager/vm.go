@@ -41,7 +41,7 @@ func NewVM(
 	vmResource v1.VM,
 	eventStreamer *client.EventStreamer,
 	logger *zap.SugaredLogger,
-) (*VM, error) {
+) *VM {
 	vmContext, vmContextCancel := context.WithCancel(context.Background())
 
 	vm := &VM{
@@ -67,14 +67,14 @@ func NewVM(
 		if err != nil {
 			vm.setErr(fmt.Errorf("failed to pull the VM: %w", err))
 
-			return vm, nil
+			return vm
 		}
 	}
 
 	if err := vm.cloneAndConfigure(ctx); err != nil {
 		vm.setErr(fmt.Errorf("failed to clone the VM: %w", err))
 
-		return vm, nil
+		return vm
 	}
 
 	vm.wg.Add(1)
@@ -95,7 +95,7 @@ func NewVM(
 		go vm.runScript(vm.Resource.StartupScript, eventStreamer)
 	}
 
-	return vm, nil
+	return vm
 }
 
 func (vm *VM) OnDiskName() ondiskname.OnDiskName {
