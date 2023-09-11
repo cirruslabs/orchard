@@ -172,7 +172,15 @@ func (vm *VM) run(ctx context.Context) error {
 }
 
 func (vm *VM) IP(ctx context.Context) (string, error) {
-	stdout, _, err := tart.Tart(ctx, vm.logger, "ip", "--wait", "60", vm.id())
+	args := []string{"ip", "--wait", "60"}
+
+	if vm.Resource.NetBridged != "" {
+		args = append(args, "--resolver", "arp")
+	}
+
+	args = append(args, vm.id())
+
+	stdout, _, err := tart.Tart(ctx, vm.logger, args...)
 	if err != nil {
 		return "", err
 	}
