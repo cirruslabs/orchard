@@ -25,6 +25,7 @@ var ErrVMFailed = errors.New("VM failed")
 
 type VM struct {
 	onDiskName ondiskname.OnDiskName
+	cloned     bool
 	Resource   v1.VM
 	logger     *zap.SugaredLogger
 
@@ -76,6 +77,7 @@ func NewVM(
 
 		return vm
 	}
+	vm.cloned = true
 
 	vm.wg.Add(1)
 
@@ -181,6 +183,10 @@ func (vm *VM) IP(ctx context.Context) (string, error) {
 }
 
 func (vm *VM) Stop() error {
+	if !vm.cloned {
+		return nil
+	}
+
 	vm.logger.Debugf("stopping VM")
 
 	_, _, _ = tart.Tart(context.Background(), vm.logger, "stop", vm.id())
@@ -195,6 +201,10 @@ func (vm *VM) Stop() error {
 }
 
 func (vm *VM) Delete() error {
+	if !vm.cloned {
+		return nil
+	}
+
 	vm.logger.Debugf("deleting VM")
 
 	_, _, err := tart.Tart(context.Background(), vm.logger, "delete", vm.id())
