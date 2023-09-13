@@ -25,6 +25,7 @@ var ErrVMFailed = errors.New("VM failed")
 
 type VM struct {
 	onDiskName ondiskname.OnDiskName
+	cloned     bool
 	Resource   v1.VM
 	logger     *zap.SugaredLogger
 
@@ -41,7 +42,7 @@ func NewVM(
 	vmResource v1.VM,
 	eventStreamer *client.EventStreamer,
 	logger *zap.SugaredLogger,
-) (*VM, error) {
+) *VM {
 	vmContext, vmContextCancel := context.WithCancel(context.Background())
 
 	vm := &VM{
@@ -67,15 +68,16 @@ func NewVM(
 		if err != nil {
 			vm.setErr(fmt.Errorf("failed to pull the VM: %w", err))
 
-			return vm, nil
+			return vm
 		}
 	}
 
 	if err := vm.cloneAndConfigure(ctx); err != nil {
 		vm.setErr(fmt.Errorf("failed to clone the VM: %w", err))
 
-		return vm, nil
+		return vm
 	}
+	vm.cloned = true
 
 	vm.wg.Add(1)
 
@@ -95,7 +97,7 @@ func NewVM(
 		go vm.runScript(vm.Resource.StartupScript, eventStreamer)
 	}
 
-	return vm, nil
+	return vm
 }
 
 func (vm *VM) OnDiskName() ondiskname.OnDiskName {
@@ -189,6 +191,10 @@ func (vm *VM) IP(ctx context.Context) (string, error) {
 }
 
 func (vm *VM) Stop() error {
+	if !vm.cloned {
+		return nil
+	}
+
 	vm.logger.Debugf("stopping VM")
 
 	_, _, _ = tart.Tart(context.Background(), vm.logger, "stop", vm.id())
@@ -203,6 +209,10 @@ func (vm *VM) Stop() error {
 }
 
 func (vm *VM) Delete() error {
+	if !vm.cloned {
+		return nil
+	}
+
 	vm.logger.Debugf("deleting VM")
 
 	_, _, err := tart.Tart(context.Background(), vm.logger, "delete", vm.id())
