@@ -18,6 +18,7 @@ func NewCommand() *cobra.Command {
 		newGetClusterSettingsCommand(),
 		newGetServiceAccountCommand(),
 		newGetVMCommand(),
+		newGetWorkerCommand(),
 	)
 
 	return command
