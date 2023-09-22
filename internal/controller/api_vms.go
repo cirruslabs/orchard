@@ -4,6 +4,7 @@ import (
 	"errors"
 	storepkg "github.com/cirruslabs/orchard/internal/controller/store"
 	"github.com/cirruslabs/orchard/internal/responder"
+	"github.com/cirruslabs/orchard/internal/simplename"
 	"github.com/cirruslabs/orchard/pkg/resource/v1"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -25,6 +26,9 @@ func (controller *Controller) createVM(ctx *gin.Context) responder.Responder {
 
 	if vm.Name == "" {
 		return responder.JSON(http.StatusPreconditionFailed, NewErrorResponse("VM name is empty"))
+	} else if err := simplename.Validate(vm.Name); err != nil {
+		return responder.JSON(http.StatusPreconditionFailed,
+			NewErrorResponse("VM name %v", err))
 	}
 	if vm.Image == "" {
 		return responder.JSON(http.StatusPreconditionFailed, NewErrorResponse("VM image is empty"))
