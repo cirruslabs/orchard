@@ -6,6 +6,7 @@ import (
 	"github.com/cirruslabs/orchard/pkg/resource/v1"
 	"net"
 	"net/http"
+	"net/url"
 	"strconv"
 )
 
@@ -57,7 +58,7 @@ func (service *VMsService) List(ctx context.Context) ([]v1.VM, error) {
 func (service *VMsService) Get(ctx context.Context, name string) (*v1.VM, error) {
 	var vm v1.VM
 
-	err := service.client.request(ctx, http.MethodGet, fmt.Sprintf("vms/%s", name),
+	err := service.client.request(ctx, http.MethodGet, fmt.Sprintf("vms/%s", url.PathEscape(name)),
 		nil, &vm, nil)
 	if err != nil {
 		return nil, err
@@ -68,7 +69,7 @@ func (service *VMsService) Get(ctx context.Context, name string) (*v1.VM, error)
 
 func (service *VMsService) Update(ctx context.Context, vm v1.VM) (*v1.VM, error) {
 	var updatedVM v1.VM
-	err := service.client.request(ctx, http.MethodPut, fmt.Sprintf("vms/%s", vm.Name),
+	err := service.client.request(ctx, http.MethodPut, fmt.Sprintf("vms/%s", url.PathEscape(vm.Name)),
 		vm, &updatedVM, nil)
 	if err != nil {
 		return &updatedVM, err
@@ -78,7 +79,7 @@ func (service *VMsService) Update(ctx context.Context, vm v1.VM) (*v1.VM, error)
 }
 
 func (service *VMsService) Delete(ctx context.Context, name string) error {
-	err := service.client.request(ctx, http.MethodDelete, fmt.Sprintf("vms/%s", name),
+	err := service.client.request(ctx, http.MethodDelete, fmt.Sprintf("vms/%s", url.PathEscape(name)),
 		nil, nil, nil)
 	if err != nil {
 		return err
@@ -93,7 +94,7 @@ func (service *VMsService) PortForward(
 	port uint16,
 	waitSeconds uint16,
 ) (net.Conn, error) {
-	return service.client.wsRequest(ctx, fmt.Sprintf("vms/%s/port-forward", name),
+	return service.client.wsRequest(ctx, fmt.Sprintf("vms/%s/port-forward", url.PathEscape(name)),
 		map[string]string{
 			"port": strconv.FormatUint(uint64(port), 10),
 			"wait": strconv.FormatUint(uint64(waitSeconds), 10),
@@ -101,12 +102,12 @@ func (service *VMsService) PortForward(
 }
 
 func (service *VMsService) StreamEvents(name string) *EventStreamer {
-	return NewEventStreamer(service.client, fmt.Sprintf("vms/%s/events", name))
+	return NewEventStreamer(service.client, fmt.Sprintf("vms/%s/events", url.PathEscape(name)))
 }
 
 func (service *VMsService) Logs(ctx context.Context, name string) (lines []string, err error) {
 	var events []v1.Event
-	err = service.client.request(ctx, http.MethodGet, fmt.Sprintf("vms/%s/events", name),
+	err = service.client.request(ctx, http.MethodGet, fmt.Sprintf("vms/%s/events", url.PathEscape(name)),
 		nil, &events, nil)
 	if err != nil {
 		return

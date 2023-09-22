@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/cirruslabs/orchard/pkg/resource/v1"
 	"net/http"
+	"net/url"
 )
 
 type WorkersService struct {
@@ -36,7 +37,7 @@ func (service *WorkersService) List(ctx context.Context) ([]v1.Worker, error) {
 func (service *WorkersService) Get(ctx context.Context, name string) (*v1.Worker, error) {
 	var worker v1.Worker
 
-	err := service.client.request(ctx, http.MethodGet, fmt.Sprintf("workers/%s", name),
+	err := service.client.request(ctx, http.MethodGet, fmt.Sprintf("workers/%s", url.PathEscape(name)),
 		nil, &worker, nil)
 	if err != nil {
 		return nil, err
@@ -46,7 +47,7 @@ func (service *WorkersService) Get(ctx context.Context, name string) (*v1.Worker
 }
 
 func (service *WorkersService) Update(ctx context.Context, worker v1.Worker) (*v1.Worker, error) {
-	err := service.client.request(ctx, http.MethodPut, fmt.Sprintf("workers/%s", worker.Name),
+	err := service.client.request(ctx, http.MethodPut, fmt.Sprintf("workers/%s", url.PathEscape(worker.Name)),
 		worker, &worker, nil)
 	if err != nil {
 		return nil, err
@@ -56,7 +57,7 @@ func (service *WorkersService) Update(ctx context.Context, worker v1.Worker) (*v
 }
 
 func (service *WorkersService) Delete(ctx context.Context, name string) error {
-	err := service.client.request(ctx, http.MethodDelete, fmt.Sprintf("workers/%s", name),
+	err := service.client.request(ctx, http.MethodDelete, fmt.Sprintf("workers/%s", url.PathEscape(name)),
 		nil, nil, nil)
 	if err != nil {
 		return err
