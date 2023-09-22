@@ -4,6 +4,7 @@ import (
 	"errors"
 	storepkg "github.com/cirruslabs/orchard/internal/controller/store"
 	"github.com/cirruslabs/orchard/internal/responder"
+	"github.com/cirruslabs/orchard/internal/simplename"
 	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -23,7 +24,11 @@ func (controller *Controller) createServiceAccount(ctx *gin.Context) responder.R
 	}
 
 	if serviceAccount.Name == "" {
-		return responder.JSON(http.StatusPreconditionFailed, NewErrorResponse("service account name is empty"))
+		return responder.JSON(http.StatusPreconditionFailed,
+			NewErrorResponse("service account name is empty"))
+	} else if err := simplename.Validate(serviceAccount.Name); err != nil {
+		return responder.JSON(http.StatusPreconditionFailed,
+			NewErrorResponse("service account %v", err))
 	}
 
 	// validate roles

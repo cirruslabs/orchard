@@ -4,6 +4,7 @@ import (
 	"errors"
 	storepkg "github.com/cirruslabs/orchard/internal/controller/store"
 	"github.com/cirruslabs/orchard/internal/responder"
+	"github.com/cirruslabs/orchard/internal/simplename"
 	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
 	"github.com/gin-gonic/gin"
 	"net/http"
@@ -23,6 +24,9 @@ func (controller *Controller) createWorker(ctx *gin.Context) responder.Responder
 
 	if worker.Name == "" {
 		return responder.JSON(http.StatusPreconditionFailed, NewErrorResponse("worker name is empty"))
+	} else if err := simplename.Validate(worker.Name); err != nil {
+		return responder.JSON(http.StatusPreconditionFailed,
+			NewErrorResponse("worker name %v", err))
 	}
 
 	currentTime := time.Now()
