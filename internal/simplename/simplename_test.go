@@ -7,7 +7,7 @@ import (
 )
 
 func TestValidate(t *testing.T) {
-	require.NoError(t, simplename.Validate("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-_."))
+	require.NoError(t, simplename.Validate("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz:-_."))
 	require.NoError(t, simplename.Validate("vm-1"))
 	require.NoError(t, simplename.Validate("vm_2"))
 	require.NoError(t, simplename.Validate("host.local"))
