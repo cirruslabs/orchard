@@ -22,6 +22,7 @@ var bootstrapTokenRaw string
 var logFilePath string
 var stringToStringResources map[string]string
 var noPKI bool
+var debug bool
 
 func newRunCommand() *cobra.Command {
 	cmd := &cobra.Command{
@@ -41,6 +42,7 @@ func newRunCommand() *cobra.Command {
 		"do not use the host's root CA set and instead validate the Controller's presented "+
 			"certificate using a bootstrap token (or manually via fingerprint, "+
 			"if no bootstrap token is provided)")
+	cmd.PersistentFlags().BoolVar(&debug, "debug", false, "enable debug logging")
 
 	return cmd
 }
@@ -89,7 +91,6 @@ func runWorker(cmd *cobra.Command, args []string) (err error) {
 	if err != nil {
 		return err
 	}
-
 	defer func() {
 		if syncErr := logger.Sync(); syncErr != nil && err == nil {
 			err = syncErr
@@ -109,8 +110,16 @@ func runWorker(cmd *cobra.Command, args []string) (err error) {
 }
 
 func createLogger() (*zap.Logger, error) {
+	level := zap.InfoLevel
+	if debug {
+		level = zap.DebugLevel
+	}
+
 	if logFilePath == "" {
-		return zap.NewProduction()
+		zapConfig := zap.NewProductionConfig()
+		zapConfig.Level = zap.NewAtomicLevelAt(level)
+
+		return zapConfig.Build()
 	}
 
 	logFileWriter := zapcore.AddSync(&lumberjack.Logger{
@@ -120,7 +129,7 @@ func createLogger() (*zap.Logger, error) {
 	core := zapcore.NewCore(
 		zapcore.NewJSONEncoder(zap.NewProductionEncoderConfig()),
 		logFileWriter,
-		zap.InfoLevel,
+		level,
 	)
 	return zap.New(core), nil
 }

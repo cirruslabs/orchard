@@ -17,6 +17,7 @@ var ErrRunFailed = errors.New("failed to run controller")
 var BootstrapAdminAccountName = "bootstrap-admin"
 
 var address string
+var debug bool
 
 func newRunCommand() *cobra.Command {
 	cmd := &cobra.Command{
@@ -31,6 +32,7 @@ func newRunCommand() *cobra.Command {
 	}
 
 	cmd.PersistentFlags().StringVarP(&address, "listen", "l", fmt.Sprintf(":%s", port), "address to listen on")
+	cmd.PersistentFlags().BoolVar(&debug, "debug", false, "enable debug logging")
 
 	// flags for auto-init if necessary
 	// this simplifies the user experience to run the controller in serverless environments
@@ -46,7 +48,11 @@ func newRunCommand() *cobra.Command {
 
 func runController(cmd *cobra.Command, args []string) (err error) {
 	// Initialize the logger
-	logger, err := zap.NewProduction()
+	zapConfig := zap.NewProductionConfig()
+	if debug {
+		zapConfig.Level = zap.NewAtomicLevelAt(zap.DebugLevel)
+	}
+	logger, err := zapConfig.Build()
 	if err != nil {
 		return err
 	}
@@ -55,6 +61,12 @@ func runController(cmd *cobra.Command, args []string) (err error) {
 			err = syncErr
 		}
 	}()
+
+	// Redirect standard's library package-global logger
+	// to our zap logger at debug level
+	if _, err := zap.RedirectStdLogAt(logger, zap.DebugLevel); err != nil {
+		return err
+	}
 
 	// Instantiate a data directory and ensure it's initialized
 	dataDir, err := controller.NewDataDir(dataDirPath)
