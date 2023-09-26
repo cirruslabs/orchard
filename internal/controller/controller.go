@@ -100,6 +100,7 @@ func New(opts ...Option) (*Controller, error) {
 		return nil, err
 	}
 	controller.store = store
+	controller.workerNotifier = notifier.NewNotifier(controller.logger.With("component", "rpc"))
 	controller.scheduler = scheduler.NewScheduler(store, controller.workerNotifier,
 		controller.workerOfflineTimeout, controller.logger)
 
@@ -112,8 +113,6 @@ func New(opts ...Option) (*Controller, error) {
 	} else {
 		controller.listener = listener
 	}
-
-	controller.workerNotifier = notifier.NewNotifier(controller.logger.With("component", "rpc"))
 
 	apiServer := controller.initAPI()
 
