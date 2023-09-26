@@ -58,7 +58,6 @@ type Controller struct {
 
 func New(opts ...Option) (*Controller, error) {
 	controller := &Controller{
-		workerNotifier:       notifier.NewNotifier(),
 		proxy:                proxy.NewProxy(),
 		workerOfflineTimeout: 3 * time.Minute,
 		maxWorkersPerLicense: maxWorkersPerDefaultLicense,
@@ -113,6 +112,8 @@ func New(opts ...Option) (*Controller, error) {
 	} else {
 		controller.listener = listener
 	}
+
+	controller.workerNotifier = notifier.NewNotifier(controller.logger.With("component", "rpc"))
 
 	apiServer := controller.initAPI()
 

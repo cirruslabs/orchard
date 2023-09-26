@@ -21,6 +21,8 @@ import (
 )
 
 func (worker *Worker) watchRPC(ctx context.Context) error {
+	worker.logger.Infof("connecting to %s over gRPC", worker.client.GRPCTarget())
+
 	conn, err := grpc.Dial(worker.client.GRPCTarget(),
 		grpc.WithTransportCredentials(worker.client.GRPCTransportCredentials()),
 		grpc.WithKeepaliveParams(keepalive.ClientParameters{
@@ -31,6 +33,8 @@ func (worker *Worker) watchRPC(ctx context.Context) error {
 		return err
 	}
 
+	worker.logger.Infof("gRPC connection established, starting gRPC stream with the controller")
+
 	client := rpc.NewControllerClient(conn)
 
 	ctxWithMetadata := metadata.NewOutgoingContext(ctx, worker.grpcMetadata())
@@ -39,6 +43,8 @@ func (worker *Worker) watchRPC(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+
+	worker.logger.Infof("running gRPC stream with the controller")
 
 	for {
 		watchFromController, err := stream.Recv()

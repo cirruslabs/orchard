@@ -6,6 +6,7 @@ import (
 	"github.com/cirruslabs/orchard/internal/controller/notifier"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 	"sync"
 	"testing"
 	"time"
@@ -14,7 +15,7 @@ import (
 func TestNotifier(t *testing.T) {
 	ctx := context.Background()
 
-	notifier := notifier.NewNotifier()
+	notifier := notifier.NewNotifier(zap.NewNop().Sugar())
 
 	var topic = uuid.New().String()
 
