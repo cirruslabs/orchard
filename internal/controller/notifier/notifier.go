@@ -6,12 +6,14 @@ import (
 	"fmt"
 	"github.com/cirruslabs/orchard/internal/concurrentmap"
 	"github.com/cirruslabs/orchard/rpc"
+	"go.uber.org/zap"
 )
 
 var ErrNoWorker = errors.New("no worker registered with this name")
 
 type Notifier struct {
 	workers *concurrentmap.ConcurrentMap[*WorkerSlot]
+	logger  *zap.SugaredLogger
 }
 
 type WorkerSlot struct {
@@ -19,9 +21,10 @@ type WorkerSlot struct {
 	ch  chan *rpc.WatchInstruction
 }
 
-func NewNotifier() *Notifier {
+func NewNotifier(logger *zap.SugaredLogger) *Notifier {
 	return &Notifier{
 		workers: concurrentmap.NewConcurrentMap[*WorkerSlot](),
+		logger:  logger,
 	}
 }
 
@@ -29,12 +32,14 @@ func (watcher *Notifier) Register(ctx context.Context, worker string) (chan *rpc
 	subCtx, cancel := context.WithCancel(ctx)
 	workerCh := make(chan *rpc.WatchInstruction)
 
+	watcher.logger.Debugf("registering worker %s", worker)
 	watcher.workers.Store(worker, &WorkerSlot{
 		ctx: subCtx,
 		ch:  workerCh,
 	})
 
 	return workerCh, func() {
+		watcher.logger.Debugf("deleting worker %s", worker)
 		watcher.workers.Delete(worker)
 		cancel()
 	}

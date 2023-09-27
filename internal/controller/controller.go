@@ -58,7 +58,6 @@ type Controller struct {
 
 func New(opts ...Option) (*Controller, error) {
 	controller := &Controller{
-		workerNotifier:       notifier.NewNotifier(),
 		proxy:                proxy.NewProxy(),
 		workerOfflineTimeout: 3 * time.Minute,
 		maxWorkersPerLicense: maxWorkersPerDefaultLicense,
@@ -101,6 +100,7 @@ func New(opts ...Option) (*Controller, error) {
 		return nil, err
 	}
 	controller.store = store
+	controller.workerNotifier = notifier.NewNotifier(controller.logger.With("component", "rpc"))
 	controller.scheduler = scheduler.NewScheduler(store, controller.workerNotifier,
 		controller.workerOfflineTimeout, controller.logger)
 
