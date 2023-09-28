@@ -54,10 +54,10 @@ func runDev(cmd *cobra.Command, args []string) error {
 	devController, devWorker, err := CreateDevControllerAndWorker(devDataDirPath,
 		fmt.Sprintf(":%d", netconstants.DefaultControllerPort), resources,
 		nil, nil)
-
 	if err != nil {
 		return err
 	}
+	defer devWorker.Close()
 
 	errChan := make(chan error, 2)
 
