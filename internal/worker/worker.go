@@ -86,10 +86,7 @@ func (worker *Worker) Run(ctx context.Context) error {
 func (worker *Worker) Close() error {
 	var result error
 	for _, vm := range worker.vmm.List() {
-		err := vm.Stop()
-		if err != nil {
-			result = multierror.Append(result, err)
-		}
+		vm.Stop()
 	}
 	for _, vm := range worker.vmm.List() {
 		err := vm.Delete()
@@ -188,6 +185,7 @@ func (worker *Worker) updateWorker(ctx context.Context) error {
 	return nil
 }
 
+//nolint:nestif // nested "if" complexity is tolerable for now
 func (worker *Worker) syncVMs(ctx context.Context) error {
 	remoteVMs, err := worker.client.VMs().FindForWorker(ctx, worker.name)
 	if err != nil {
@@ -201,6 +199,10 @@ func (worker *Worker) syncVMs(ctx context.Context) error {
 	worker.logger.Infof("syncing %d local VMs against %d remote VMs...",
 		len(remoteVMsIndex), worker.vmm.Len())
 
+	// It's important to check the remote VMs against local ones first
+	// to stop the failed VMs before we start the new VMs, otherwise we
+	// risk violating the resource constraints (e.g. a maximum of 2 VMs
+	// per host)
 	for _, vm := range worker.vmm.List() {
 		remoteVM, ok := remoteVMsIndex[vm.OnDiskName()]
 		if !ok {
@@ -211,12 +213,22 @@ func (worker *Worker) syncVMs(ctx context.Context) error {
 			if err := worker.deleteVM(vm); err != nil {
 				return err
 			}
-		} else if remoteVM.Status != v1.VMStatusFailed && vm.Err() != nil {
-			// Local VM has failed, update remote VM
-			remoteVM.Status = v1.VMStatusFailed
-			remoteVM.StatusMessage = vm.Err().Error()
-			if _, err := worker.client.VMs().Update(ctx, remoteVM); err != nil {
-				return err
+		} else {
+			if remoteVM.Status == v1.VMStatusFailed {
+				// VM has failed on the remote side, stop it locally to prevent incorrect
+				// worker's resources calculation in the Controller's scheduler
+				vm.Stop()
+			} else if vm.Err() != nil {
+				// VM has failed on the local side, stop it before reporting as failed to prevent incorrect
+				// worker's resources calculation in the Controller's scheduler
+				vm.Stop()
+
+				// Report the VM as failed
+				remoteVM.Status = v1.VMStatusFailed
+				remoteVM.StatusMessage = vm.Err().Error()
+				if _, err := worker.client.VMs().Update(ctx, remoteVM); err != nil {
+					return err
+				}
 			}
 		}
 	}
@@ -293,9 +305,7 @@ func (worker *Worker) syncOnDiskVMs(ctx context.Context) error {
 }
 
 func (worker *Worker) deleteVM(vm *vmmanager.VM) error {
-	if err := vm.Stop(); err != nil {
-		return err
-	}
+	vm.Stop()
 
 	if err := vm.Delete(); err != nil {
 		return err

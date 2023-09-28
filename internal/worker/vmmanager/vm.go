@@ -190,22 +190,23 @@ func (vm *VM) IP(ctx context.Context) (string, error) {
 	return strings.TrimSpace(stdout), nil
 }
 
-func (vm *VM) Stop() error {
+func (vm *VM) Stop() {
 	if !vm.cloned {
-		return nil
+		return
 	}
 
 	vm.logger.Debugf("stopping VM")
 
-	_, _, _ = tart.Tart(context.Background(), vm.logger, "stop", vm.id())
+	_, _, err := tart.Tart(context.Background(), vm.logger, "stop", vm.id())
+	if err != nil {
+		vm.logger.Warnf("failed to stop VM: %v", err)
+	}
 
 	vm.logger.Debugf("VM stopped")
 
 	vm.cancel()
 
 	vm.wg.Wait()
-
-	return nil
 }
 
 func (vm *VM) Delete() error {
