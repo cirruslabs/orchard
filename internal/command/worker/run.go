@@ -105,6 +105,7 @@ func runWorker(cmd *cobra.Command, args []string) (err error) {
 	if err != nil {
 		return err
 	}
+	defer workerInstance.Close()
 
 	return workerInstance.Run(cmd.Context())
 }
