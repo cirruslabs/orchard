@@ -250,6 +250,7 @@ func (worker *Worker) syncVMs(ctx context.Context) error {
 	return nil
 }
 
+//nolint:nestif,gocognit // complexity is tolerable for now
 func (worker *Worker) syncOnDiskVMs(ctx context.Context) error {
 	remoteVMs, err := worker.client.VMs().FindForWorker(ctx, worker.name)
 	if err != nil {
@@ -268,10 +269,6 @@ func (worker *Worker) syncOnDiskVMs(ctx context.Context) error {
 	}
 
 	for _, vmInfo := range vmInfos {
-		if vmInfo.Running {
-			continue
-		}
-
 		onDiskName, err := ondiskname.Parse(vmInfo.Name)
 		if err != nil {
 			if errors.Is(err, ondiskname.ErrNotManagedByOrchard) {
@@ -281,22 +278,44 @@ func (worker *Worker) syncOnDiskVMs(ctx context.Context) error {
 			return err
 		}
 
+		// VMs that exist in the Worker's VM manager will be handled in the syncVMs()
+		if worker.vmm.Exists(onDiskName) {
+			continue
+		}
+
 		remoteVM, ok := remoteVMsIndex[onDiskName]
 		if !ok {
-			// On-disk VM doesn't exist on the controller, delete it
+			// On-disk VM doesn't exist on the controller nor in the Worker's VM manager,
+			// stop it (if applicable) and delete it
+			if vmInfo.Running {
+				_, _, err := tart.Tart(ctx, worker.logger, "stop", vmInfo.Name)
+				if err != nil {
+					worker.logger.Warnf("failed to stop")
+				}
+			}
+
 			_, _, err := tart.Tart(ctx, worker.logger, "delete", vmInfo.Name)
 			if err != nil {
 				return err
 			}
-		} else if remoteVM.Status == v1.VMStatusRunning && !worker.vmm.Exists(onDiskName) {
-			// On-disk VM exist on the controller,
-			// but we don't know about it, so
-			// mark it as failed
-			remoteVM.Status = v1.VMStatusFailed
-			remoteVM.StatusMessage = "Worker lost track of VM"
-			_, err := worker.client.VMs().Update(ctx, remoteVM)
-			if err != nil {
-				return err
+		} else if remoteVM.Status != v1.VMStatusPending {
+			// On-disk VM exists on the controller and was acted upon,
+			// but we've lost track of it, so shut it down (if applicable)
+			// and report the error (if not failed yet)
+			if vmInfo.Running {
+				_, _, err := tart.Tart(ctx, worker.logger, "stop", vmInfo.Name)
+				if err != nil {
+					worker.logger.Warnf("failed to stop")
+				}
+			}
+
+			if remoteVM.Status != v1.VMStatusFailed {
+				remoteVM.Status = v1.VMStatusFailed
+				remoteVM.StatusMessage = "Worker lost track of VM"
+				_, err := worker.client.VMs().Update(ctx, remoteVM)
+				if err != nil {
+					return err
+				}
 			}
 		}
 	}
