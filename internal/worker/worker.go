@@ -197,7 +197,7 @@ func (worker *Worker) syncVMs(ctx context.Context) error {
 	}
 
 	worker.logger.Infof("syncing %d local VMs against %d remote VMs...",
-		len(remoteVMsIndex), worker.vmm.Len())
+		worker.vmm.Len(), len(remoteVMsIndex))
 
 	// It's important to check the remote VMs against local ones first
 	// to stop the failed VMs before we start the new VMs, otherwise we
