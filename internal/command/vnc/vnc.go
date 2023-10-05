@@ -8,7 +8,7 @@ func NewCommand() *cobra.Command {
 		Short: "Open VNC session with the resource",
 	}
 
-	command.AddCommand(newVNCVMCommand())
+	command.AddCommand(newVNCVMCommand(), newVNCWorkerCommand())
 
 	return command
 }

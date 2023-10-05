@@ -15,7 +15,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#components/schemas/ControllerInfo'
+                $ref: '#/components/schemas/ControllerInfo'
   /cluster-settings:
     get:
       summary: "Retrieve cluster settings"
@@ -27,7 +27,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#components/schemas/ClusterSettings'
+                $ref: '#/components/schemas/ClusterSettings'
     put:
       summary: "Update cluster settings"
       tags:
@@ -38,7 +38,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#components/schemas/ClusterSettings'
+                $ref: '#/components/schemas/ClusterSettings'
   /service-accounts:
     post:
       summary: "Create a Service Account"
@@ -50,7 +50,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#components/schemas/ServiceAccount'
+                $ref: '#/components/schemas/ServiceAccount'
         '409':
           description: Service Account resource with with the same name already exists
     get:
@@ -65,7 +65,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#components/schemas/ServiceAccount'
+                  $ref: '#/components/schemas/ServiceAccount'
   /service-accounts/{name}:
     get:
       summary: "Retrieve a Service Account"
@@ -77,7 +77,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#components/schemas/ServiceAccount'
+                $ref: '#/components/schemas/ServiceAccount'
         '404':
           description: Service Account resource with the given name doesn't exist
     put:
@@ -90,7 +90,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#components/schemas/ServiceAccount'
+                $ref: '#/components/schemas/ServiceAccount'
         '404':
           description: Service Account resource with the given name doesn't exist
     delete:
@@ -113,7 +113,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#components/schemas/Worker'
+                $ref: '#/components/schemas/Worker'
         '409':
           description: Worker resource with with the same name already exists
     get:
@@ -128,7 +128,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#components/schemas/Worker'
+                  $ref: '#/components/schemas/Worker'
   /workers/{name}:
     get:
       summary: "Retrieve a Worker"
@@ -140,7 +140,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#components/schemas/Worker'
+                $ref: '#/components/schemas/Worker'
         '404':
           description: Worker resource with the given name doesn't exist
     put:
@@ -153,7 +153,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#components/schemas/Worker'
+                $ref: '#/components/schemas/Worker'
         '404':
           description: Worker resource with the given name doesn't exist
     delete:
@@ -165,6 +165,35 @@ paths:
           description: Worker resource was successfully deleted
         '404':
           description: Worker resource with the given name doesn't exist
+  /workers/{name}/port-forward:
+    get:
+      summary: "Port-forward to a worker using WebSocket protocol"
+      tags:
+        - workers
+      parameters:
+        - in: query
+          name: port
+          description: Worker's TCP port number to connect to
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 65535
+          required: true
+        - in: header
+          name: Connection
+          description: WebSocket protocol required header
+          required: true
+        - in: header
+          name: Upgrade
+          description: WebSocket protocol required header
+          required: true
+      responses:
+        '400':
+          description: Invalid port specified
+        '404':
+          description: Worker resource with the given name doesn't exist
+        '503':
+          description: Failed to establish connection with the requested worker
   /vms:
     post:
       summary: "Create a VM"
@@ -176,7 +205,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#components/schemas/VM'
+                $ref: '#/components/schemas/VM'
         '409':
           description: VM resource with with the same name already exists
     get:
@@ -191,7 +220,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#components/schemas/VM'
+                  $ref: '#/components/schemas/VM'
   /vms/{name}:
     get:
       summary: "Retrieve a VM"
@@ -203,7 +232,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#components/schemas/VM'
+                $ref: '#/components/schemas/VM'
         '404':
           description: VM resource with the given name doesn't exist
     put:
@@ -216,7 +245,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#components/schemas/VM'
+                $ref: '#/components/schemas/VM'
         '404':
           description: VM resource with the given name doesn't exist
     delete:
@@ -239,7 +268,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#components/schemas/Events'
+                $ref: '#/components/schemas/Events'
         '404':
           description: VM resource with the given name doesn't exist
     post:
@@ -252,7 +281,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#components/schemas/Events'
+                $ref: '#/components/schemas/Events'
         '404':
           description: VM resource with the given name doesn't exist
   /vms/{name}/port-forward:
@@ -339,7 +368,7 @@ components:
       title: Events
       type: object
       items:
-        $ref: '#components/schemas/Event'
+        $ref: '#/components/schemas/Event'
     Event:
       title: Generic Resource Event
       type: object

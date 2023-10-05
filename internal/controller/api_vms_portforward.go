@@ -47,23 +47,34 @@ func (controller *Controller) portForwardVM(ctx *gin.Context) responder.Responde
 		return responderImpl
 	}
 
+	// Commence port-forwarding
+	return controller.portForward(ctx, vm.Worker, vm.UID, uint32(port))
+}
+
+func (controller *Controller) portForward(
+	ctx *gin.Context,
+	workerName string,
+	vmUID string,
+	port uint32,
+) responder.Responder {
 	// Request and wait for a connection with a worker
 	session := uuid.New().String()
 	boomerangConnCh, cancel := controller.proxy.Request(ctx, session)
 	defer cancel()
 
 	// send request to worker to initiate port-forwarding connection back to us
-	err = controller.workerNotifier.Notify(ctx, vm.Worker, &rpc.WatchInstruction{
+	err := controller.workerNotifier.Notify(ctx, workerName, &rpc.WatchInstruction{
 		Action: &rpc.WatchInstruction_PortForwardAction{
 			PortForwardAction: &rpc.WatchInstruction_PortForward{
 				Session: session,
-				VmUid:   vm.UID,
-				VmPort:  uint32(port),
+				VmUid:   vmUID,
+				Port:    port,
 			},
 		},
 	})
 	if err != nil {
-		controller.logger.Warnf("failed to request port-forwarding from the worker %s: %v", vm.Worker, err)
+		controller.logger.Warnf("failed to request port-forwarding from the worker %s: %v",
+			workerName, err)
 
 		return responder.Code(http.StatusServiceUnavailable)
 	}

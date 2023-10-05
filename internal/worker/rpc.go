@@ -81,26 +81,33 @@ func (worker *Worker) handlePortForward(
 		return
 	}
 
-	// Obtain VM
-	vm, ok := lo.Find(worker.vmm.List(), func(item *vmmanager.VM) bool {
-		return item.Resource.UID == portForwardAction.VmUid
-	})
-	if !ok {
-		worker.logger.Warnf("port forwarding failed: failed to get the VM: %v", err)
+	var host string
 
-		return
-	}
+	if portForwardAction.VmUid == "" {
+		// Port-forwarding request to a worker
+		host = "localhost"
+	} else {
+		// Port-forwarding request to a VM, find that VM
+		vm, ok := lo.Find(worker.vmm.List(), func(item *vmmanager.VM) bool {
+			return item.Resource.UID == portForwardAction.VmUid
+		})
+		if !ok {
+			worker.logger.Warnf("port forwarding failed: failed to get the VM: %v", err)
 
-	// Obtain VM's IP address
-	ip, err := vm.IP(ctx)
-	if err != nil {
-		worker.logger.Warnf("port forwarding failed: failed to get VM's IP: %v", err)
+			return
+		}
 
-		return
+		// Obtain VM's IP address
+		host, err = vm.IP(ctx)
+		if err != nil {
+			worker.logger.Warnf("port forwarding failed: failed to get VM's IP: %v", err)
+
+			return
+		}
 	}
 
 	// Connect to the VM's port
-	vmConn, err := net.Dial("tcp", fmt.Sprintf("%s:%d", ip, portForwardAction.VmPort))
+	vmConn, err := net.Dial("tcp", fmt.Sprintf("%s:%d", host, portForwardAction.Port))
 	if err != nil {
 		worker.logger.Warnf("port forwarding failed: failed to connect to the VM: %v", err)
 
