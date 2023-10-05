@@ -9,7 +9,7 @@ import (
 func TestPortSpecNormal(t *testing.T) {
 	portSpec, err := portforward.NewPortSpec("5555")
 	require.NoError(t, err)
-	require.Equal(t, &portforward.PortSpec{LocalPort: 5555, RemotePort: 5555}, portSpec)
+	require.Equal(t, &portforward.PortSpec{LocalPort: 0, RemotePort: 5555}, portSpec)
 
 	portSpec, err = portforward.NewPortSpec("8000:80")
 	require.NoError(t, err)
