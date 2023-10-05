@@ -271,10 +271,10 @@ func (client *Client) wsRequest(
 	if err != nil {
 		if resp != nil {
 			_ = resp.Body.Close()
-		}
 
-		if resp.StatusCode == http.StatusNotFound {
-			err = fmt.Errorf("%w (are you sure this VM exists on the controller?)", err)
+			if resp.StatusCode == http.StatusNotFound {
+				err = fmt.Errorf("%w (are you sure this VM exists on the controller?)", err)
+			}
 		}
 
 		return nil, err
