@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"github.com/cirruslabs/orchard/pkg/resource/v1"
+	"net"
 	"net/http"
 	"net/url"
+	"strconv"
 )
 
 type WorkersService struct {
@@ -64,4 +66,15 @@ func (service *WorkersService) Delete(ctx context.Context, name string) error {
 	}
 
 	return nil
+}
+
+func (service *WorkersService) PortForward(
+	ctx context.Context,
+	name string,
+	port uint16,
+) (net.Conn, error) {
+	return service.client.wsRequest(ctx, fmt.Sprintf("workers/%s/port-forward", url.PathEscape(name)),
+		map[string]string{
+			"port": strconv.FormatUint(uint64(port), 10),
+		})
 }

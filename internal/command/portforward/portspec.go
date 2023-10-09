@@ -17,31 +17,47 @@ type PortSpec struct {
 func NewPortSpec(portSpecRaw string) (*PortSpec, error) {
 	splits := strings.Split(portSpecRaw, ":")
 
-	if len(splits) > 2 {
-		return nil, fmt.Errorf("%w: expected no more than 2 components delimited by \":\", found %d",
-			ErrInvalidPortSpec, len(splits))
-	}
-
-	localPort, err := strconv.ParseUint(splits[0], 10, 16)
-	if err != nil {
-		return nil, err
-	}
-
-	remotePort := localPort
-
-	if len(splits) > 1 {
-		remotePort, err = strconv.ParseUint(splits[1], 10, 16)
+	switch len(splits) {
+	case 1:
+		remotePort, err := parsePort(splits[0])
 		if err != nil {
 			return nil, err
 		}
+
+		return &PortSpec{
+			LocalPort:  0,
+			RemotePort: remotePort,
+		}, nil
+	case 2:
+		localPort, err := parsePort(splits[0])
+		if err != nil {
+			return nil, err
+		}
+
+		remotePort, err := parsePort(splits[1])
+		if err != nil {
+			return nil, err
+		}
+
+		return &PortSpec{
+			LocalPort:  localPort,
+			RemotePort: remotePort,
+		}, nil
+	default:
+		return nil, fmt.Errorf("%w: expected 1 or 2 components delimited by \":\", found %d",
+			ErrInvalidPortSpec, len(splits))
+	}
+}
+
+func parsePort(s string) (uint16, error) {
+	port, err := strconv.ParseUint(s, 10, 16)
+	if err != nil {
+		return 0, err
 	}
 
-	if localPort < 1 || remotePort < 1 || localPort > 65535 || remotePort > 65535 {
-		return nil, fmt.Errorf("%w: only ports in range [1, 65535] are allowed", ErrInvalidPortSpec)
+	if port < 1 || port > 65535 {
+		return 0, fmt.Errorf("%w: only ports in range [1, 65535] are allowed", ErrInvalidPortSpec)
 	}
 
-	return &PortSpec{
-		LocalPort:  uint16(localPort),
-		RemotePort: uint16(remotePort),
-	}, nil
+	return uint16(port), nil
 }

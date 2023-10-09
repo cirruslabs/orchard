@@ -8,7 +8,7 @@ func NewCommand() *cobra.Command {
 		Short: "Forward TCP port to the resources",
 	}
 
-	command.AddCommand(newPortForwardVMCommand())
+	command.AddCommand(newPortForwardVMCommand(), newPortForwardWorkerCommand())
 
 	return command
 }

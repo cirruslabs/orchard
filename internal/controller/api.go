@@ -98,6 +98,9 @@ func (controller *Controller) initAPI() *gin.Engine {
 	v1.GET("/workers", func(c *gin.Context) {
 		controller.listWorkers(c).Respond(c)
 	})
+	v1.GET("/workers/:name/port-forward", func(c *gin.Context) {
+		controller.portForwardWorker(c).Respond(c)
+	})
 	v1.DELETE("/workers/:name", func(c *gin.Context) {
 		controller.deleteWorker(c).Respond(c)
 	})
