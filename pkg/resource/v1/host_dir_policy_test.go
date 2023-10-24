@@ -69,5 +69,6 @@ func TestHTTPHostDirPolicyString(t *testing.T) {
 		PathPrefix: "https://github.com/actions/runner/releases/download",
 		ReadOnly:   false,
 	}, policy)
+	//nolint: lll
 	require.True(t, policy.Validate("https://github.com/actions/runner/releases/download/v2.309.0/actions-runner-osx-arm64-2.309.0.tar.gz", false))
 }
