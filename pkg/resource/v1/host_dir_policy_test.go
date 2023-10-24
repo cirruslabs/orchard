@@ -61,3 +61,13 @@ func TestHostDirPolicyString(t *testing.T) {
 	policyRo := &v1.HostDirPolicy{PathPrefix: "/Users/ci/src", ReadOnly: true}
 	require.EqualValues(t, "/Users/ci/src:ro", policyRo.String())
 }
+
+func TestHTTPHostDirPolicyString(t *testing.T) {
+	policy, err := v1.NewHostDirPolicyFromString("https://github.com/actions/runner/releases/download")
+	require.NoError(t, err)
+	require.EqualValues(t, v1.HostDirPolicy{
+		PathPrefix: "https://github.com/actions/runner/releases/download",
+		ReadOnly:   false,
+	}, policy)
+	require.True(t, policy.Validate("https://github.com/actions/runner/releases/download/v2.309.0/actions-runner-osx-arm64-2.309.0.tar.gz", false))
+}
