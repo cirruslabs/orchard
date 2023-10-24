@@ -14,6 +14,13 @@ type HostDirPolicy struct {
 }
 
 func NewHostDirPolicyFromString(s string) (HostDirPolicy, error) {
+	if strings.HasPrefix(s, "http://") || strings.HasPrefix(s, "https://") {
+		return HostDirPolicy{
+			PathPrefix: strings.TrimSuffix(s, ":ro"),
+			ReadOnly:   strings.HasSuffix(s, ":ro"),
+		}, nil
+	}
+
 	parts := strings.Split(s, ":")
 
 	if len(parts) > 2 {
