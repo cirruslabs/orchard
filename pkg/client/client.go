@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/cirruslabs/orchard/internal/config"
-	"github.com/cirruslabs/orchard/internal/netconstants"
 	"github.com/cirruslabs/orchard/internal/version"
 	"github.com/cirruslabs/orchard/rpc"
 	"google.golang.org/grpc/credentials"
@@ -69,7 +68,10 @@ func New(opts ...Option) (*Client, error) {
 		client.tlsConfig = &tls.Config{
 			MinVersion: tls.VersionTLS12,
 			RootCAs:    privatePool,
-			ServerName: netconstants.DefaultControllerServerName,
+		}
+
+		if len(client.trustedCertificate.DNSNames) != 0 {
+			client.tlsConfig.ServerName = client.trustedCertificate.DNSNames[0]
 		}
 	}
 
@@ -170,10 +172,7 @@ func (client *Client) request(
 		body = bytes.NewBuffer(jsonBytes)
 	}
 
-	endpointURL, err := client.parsePath(path)
-	if err != nil {
-		return err
-	}
+	endpointURL := client.formatPath(path)
 
 	values := endpointURL.Query()
 	for key, value := range params {
@@ -242,10 +241,7 @@ func (client *Client) wsRequest(
 	path string,
 	params map[string]string,
 ) (net.Conn, error) {
-	endpointURL, err := client.parsePath(path)
-	if err != nil {
-		return nil, err
-	}
+	endpointURL := client.formatPath(path)
 
 	// Adapt HTTP scheme to WebSocket scheme
 	if client.insecure {
@@ -283,19 +279,14 @@ func (client *Client) wsRequest(
 	return websocket.NetConn(ctx, conn, websocket.MessageBinary), nil
 }
 
-func (client *Client) parsePath(path string) (*url.URL, error) {
-	endpointURL, err := url.Parse("v1/" + path)
-	if err != nil {
-		return nil, fmt.Errorf("%w to parse API endpoint path: %v", ErrFailed, err)
+func (client *Client) formatPath(path string) *url.URL {
+	endpointURL := &url.URL{
+		Scheme: client.baseURL.Scheme,
+		User:   client.baseURL.User,
+		Host:   client.baseURL.Host,
 	}
 
-	return &url.URL{
-		Scheme:  client.baseURL.Scheme,
-		User:    client.baseURL.User,
-		Host:    client.baseURL.Host,
-		Path:    endpointURL.Path,
-		RawPath: endpointURL.RawPath,
-	}, nil
+	return endpointURL.JoinPath("v1", path)
 }
 
 func (client *Client) modifyHeader(header http.Header) {
