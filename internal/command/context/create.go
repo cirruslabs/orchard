@@ -113,13 +113,18 @@ func tryToConnectToTheController(
 	bootstrapToken *bootstraptoken.BootstrapToken,
 ) (*x509.Certificate, error) {
 	if !noPKI {
-		if err := tryToConnectWithPKI(ctx, controllerURL); err == nil {
+		fmt.Println("trying to connect to the controller using PKI and host's root CA set...")
+
+		err := tryToConnectWithPKI(ctx, controllerURL)
+		if err == nil {
 			// Connection successful and no certificate retrieval is needed
 			return nil, nil
 		} else if errors.Is(err, clientpkg.ErrAPI) {
 			// Makes no sense to go any further since it's an upper layer (HTTP, not TLS) error
 			return nil, err
 		}
+
+		fmt.Printf("PKI association failed (%v), falling back to trusted-certificate approach...\n", err)
 	}
 
 	return tryToConnectWithTrustedCertificate(ctx, controllerURL, bootstrapToken)
