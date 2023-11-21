@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/cirruslabs/orchard/internal/config"
-	"github.com/cirruslabs/orchard/internal/netconstants"
 	"github.com/cirruslabs/orchard/internal/version"
 	"github.com/cirruslabs/orchard/rpc"
 	"google.golang.org/grpc/credentials"
@@ -69,7 +68,10 @@ func New(opts ...Option) (*Client, error) {
 		client.tlsConfig = &tls.Config{
 			MinVersion: tls.VersionTLS12,
 			RootCAs:    privatePool,
-			ServerName: netconstants.DefaultControllerServerName,
+		}
+
+		if len(client.trustedCertificate.DNSNames) != 0 {
+			client.tlsConfig.ServerName = client.trustedCertificate.DNSNames[0]
 		}
 	}
 
