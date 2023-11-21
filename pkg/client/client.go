@@ -284,18 +284,13 @@ func (client *Client) wsRequest(
 }
 
 func (client *Client) parsePath(path string) (*url.URL, error) {
-	endpointURL, err := url.Parse("v1/" + path)
-	if err != nil {
-		return nil, fmt.Errorf("%w to parse API endpoint path: %v", ErrFailed, err)
+	endpointURL := &url.URL{
+		Scheme: client.baseURL.Scheme,
+		User:   client.baseURL.User,
+		Host:   client.baseURL.Host,
 	}
 
-	return &url.URL{
-		Scheme:  client.baseURL.Scheme,
-		User:    client.baseURL.User,
-		Host:    client.baseURL.Host,
-		Path:    endpointURL.Path,
-		RawPath: endpointURL.RawPath,
-	}, nil
+	return endpointURL.JoinPath("v1", path), nil
 }
 
 func (client *Client) modifyHeader(header http.Header) {
