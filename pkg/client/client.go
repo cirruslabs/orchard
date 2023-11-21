@@ -170,10 +170,7 @@ func (client *Client) request(
 		body = bytes.NewBuffer(jsonBytes)
 	}
 
-	endpointURL, err := client.parsePath(path)
-	if err != nil {
-		return err
-	}
+	endpointURL := client.formatPath(path)
 
 	values := endpointURL.Query()
 	for key, value := range params {
@@ -242,10 +239,7 @@ func (client *Client) wsRequest(
 	path string,
 	params map[string]string,
 ) (net.Conn, error) {
-	endpointURL, err := client.parsePath(path)
-	if err != nil {
-		return nil, err
-	}
+	endpointURL := client.formatPath(path)
 
 	// Adapt HTTP scheme to WebSocket scheme
 	if client.insecure {
@@ -283,14 +277,14 @@ func (client *Client) wsRequest(
 	return websocket.NetConn(ctx, conn, websocket.MessageBinary), nil
 }
 
-func (client *Client) parsePath(path string) (*url.URL, error) {
+func (client *Client) formatPath(path string) *url.URL {
 	endpointURL := &url.URL{
 		Scheme: client.baseURL.Scheme,
 		User:   client.baseURL.User,
 		Host:   client.baseURL.Host,
 	}
 
-	return endpointURL.JoinPath("v1", path), nil
+	return endpointURL.JoinPath("v1", path)
 }
 
 func (client *Client) modifyHeader(header http.Header) {
