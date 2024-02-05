@@ -20,6 +20,7 @@ import (
 	"net/http"
 	"net/url"
 	"nhooyr.io/websocket"
+	"time"
 )
 
 var (
@@ -77,6 +78,7 @@ func New(opts ...Option) (*Client, error) {
 
 	// Instantiate the HTTP client
 	client.httpClient = &http.Client{
+		Timeout: 30 * time.Second,
 		Transport: &http.Transport{
 			TLSClientConfig: client.tlsConfig,
 		},
