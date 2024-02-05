@@ -20,6 +20,7 @@ import (
 	"net/http"
 	"net/url"
 	"nhooyr.io/websocket"
+	"time"
 )
 
 var (
@@ -77,6 +78,11 @@ func New(opts ...Option) (*Client, error) {
 
 	// Instantiate the HTTP client
 	client.httpClient = &http.Client{
+		// The default is zero, which means no timeout, which means that
+		// the requests may hang indefinitely. See [1] for more details.
+		//
+		// [1]: https://github.com/cirruslabs/orchard/issues/152#issuecomment-1927091747
+		Timeout: 30 * time.Second,
 		Transport: &http.Transport{
 			TLSClientConfig: client.tlsConfig,
 		},
