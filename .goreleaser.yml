@@ -35,6 +35,9 @@ brews:
     tap:
       owner: cirruslabs
       name: homebrew-cli
+    install: |
+      bin.install "orchard"
+      generate_completions_from_executable(bin/"orchard", "completion")
     caveats: See the Github repository for more information
     homepage: https://github.com/cirruslabs/orchard
     description: Orchestrator for running Tart Virtual Machines on a cluster of Apple Silicon devices
