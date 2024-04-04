@@ -12,13 +12,19 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
+	"io"
+	"os"
+	"strings"
 )
 
-var ErrRunFailed = errors.New("failed to run worker")
-
-var ErrBootstrapTokenNotProvided = errors.New("no bootstrap token provided")
+var (
+	ErrRunFailed                   = errors.New("failed to run worker")
+	ErrNoBootstrapTokenProvided    = errors.New("no bootstrap token was provided")
+	ErrEmptyBootstrapTokenProvided = errors.New("empty bootstrap token was provided")
+)
 
 var bootstrapTokenRaw string
+var bootstrapTokenStdin bool
 var logFilePath string
 var stringToStringResources map[string]string
 var noPKI bool
@@ -33,7 +39,9 @@ func newRunCommand() *cobra.Command {
 	}
 
 	cmd.PersistentFlags().StringVar(&bootstrapTokenRaw, "bootstrap-token", "",
-		"a bootstrap token retrieved via `orchard get bootstrap-token <service-account-name-for-workers>`")
+		"a bootstrap token retrieved via \"orchard get bootstrap-token <service-account-name-for-workers>\"")
+	cmd.PersistentFlags().BoolVar(&bootstrapTokenStdin, "bootstrap-token-stdin", false,
+		"use this flag to provide a bootstrap token via the standard input")
 	cmd.PersistentFlags().StringVar(&logFilePath, "log-file", "",
 		"optional path to a file where logs (up to 100 Mb) will be written.")
 	cmd.PersistentFlags().StringToStringVar(&stringToStringResources, "resources", map[string]string{},
@@ -55,8 +63,12 @@ func runWorker(cmd *cobra.Command, args []string) (err error) {
 	}
 
 	// Parse bootstrap token
+	bootstrapTokenRaw, err := readBootstrapToken()
+	if err != nil {
+		return err
+	}
 	if bootstrapTokenRaw == "" {
-		return ErrBootstrapTokenNotProvided
+		return ErrEmptyBootstrapTokenProvided
 	}
 	bootstrapToken, err := bootstraptoken.NewFromString(bootstrapTokenRaw)
 	if err != nil {
@@ -108,6 +120,27 @@ func runWorker(cmd *cobra.Command, args []string) (err error) {
 	defer workerInstance.Close()
 
 	return workerInstance.Run(cmd.Context())
+}
+
+func readBootstrapToken() (string, error) {
+	if bootstrapTokenRaw != "" && bootstrapTokenStdin {
+		return "", fmt.Errorf("--bootstrap-token and --bootstrap-token-stdin are mutually exclusive")
+	}
+
+	if bootstrapTokenRaw != "" {
+		return bootstrapTokenRaw, nil
+	}
+
+	if bootstrapTokenStdin {
+		stdinBytes, err := io.ReadAll(os.Stdin)
+		if err != nil {
+			return "", fmt.Errorf("failed to read the bootstrap token from the standard input: %w", err)
+		}
+
+		return strings.TrimSuffix(string(stdinBytes), "\n"), nil
+	}
+
+	return "", ErrNoBootstrapTokenProvided
 }
 
 func createLogger() (*zap.Logger, error) {

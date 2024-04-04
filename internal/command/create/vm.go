@@ -18,6 +18,8 @@ var memory uint64
 var netSoftnet bool
 var netBridged string
 var headless bool
+var username string
+var password string
 var resources map[string]string
 var restartPolicy string
 var startupScript string
@@ -38,6 +40,10 @@ func newCreateVMCommand() *cobra.Command {
 	command.PersistentFlags().BoolVar(&netSoftnet, "net-softnet", false, "whether to use Softnet network isolation")
 	command.PersistentFlags().StringVar(&netBridged, "net-bridged", "", "whether to use Bridged network mode")
 	command.PersistentFlags().BoolVar(&headless, "headless", true, "whether to run without graphics")
+	command.PersistentFlags().StringVar(&username, "username", "admin",
+		"SSH username to use when executing a startup script on the VM")
+	command.PersistentFlags().StringVar(&password, "password", "admin",
+		"SSH password to use when executing a startup script on the VM")
 	command.PersistentFlags().StringToStringVar(&resources, "resources", map[string]string{},
 		"resources to request for this VM")
 	command.PersistentFlags().StringVar(&restartPolicy, "restart-policy", string(v1.RestartPolicyNever),
@@ -82,6 +88,8 @@ func runCreateVM(cmd *cobra.Command, args []string) error {
 		NetSoftnet: netSoftnet,
 		NetBridged: netBridged,
 		Headless:   headless,
+		Username:   username,
+		Password:   password,
 		HostDirs:   hostDirs,
 	}
 
