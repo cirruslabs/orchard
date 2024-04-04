@@ -24,7 +24,6 @@ linters:
     - gocyclo
     - godot
     - godox
-    - goerr113
     - gofmt
     - goheader
     - gomodguard
@@ -115,6 +114,9 @@ linters:
 
     # Needs package whitelists
     - depguard
+
+    # This is mostly a CLI tool, not a package, so it's OK to have dynamic errors
+    - goerr113
 
 issues:
   # Don't hide multiple issues that belong to one class since GitHub annotations can handle them all nicely.
