@@ -25,9 +25,19 @@ var ErrVMFailed = errors.New("VM failed")
 
 type VM struct {
 	onDiskName ondiskname.OnDiskName
-	cloned     bool
 	Resource   v1.VM
 	logger     *zap.SugaredLogger
+
+	// cloned state allows us to prevent a superfluous "tart delete" of a non-existent VM
+	cloned atomic.Bool
+
+	// started state allows us to only set VM's "status" field in the API
+	// to "running" when we're indeed about to start the VM
+	started atomic.Bool
+
+	// stopping state allows us to catch unexpected
+	// "tart run" terminations more correctly
+	stopping atomic.Bool
 
 	err atomic.Pointer[error]
 
@@ -38,7 +48,6 @@ type VM struct {
 }
 
 func NewVM(
-	ctx context.Context,
 	vmResource v1.VM,
 	eventStreamer *client.EventStreamer,
 	logger *zap.SugaredLogger,
@@ -60,48 +69,82 @@ func NewVM(
 		wg: &sync.WaitGroup{},
 	}
 
-	// Optionally pull and clone the VM so that `run` and `ip` will not be racing
-	vm.logger.Debugf("creating VM")
-
-	if vmResource.ImagePullPolicy == v1.ImagePullPolicyAlways {
-		_, _, err := tart.Tart(ctx, vm.logger, "pull", vm.Resource.Image)
-		if err != nil {
-			vm.setErr(fmt.Errorf("failed to pull the VM: %w", err))
-
-			return vm
-		}
-	}
-
-	if err := vm.cloneAndConfigure(ctx); err != nil {
-		vm.setErr(fmt.Errorf("failed to clone the VM: %w", err))
-
-		return vm
-	}
-	vm.cloned = true
-
 	vm.wg.Add(1)
 
 	go func() {
 		defer vm.wg.Done()
 
-		vm.logger.Debugf("spawned VM")
+		if vmResource.ImagePullPolicy == v1.ImagePullPolicyAlways {
+			vm.logger.Debugf("pulling VM")
 
-		if err := vm.run(vm.ctx); err != nil {
-			vm.setErr(fmt.Errorf("%w: %v", ErrVMFailed, err))
+			_, _, err := tart.Tart(vm.ctx, vm.logger, "pull", vm.Resource.Image)
+			if err != nil {
+				select {
+				case <-vm.ctx.Done():
+					// Do not return an error because it's the user's intent to cancel this VM operation
+				default:
+					vm.setErr(fmt.Errorf("failed to pull the VM: %w", err))
+				}
+
+				return
+			}
 		}
 
-		vm.setErr(fmt.Errorf("%w: VM exited unexpectedly", ErrVMFailed))
-	}()
+		vm.logger.Debugf("creating VM")
 
-	if vm.Resource.StartupScript != nil {
-		go vm.runScript(vm.Resource.StartupScript, eventStreamer)
-	}
+		if err := vm.cloneAndConfigure(vm.ctx); err != nil {
+			select {
+			case <-vm.ctx.Done():
+				// Do not return an error because it's the user's intent to cancel this VM operation
+			default:
+				vm.setErr(fmt.Errorf("failed to clone the VM: %w", err))
+			}
+
+			return
+		}
+
+		vm.cloned.Store(true)
+
+		vm.logger.Debugf("spawned VM")
+
+		// Launch the startup script goroutine as close as possible
+		// to the VM startup (below) to avoid "tart ip" timing out
+		if vm.Resource.StartupScript != nil {
+			go vm.runScript(vm.Resource.StartupScript, eventStreamer)
+		}
+
+		vm.started.Store(true)
+
+		if err := vm.run(vm.ctx); err != nil {
+			select {
+			case <-vm.ctx.Done():
+				// Do not return an error because it's the user's intent to cancel this VM
+			default:
+				vm.setErr(fmt.Errorf("%w: %v", ErrVMFailed, err))
+			}
+
+			return
+		}
+
+		select {
+		case <-vm.ctx.Done():
+			// Do not return an error because it's the user's intent to cancel this VM
+		default:
+			if !vm.stopping.Load() {
+				vm.setErr(fmt.Errorf("%w: VM exited unexpectedly", ErrVMFailed))
+			}
+		}
+	}()
 
 	return vm
 }
 
 func (vm *VM) OnDiskName() ondiskname.OnDiskName {
 	return vm.onDiskName
+}
+
+func (vm *VM) Started() bool {
+	return vm.started.Load()
 }
 
 func (vm *VM) id() string {
@@ -191,26 +234,22 @@ func (vm *VM) IP(ctx context.Context) (string, error) {
 }
 
 func (vm *VM) Stop() {
-	if !vm.cloned {
-		return
-	}
-
 	vm.logger.Debugf("stopping VM")
 
-	_, _, err := tart.Tart(context.Background(), vm.logger, "stop", vm.id())
-	if err != nil {
-		vm.logger.Warnf("failed to stop VM: %v", err)
-	}
+	vm.stopping.Store(true)
+
+	// Try to gracefully terminate the VM
+	_, _, _ = tart.Tart(context.Background(), zap.NewNop().Sugar(), "stop", "--timeout", "5", vm.id())
+
+	// Terminate the VM goroutine ("tart pull", "tart clone", "tart run", etc.) via the context
+	vm.cancel()
+	vm.wg.Wait()
 
 	vm.logger.Debugf("VM stopped")
-
-	vm.cancel()
-
-	vm.wg.Wait()
 }
 
 func (vm *VM) Delete() error {
-	if !vm.cloned {
+	if !vm.cloned.Load() {
 		return nil
 	}
 
@@ -352,7 +391,7 @@ func (vm *VM) runScript(script *v1.VMScript, eventStreamer *client.EventStreamer
 		})
 	}
 
-	err := vm.shell(context.Background(), vm.Resource.Username, vm.Resource.Password,
+	err := vm.shell(vm.ctx, vm.Resource.Username, vm.Resource.Password,
 		script.ScriptContent, script.Env, consumeLine)
 	if err != nil {
 		vm.setErr(fmt.Errorf("%w: failed to run startup script: %v", ErrVMFailed, err))

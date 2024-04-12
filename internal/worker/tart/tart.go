@@ -44,13 +44,18 @@ func Tart(
 		}
 
 		if exitErr, ok := err.(*exec.ExitError); ok {
-			logger.Warnf(
-				"'%s %s' failed with exit code %d: %s",
-				tartCommandName, strings.Join(args, " "),
-				exitErr.ExitCode(), firstNonEmptyLine(stderr.String(), stdout.String()),
-			)
-			// Tart command failed, redefine the error
-			// to be the Tart-specific output
+			select {
+			case <-ctx.Done():
+				// Do not log an error because it's the user's intent to cancel this VM operation
+			default:
+				logger.Warnf(
+					"'%s %s' failed with exit code %d: %s",
+					tartCommandName, strings.Join(args, " "),
+					exitErr.ExitCode(), firstNonEmptyLine(stderr.String(), stdout.String()),
+				)
+			}
+
+			// Tart command failed, redefine the error to be the Tart-specific output
 			err = fmt.Errorf("%w: %q", ErrTartFailed, firstNonEmptyLine(stderr.String(), stdout.String()))
 		}
 	}

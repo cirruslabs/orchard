@@ -236,14 +236,23 @@ func (worker *Worker) syncVMs(ctx context.Context) error {
 	for _, vmResource := range remoteVMsIndex {
 		odn := ondiskname.NewFromResource(vmResource)
 
-		if vmResource.Status == v1.VMStatusPending && !worker.vmm.Exists(odn) {
-			// Remote VM was created, create local VM
-			worker.createVM(ctx, odn, vmResource)
+		if vmResource.Status != v1.VMStatusPending {
+			continue
+		}
 
-			vmResource.Status = v1.VMStatusRunning
-			if _, err := worker.client.VMs().Update(ctx, vmResource); err != nil {
-				return err
+		if vm, ok := worker.vmm.Get(odn); ok {
+			// Remote VM was created, and the local VM too,
+			// check if the local VM had already started
+			// and update the remote VM as accordingly
+			if vm.Started() {
+				vmResource.Status = v1.VMStatusRunning
+				if _, err := worker.client.VMs().Update(ctx, vmResource); err != nil {
+					return err
+				}
 			}
+		} else {
+			// Remote VM was created, but not the local VM
+			worker.createVM(odn, vmResource)
 		}
 	}
 
@@ -335,10 +344,10 @@ func (worker *Worker) deleteVM(vm *vmmanager.VM) error {
 	return nil
 }
 
-func (worker *Worker) createVM(ctx context.Context, odn ondiskname.OnDiskName, vmResource v1.VM) {
+func (worker *Worker) createVM(odn ondiskname.OnDiskName, vmResource v1.VM) {
 	eventStreamer := worker.client.VMs().StreamEvents(vmResource.Name)
 
-	vm := vmmanager.NewVM(ctx, vmResource, eventStreamer, worker.logger)
+	vm := vmmanager.NewVM(vmResource, eventStreamer, worker.logger)
 
 	worker.vmm.Put(odn, vm)
 }
