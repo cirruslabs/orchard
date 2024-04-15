@@ -53,6 +53,10 @@ type VM struct {
 	// HostDir is a list of host directories to be mounted to the VM.
 	HostDirs []HostDir `json:"hostDirs"`
 
+	// ImageFQN is a fully qualified name of the Image that it is populated
+	// by the worker using "tart fqn" command after it had pulled the image.
+	ImageFQN string `json:"image_fqn"`
+
 	Meta
 }
 

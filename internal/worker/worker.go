@@ -185,7 +185,7 @@ func (worker *Worker) updateWorker(ctx context.Context) error {
 	return nil
 }
 
-//nolint:nestif // nested "if" complexity is tolerable for now
+//nolint:nestif,gocognit // nested "if" and cognitive complexity is tolerable for now
 func (worker *Worker) syncVMs(ctx context.Context) error {
 	remoteVMs, err := worker.client.VMs().FindForWorker(ctx, worker.name)
 	if err != nil {
@@ -245,6 +245,12 @@ func (worker *Worker) syncVMs(ctx context.Context) error {
 			// check if the local VM had already started
 			// and update the remote VM as accordingly
 			if vm.Started() {
+				// Image FQN feature, see https://github.com/cirruslabs/orchard/issues/164
+				if imageFQN := vm.ImageFQN(); imageFQN != nil {
+					vmResource.ImageFQN = *imageFQN
+				}
+
+				// Mark the remote VM as started
 				vmResource.Status = v1.VMStatusRunning
 				if _, err := worker.client.VMs().Update(ctx, vmResource); err != nil {
 					return err

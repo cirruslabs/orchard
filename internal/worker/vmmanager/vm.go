@@ -39,6 +39,9 @@ type VM struct {
 	// "tart run" terminations more correctly
 	stopping atomic.Bool
 
+	// Image FQN feature, see https://github.com/cirruslabs/orchard/issues/164
+	imageFQN atomic.Pointer[string]
+
 	err atomic.Pointer[error]
 
 	ctx    context.Context
@@ -147,6 +150,10 @@ func (vm *VM) Started() bool {
 	return vm.started.Load()
 }
 
+func (vm *VM) ImageFQN() *string {
+	return vm.imageFQN.Load()
+}
+
 func (vm *VM) id() string {
 	return vm.onDiskName.String()
 }
@@ -169,6 +176,13 @@ func (vm *VM) cloneAndConfigure(ctx context.Context) error {
 	_, _, err := tart.Tart(ctx, vm.logger, "clone", vm.Resource.Image, vm.id())
 	if err != nil {
 		return err
+	}
+
+	// Image FQN feature, see https://github.com/cirruslabs/orchard/issues/164
+	fqnRaw, _, err := tart.Tart(ctx, vm.logger, "fqn", vm.Resource.Image)
+	if err == nil {
+		fqn := strings.TrimSpace(fqnRaw)
+		vm.imageFQN.Store(&fqn)
 	}
 
 	if vm.Resource.Memory != 0 {
