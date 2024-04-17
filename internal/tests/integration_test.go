@@ -39,7 +39,7 @@ func TestSingleVM(t *testing.T) {
 		Meta: v1.Meta{
 			Name: "test-vm",
 		},
-		Image:    "ghcr.io/cirruslabs/macos-ventura-base:latest",
+		Image:    "ghcr.io/cirruslabs/macos-sonoma-base:latest",
 		CPU:      4,
 		Memory:   8 * 1024,
 		Headless: true,
@@ -113,7 +113,7 @@ func TestFailedStartupScript(t *testing.T) {
 		Meta: v1.Meta{
 			Name: "test-vm",
 		},
-		Image:    "ghcr.io/cirruslabs/macos-ventura-base:latest",
+		Image:    "ghcr.io/cirruslabs/macos-sonoma-base:latest",
 		CPU:      4,
 		Memory:   8 * 1024,
 		Headless: true,
@@ -213,7 +213,7 @@ func TestPortForwarding(t *testing.T) {
 		Meta: v1.Meta{
 			Name: "test-vm",
 		},
-		Image:    "ghcr.io/cirruslabs/macos-ventura-base:latest",
+		Image:    "ghcr.io/cirruslabs/macos-sonoma-base:latest",
 		CPU:      4,
 		Memory:   8 * 1024,
 		Headless: true,
@@ -293,7 +293,7 @@ func TestSchedulerHealthCheckingNonExistentWorker(t *testing.T) {
 		Meta: v1.Meta{
 			Name: dummyVMName,
 		},
-		Image:    "ghcr.io/cirruslabs/macos-ventura-base:latest",
+		Image:    "ghcr.io/cirruslabs/macos-sonoma-base:latest",
 		CPU:      4,
 		Memory:   8 * 1024,
 		Headless: true,
@@ -368,7 +368,7 @@ func TestSchedulerHealthCheckingOfflineWorker(t *testing.T) {
 		Meta: v1.Meta{
 			Name: dummyVMName,
 		},
-		Image:    "ghcr.io/cirruslabs/macos-ventura-base:latest",
+		Image:    "ghcr.io/cirruslabs/macos-sonoma-base:latest",
 		CPU:      4,
 		Memory:   8 * 1024,
 		Headless: true,
@@ -408,7 +408,7 @@ func TestVMGarbageCollection(t *testing.T) {
 	// Create on-disk Tart VM that looks like it's managed by Orchard
 	vmName := ondiskname.New("test", uuid.New().String(), 0).String()
 	_, _, err = tart.Tart(ctx, logger.Sugar(), "clone",
-		"ghcr.io/cirruslabs/macos-ventura-base:latest", vmName)
+		"ghcr.io/cirruslabs/macos-sonoma-base:latest", vmName)
 	require.NoError(t, err)
 
 	// Make sure that this VM exists
@@ -444,7 +444,7 @@ func TestHostDirs(t *testing.T) {
 		Meta: v1.Meta{
 			Name: vmName,
 		},
-		Image:    "ghcr.io/cirruslabs/macos-ventura-base:latest",
+		Image:    "ghcr.io/cirruslabs/macos-sonoma-base:latest",
 		CPU:      4,
 		Memory:   8 * 1024,
 		Headless: true,
@@ -507,7 +507,7 @@ func TestHostDirsInvalidPolicy(t *testing.T) {
 		Meta: v1.Meta{
 			Name: vmName,
 		},
-		Image:    "ghcr.io/cirruslabs/macos-ventura-base:latest",
+		Image:    "ghcr.io/cirruslabs/macos-sonoma-base:latest",
 		CPU:      4,
 		Memory:   8 * 1024,
 		Headless: true,

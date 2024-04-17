@@ -33,6 +33,6 @@ func TestOnDiskNameNonUUID(t *testing.T) {
 }
 
 func TestOnDiskNameNonOrchard(t *testing.T) {
-	_, err := ondiskname.Parse("ghcr.io/cirruslabs/macos-ventura-base:latest")
+	_, err := ondiskname.Parse("ghcr.io/cirruslabs/macos-sonoma-base:latest")
 	require.Error(t, err)
 }
