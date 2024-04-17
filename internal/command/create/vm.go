@@ -34,7 +34,7 @@ func newCreateVMCommand() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 	}
 
-	command.PersistentFlags().StringVar(&image, "image", "ghcr.io/cirruslabs/macos-ventura-base:latest", "image to use")
+	command.PersistentFlags().StringVar(&image, "image", "ghcr.io/cirruslabs/macos-sonoma-base:latest", "image to use")
 	command.PersistentFlags().Uint64Var(&cpu, "cpu", 4, "number of CPUs to use")
 	command.PersistentFlags().Uint64Var(&memory, "memory", 8*1024, "megabytes of memory to use")
 	command.PersistentFlags().BoolVar(&netSoftnet, "net-softnet", false, "whether to use Softnet network isolation")

@@ -21,7 +21,7 @@ For production deployments, please refer to the [Deployment Guide](./DeploymentG
 Create a Virtual Machine resource:
 
 ```shell
-orchard create vm --image ghcr.io/cirruslabs/macos-ventura-base:latest ventura-base
+orchard create vm --image ghcr.io/cirruslabs/macos-sonoma-base:latest ventura-base
 ```
 
 Check a list of VM resources to see if the Virtual Machine we've created above is already running: 

@@ -4,7 +4,7 @@ task:
     labels:
       name: dev-mini
   pull_script:
-    - tart pull ghcr.io/cirruslabs/macos-ventura-base:latest
+    - tart pull ghcr.io/cirruslabs/macos-sonoma-base:latest
   test_script:
     - go test -v ./...
   always:
