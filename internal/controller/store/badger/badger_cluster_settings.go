@@ -7,7 +7,7 @@ import (
 
 var ClusterSettingsKey = []byte("/cluster-settings")
 
-func (txn *Transaction) GetClusterSettings() (result *v1.ClusterSettings, err error) {
+func (txn *Transaction) GetClusterSettings() (_ *v1.ClusterSettings, err error) {
 	defer func() {
 		err = mapErr(err)
 	}()

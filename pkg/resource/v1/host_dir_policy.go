@@ -9,8 +9,8 @@ import (
 var ErrInvalidHostDirPolicy = errors.New("invalid hostDir policy")
 
 type HostDirPolicy struct {
-	PathPrefix string `json:"pathPrefix"`
-	ReadOnly   bool   `json:"ro"`
+	PathPrefix string `json:"pathPrefix,omitempty"`
+	ReadOnly   bool   `json:"ro,omitempty"`
 }
 
 func NewHostDirPolicyFromString(s string) (HostDirPolicy, error) {

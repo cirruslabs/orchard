@@ -13,7 +13,7 @@ func ServiceAccountKey(name string) []byte {
 	return []byte(path.Join(SpaceServiceAccounts, name))
 }
 
-func (txn *Transaction) GetServiceAccount(name string) (result *v1.ServiceAccount, err error) {
+func (txn *Transaction) GetServiceAccount(name string) (_ *v1.ServiceAccount, err error) {
 	defer func() {
 		err = mapErr(err)
 	}()
@@ -65,10 +65,14 @@ func (txn *Transaction) DeleteServiceAccount(name string) (err error) {
 	return txn.badgerTxn.Delete(key)
 }
 
-func (txn *Transaction) ListServiceAccounts() (result []*v1.ServiceAccount, err error) {
+func (txn *Transaction) ListServiceAccounts() (_ []*v1.ServiceAccount, err error) {
 	defer func() {
 		err = mapErr(err)
 	}()
+
+	// Declare an empty, non-nil slice to return
+	// [] when no service accounts are found
+	result := []*v1.ServiceAccount{}
 
 	it := txn.badgerTxn.NewIterator(badger.IteratorOptions{
 		Prefix: []byte(SpaceServiceAccounts),

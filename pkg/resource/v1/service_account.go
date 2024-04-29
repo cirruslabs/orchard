@@ -1,8 +1,8 @@
 package v1
 
 type ServiceAccount struct {
-	Token string
-	Roles []ServiceAccountRole
+	Token string               `json:"token,omitempty"`
+	Roles []ServiceAccountRole `json:"roles,omitempty"`
 
 	Meta
 }

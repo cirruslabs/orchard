@@ -9,9 +9,9 @@ import (
 var ErrInvalidHostDir = errors.New("invalid hostDir specification")
 
 type HostDir struct {
-	Name     string `json:"name"`
-	Path     string `json:"path"`
-	ReadOnly bool   `json:"ro"`
+	Name     string `json:"name,omitempty"`
+	Path     string `json:"path,omitempty"`
+	ReadOnly bool   `json:"ro,omitempty"`
 }
 
 func NewHostDirFromString(s string) (HostDir, error) {
