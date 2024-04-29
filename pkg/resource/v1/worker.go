@@ -5,14 +5,14 @@ import "time"
 type Worker struct {
 	// LastSeen is set by the Worker and is used by the Controller
 	// to track unhealthy Workers.
-	LastSeen time.Time
+	LastSeen time.Time `json:"last_seen,omitempty"`
 
-	MachineID string
+	MachineID string `json:"machine_id,omitempty"`
 
-	SchedulingPaused bool
+	SchedulingPaused bool `json:"scheduling_paused,omitempty"`
 
 	// Resources available on this Worker.
-	Resources Resources `json:"resources"`
+	Resources Resources `json:"resources,omitempty"`
 
 	Meta
 }

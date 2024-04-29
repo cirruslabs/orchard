@@ -9,61 +9,61 @@ type Meta struct {
 	// Name is a human-readable resource identifier populated by the Worker or Client.
 	//
 	// There can't be multiple resources with the same Name in the DB at any given time.
-	Name string `json:"name"`
+	Name string `json:"name,omitempty"`
 
 	// CreatedAt is a useful field for scheduler prioritization.
 	//
 	// It is populated by the Controller with the current time
 	// when receiving a POST request.
-	CreatedAt time.Time `json:"createdAt"`
+	CreatedAt time.Time `json:"createdAt,omitempty"`
 }
 
 type VM struct {
-	Image           string          `json:"image"`
-	ImagePullPolicy ImagePullPolicy `json:"imagePullPolicy"`
-	CPU             uint64          `json:"cpu"`
-	Memory          uint64          `json:"memory"`
-	NetSoftnet      bool            `json:"net-softnet"`
-	NetBridged      string          `json:"net-bridged"`
-	Headless        bool            `json:"headless"`
+	Image           string          `json:"image,omitempty"`
+	ImagePullPolicy ImagePullPolicy `json:"imagePullPolicy,omitempty"`
+	CPU             uint64          `json:"cpu,omitempty"`
+	Memory          uint64          `json:"memory,omitempty"`
+	NetSoftnet      bool            `json:"net-softnet,omitempty"`
+	NetBridged      string          `json:"net-bridged,omitempty"`
+	Headless        bool            `json:"headless,omitempty"`
 
 	// Status field is used to track the lifecycle of the VM associated with this resource.
-	Status        VMStatus `json:"status"`
-	StatusMessage string   `json:"status_message"`
+	Status        VMStatus `json:"status,omitempty"`
+	StatusMessage string   `json:"status_message,omitempty"`
 
 	// Worker field is set by the Controller to assign this VM to a specific Worker.
-	Worker string `json:"worker"`
+	Worker string `json:"worker,omitempty"`
 
-	Username      string    `json:"username"`
-	Password      string    `json:"password"`
-	StartupScript *VMScript `json:"startup_script"`
+	Username      string    `json:"username,omitempty"`
+	Password      string    `json:"password,omitempty"`
+	StartupScript *VMScript `json:"startup_script,omitempty"`
 
-	RestartPolicy RestartPolicy `json:"restart_policy"`
-	RestartedAt   time.Time     `json:"restarted_at"`
-	RestartCount  uint64        `json:"restart_count"`
+	RestartPolicy RestartPolicy `json:"restart_policy,omitempty"`
+	RestartedAt   time.Time     `json:"restarted_at,omitempty"`
+	RestartCount  uint64        `json:"restart_count,omitempty"`
 
 	// UID is a useful field for avoiding data races within a single Name.
 	//
 	// It is populated by the Controller when receiving a POST request.
-	UID string `json:"uid"`
+	UID string `json:"uid,omitempty"`
 
 	// Resources required by this VM.
-	Resources Resources `json:"resources"`
+	Resources Resources `json:"resources,omitempty"`
 
 	// HostDir is a list of host directories to be mounted to the VM.
-	HostDirs []HostDir `json:"hostDirs"`
+	HostDirs []HostDir `json:"hostDirs,omitempty"`
 
 	// ImageFQN is a fully qualified name of the Image that it is populated
 	// by the worker using "tart fqn" command after it had pulled the image.
-	ImageFQN string `json:"image_fqn"`
+	ImageFQN string `json:"image_fqn,omitempty"`
 
 	Meta
 }
 
 type Event struct {
-	Kind      EventKind `json:"kind"`
-	Timestamp int64     `json:"timestamp"`
-	Payload   string    `json:"payload"`
+	Kind      EventKind `json:"kind,omitempty"`
+	Timestamp int64     `json:"timestamp,omitempty"`
+	Payload   string    `json:"payload,omitempty"`
 }
 
 type EventKind string
@@ -73,8 +73,8 @@ const (
 )
 
 type VMScript struct {
-	ScriptContent string            `json:"script_content"`
-	Env           map[string]string `json:"env"`
+	ScriptContent string            `json:"script_content,omitempty"`
+	Env           map[string]string `json:"env,omitempty"`
 }
 
 func (vm VM) TerminalState() bool {
@@ -101,6 +101,6 @@ const (
 )
 
 type ControllerInfo struct {
-	Version string `json:"version"`
-	Commit  string `json:"commit"`
+	Version string `json:"version,omitempty"`
+	Commit  string `json:"commit,omitempty"`
 }

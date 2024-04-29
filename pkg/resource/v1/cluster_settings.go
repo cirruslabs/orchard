@@ -1,5 +1,5 @@
 package v1
 
 type ClusterSettings struct {
-	HostDirPolicies []HostDirPolicy `json:"hostDirPolicies"`
+	HostDirPolicies []HostDirPolicy `json:"hostDirPolicies,omitempty"`
 }
