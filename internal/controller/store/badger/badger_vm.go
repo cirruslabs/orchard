@@ -14,7 +14,7 @@ func VMKey(name string) []byte {
 	return []byte(path.Join(SpaceVMs, name))
 }
 
-func (txn *Transaction) GetVM(name string) (result *v1.VM, err error) {
+func (txn *Transaction) GetVM(name string) (_ *v1.VM, err error) {
 	defer func() {
 		err = mapErr(err)
 	}()
@@ -66,10 +66,14 @@ func (txn *Transaction) DeleteVM(name string) (err error) {
 	return txn.badgerTxn.Delete(key)
 }
 
-func (txn *Transaction) ListVMs() (result []v1.VM, err error) {
+func (txn *Transaction) ListVMs() (_ []v1.VM, err error) {
 	defer func() {
 		err = mapErr(err)
 	}()
+
+	// Declare an empty, non-nil slice to
+	// return [] when no VMs are found
+	result := []v1.VM{}
 
 	it := txn.badgerTxn.NewIterator(badger.IteratorOptions{
 		Prefix: []byte(SpaceVMs),

@@ -14,7 +14,7 @@ func WorkerKey(name string) []byte {
 	return []byte(path.Join(SpaceWorkers, name))
 }
 
-func (txn *Transaction) GetWorker(name string) (result *v1.Worker, err error) {
+func (txn *Transaction) GetWorker(name string) (_ *v1.Worker, err error) {
 	defer func() {
 		err = mapErr(err)
 	}()
@@ -66,10 +66,14 @@ func (txn *Transaction) DeleteWorker(name string) (err error) {
 	return txn.badgerTxn.Delete(key)
 }
 
-func (txn *Transaction) ListWorkers() (result []v1.Worker, err error) {
+func (txn *Transaction) ListWorkers() (_ []v1.Worker, err error) {
 	defer func() {
 		err = mapErr(err)
 	}()
+
+	// Declare an empty, non-nil slice to
+	// return [] when no workers are found
+	result := []v1.Worker{}
 
 	it := txn.badgerTxn.NewIterator(badger.IteratorOptions{
 		Prefix: []byte(SpaceWorkers),

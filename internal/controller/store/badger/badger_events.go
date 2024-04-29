@@ -45,10 +45,14 @@ func (txn *Transaction) AppendEvents(events []v1.Event, scope ...string) (err er
 	return nil
 }
 
-func (txn *Transaction) ListEvents(scope ...string) (result []v1.Event, err error) {
+func (txn *Transaction) ListEvents(scope ...string) (_ []v1.Event, err error) {
 	defer func() {
 		err = mapErr(err)
 	}()
+
+	// Declare an empty, non-nil slice to
+	// return [] when no events are found
+	result := []v1.Event{}
 
 	it := txn.badgerTxn.NewIterator(badger.IteratorOptions{
 		Prefix: scopePrefix(scope),
