@@ -1,3 +1,4 @@
+version: 2
 project_name: orchard
 
 before:
@@ -32,7 +33,7 @@ brews:
   - name: orchard
     ids:
       - regular
-    tap:
+    repository:
       owner: cirruslabs
       name: homebrew-cli
     install: |
