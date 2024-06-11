@@ -1,16 +1,16 @@
 package controller
 
 import (
+	"crypto"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"golang.org/x/crypto/ssh"
 	"os"
 	"path/filepath"
 )
-
-var ErrDataDirError = errors.New("controller's data directory operation error")
 
 type DataDir struct {
 	path string
@@ -18,8 +18,8 @@ type DataDir struct {
 
 func NewDataDir(path string) (*DataDir, error) {
 	if err := os.MkdirAll(path, 0700); err != nil {
-		return nil, fmt.Errorf("%w: failed to create data directory at path %s: %v",
-			ErrDataDirError, path, err)
+		return nil, fmt.Errorf("failed to create data directory at path %s: %w",
+			path, err)
 	}
 
 	return &DataDir{
@@ -30,8 +30,7 @@ func NewDataDir(path string) (*DataDir, error) {
 func (dataDir *DataDir) ControllerCertificate() (tls.Certificate, error) {
 	cert, err := tls.LoadX509KeyPair(dataDir.ControllerCertificatePath(), dataDir.ControllerKeyPath())
 	if err != nil {
-		return tls.Certificate{}, fmt.Errorf("%w: failed to load controller's certificate and key: %v",
-			ErrDataDirError, err)
+		return tls.Certificate{}, fmt.Errorf("failed to load controller's certificate and key: %w", err)
 	}
 
 	return cert, nil
@@ -45,8 +44,8 @@ func (dataDir *DataDir) SetControllerCertificate(certificate tls.Certificate) er
 
 	privateKeyBytes, err := x509.MarshalPKCS8PrivateKey(certificate.PrivateKey)
 	if err != nil {
-		return fmt.Errorf("%w: failed to set controller's certificate: PKCS #8 marshalling failed: %v",
-			ErrDataDirError, err)
+		return fmt.Errorf("failed to set controller's certificate: PKCS #8 marshalling failed: %w",
+			err)
 	}
 
 	privateKeyPEMBytes := pem.EncodeToMemory(&pem.Block{
@@ -56,27 +55,36 @@ func (dataDir *DataDir) SetControllerCertificate(certificate tls.Certificate) er
 
 	err = os.WriteFile(dataDir.ControllerCertificatePath(), certPEMBytes, 0600)
 	if err != nil {
-		return fmt.Errorf("%w: failed to write controller's certificate: %v", ErrDataDirError, err)
+		return fmt.Errorf("failed to write controller's certificate: %w", err)
 	}
 	err = os.WriteFile(dataDir.ControllerKeyPath(), privateKeyPEMBytes, 0600)
 	if err != nil {
-		return fmt.Errorf("%w: failed to write controller's key: %v", ErrDataDirError, err)
+		return fmt.Errorf("failed to write controller's key: %w", err)
 	}
 
 	return nil
 }
 
+func (dataDir *DataDir) SSHHostKey() (ssh.Signer, error) {
+	hostKeyBytes, err := os.ReadFile(dataDir.SSHHostKeyPath())
+	if err != nil {
+		return nil, err
+	}
+
+	return ssh.ParsePrivateKey(hostKeyBytes)
+}
+
+func (dataDir *DataDir) SetSSHHostKey(privateKey crypto.PrivateKey) error {
+	pemBlock, err := ssh.MarshalPrivateKey(privateKey, "")
+	if err != nil {
+		return err
+	}
+
+	return os.WriteFile(dataDir.SSHHostKeyPath(), pem.EncodeToMemory(pemBlock), 0600)
+}
+
 func (dataDir *DataDir) DBPath() string {
 	return filepath.Join(dataDir.path, "db")
-}
-
-func (dataDir *DataDir) ControllerCertificateExists() bool {
-	return fileExist(dataDir.ControllerCertificatePath()) && fileExist(dataDir.ControllerKeyPath())
-}
-
-func fileExist(path string) bool {
-	_, err := os.Stat(path)
-	return err == nil
 }
 
 func (dataDir *DataDir) ControllerCertificatePath() string {
@@ -87,6 +95,10 @@ func (dataDir *DataDir) ControllerKeyPath() string {
 	return filepath.Join(dataDir.path, "controller.key")
 }
 
+func (dataDir *DataDir) SSHHostKeyPath() string {
+	return filepath.Join(dataDir.path, "ssh_host_ed25519_key")
+}
+
 func (dataDir *DataDir) Initialized() (bool, error) {
 	dataDirEntries, err := os.ReadDir(dataDir.path)
 	if err != nil {
@@ -94,8 +106,8 @@ func (dataDir *DataDir) Initialized() (bool, error) {
 			return false, nil
 		}
 
-		return false, fmt.Errorf("%w: failed to read data directory contents at path %s: %v",
-			ErrDataDirError, dataDir.path, err)
+		return false, fmt.Errorf("failed to read data directory contents at path %s: %w",
+			dataDir.path, err)
 	}
 
 	return len(dataDirEntries) != 0, nil

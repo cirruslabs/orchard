@@ -12,7 +12,10 @@ import (
 	"fmt"
 	"github.com/cirruslabs/orchard/internal/controller"
 	"github.com/cirruslabs/orchard/internal/netconstants"
+	"golang.org/x/crypto/ed25519"
+	"golang.org/x/crypto/ssh"
 	"math/big"
+	"os"
 	"time"
 )
 
@@ -20,25 +23,80 @@ var ErrInitFailed = errors.New("controller initialization failed")
 
 var controllerCertPath string
 var controllerKeyPath string
+var sshHostKeyPath string
 
-func FindControllerCertificate(dataDir *controller.DataDir) (controllerCert tls.Certificate, err error) {
+func FindControllerCertificate(dataDir *controller.DataDir) (tls.Certificate, error) {
+	// Prefer user-specified certificate and key
 	if controllerCertPath != "" || controllerKeyPath != "" {
-		// if external certificate is specified, use it
-		if err = checkBothCertAndKeyAreSpecified(); err != nil {
-			return controllerCert, err
+		if err := checkBothCertAndKeyAreSpecified(); err != nil {
+			return tls.Certificate{}, err
 		}
+
 		return tls.LoadX509KeyPair(controllerCertPath, controllerKeyPath)
-	} else if !dataDir.ControllerCertificateExists() {
-		// otherwise, generate a self-signed certificate if it's not already present
-		controllerCert, err = GenerateSelfSignedControllerCertificate()
-		if err != nil {
-			return controllerCert, err
-		}
-		if err = dataDir.SetControllerCertificate(controllerCert); err != nil {
-			return controllerCert, err
-		}
 	}
-	return
+
+	// Fall back to loading the certificate from the Orchard data directory
+	controllerCert, err := dataDir.ControllerCertificate()
+	if err == nil {
+		return controllerCert, nil
+	}
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return tls.Certificate{}, err
+	}
+
+	// Fall back to generating a new certificate
+	controllerCert, err = GenerateSelfSignedControllerCertificate()
+	if err != nil {
+		return controllerCert, err
+	}
+	if err = dataDir.SetControllerCertificate(controllerCert); err != nil {
+		return controllerCert, err
+	}
+
+	return controllerCert, nil
+}
+
+func FindSSHHostKey(dataDir *controller.DataDir) (ssh.Signer, error) {
+	// Prefer user-specified host key
+	if sshHostKeyPath != "" {
+		hostKeyBytes, err := os.ReadFile(sshHostKeyPath)
+		if err != nil {
+			return nil, err
+		}
+
+		signer, err := ssh.ParsePrivateKey(hostKeyBytes)
+		if err != nil {
+			return nil, err
+		}
+
+		return signer, nil
+	}
+
+	// Fall back to loading the host key from the Orchard data directory
+	signer, err := dataDir.SSHHostKey()
+	if err == nil {
+		return signer, err
+	}
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return nil, err
+	}
+
+	// Fall back to generating a new host key
+	_, privateKey, err := ed25519.GenerateKey(nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := dataDir.SetSSHHostKey(privateKey); err != nil {
+		return nil, err
+	}
+
+	signer, err = ssh.NewSignerFromKey(privateKey)
+	if err != nil {
+		return nil, err
+	}
+
+	return signer, nil
 }
 
 func checkBothCertAndKeyAreSpecified() error {

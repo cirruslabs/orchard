@@ -17,6 +17,7 @@ var ErrRunFailed = errors.New("failed to run controller")
 var BootstrapAdminAccountName = "bootstrap-admin"
 
 var address string
+var addressSSH string
 var debug bool
 
 func newRunCommand() *cobra.Command {
@@ -31,7 +32,10 @@ func newRunCommand() *cobra.Command {
 		port = strconv.FormatInt(netconstants.DefaultControllerPort, 10)
 	}
 
-	cmd.PersistentFlags().StringVarP(&address, "listen", "l", fmt.Sprintf(":%s", port), "address to listen on")
+	cmd.PersistentFlags().StringVarP(&address, "listen", "l", fmt.Sprintf(":%s", port),
+		"address to listen on")
+	cmd.PersistentFlags().StringVar(&addressSSH, "listen-ssh", "",
+		"address for the built-in SSH server to listen on (e.g. \":6122\")")
 	cmd.PersistentFlags().BoolVar(&debug, "debug", false, "enable debug logging")
 
 	// flags for auto-init if necessary
@@ -42,6 +46,8 @@ func newRunCommand() *cobra.Command {
 	cmd.PersistentFlags().StringVar(&controllerKeyPath, "controller-key", "",
 		"use the controller certificate key from the specified path instead of the auto-generated one"+
 			" (requires --controller-cert)")
+	cmd.PersistentFlags().StringVar(&sshHostKeyPath, "ssh-host-key", "",
+		"use the SSH private host key from the specified path instead of the auto-generated one")
 
 	return cmd
 }
@@ -74,20 +80,12 @@ func runController(cmd *cobra.Command, args []string) (err error) {
 		return err
 	}
 
-	var controllerCert tls.Certificate
-	if dataDir.ControllerCertificateExists() {
-		controllerCert, err = dataDir.ControllerCertificate()
-		if err != nil {
-			return err
-		}
-	} else {
-		controllerCert, err = FindControllerCertificate(dataDir)
-		if err != nil {
-			return err
-		}
+	controllerCert, err := FindControllerCertificate(dataDir)
+	if err != nil {
+		return err
 	}
 
-	controllerInstance, err := controller.New(
+	controllerOpts := []controller.Option{
 		controller.WithListenAddr(address),
 		controller.WithDataDir(dataDir),
 		controller.WithLogger(logger),
@@ -97,7 +95,18 @@ func runController(cmd *cobra.Command, args []string) (err error) {
 				controllerCert,
 			},
 		}),
-	)
+	}
+
+	if addressSSH != "" {
+		signer, err := FindSSHHostKey(dataDir)
+		if err != nil {
+			return err
+		}
+
+		controllerOpts = append(controllerOpts, controller.WithSSHServer(addressSSH, signer))
+	}
+
+	controllerInstance, err := controller.New(controllerOpts...)
 	if err != nil {
 		return err
 	}

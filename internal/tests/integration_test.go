@@ -2,14 +2,12 @@ package tests_test
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"github.com/cirruslabs/orchard/internal/command/dev"
 	"github.com/cirruslabs/orchard/internal/controller"
-	"github.com/cirruslabs/orchard/internal/worker"
+	"github.com/cirruslabs/orchard/internal/tests/devcontroller"
+	"github.com/cirruslabs/orchard/internal/tests/wait"
 	"github.com/cirruslabs/orchard/internal/worker/ondiskname"
 	"github.com/cirruslabs/orchard/internal/worker/tart"
-	"github.com/cirruslabs/orchard/pkg/client"
 	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -18,7 +16,6 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/exp/slices"
 	"net"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -28,7 +25,7 @@ import (
 )
 
 func TestSingleVM(t *testing.T) {
-	devClient := StartIntegrationTestEnvironment(t)
+	devClient, _, _ := devcontroller.StartIntegrationTestEnvironment(t)
 
 	workers, err := devClient.Workers().List(context.Background())
 	if err != nil {
@@ -52,7 +49,7 @@ func TestSingleVM(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	assert.True(t, Wait(2*time.Minute, func() bool {
+	assert.True(t, wait.Wait(2*time.Minute, func() bool {
 		vm, err := devClient.VMs().Get(context.Background(), "test-vm")
 		if err != nil {
 			t.Fatal(err)
@@ -66,7 +63,7 @@ func TestSingleVM(t *testing.T) {
 	}
 	assert.Empty(t, runningVM.StatusMessage)
 	assert.Equal(t, v1.VMStatusRunning, runningVM.Status)
-	assert.True(t, Wait(2*time.Minute, func() bool {
+	assert.True(t, wait.Wait(2*time.Minute, func() bool {
 		logLines, err := devClient.VMs().Logs(context.Background(), "test-vm")
 		if err != nil {
 			t.Fatal(err)
@@ -92,7 +89,7 @@ func TestSingleVM(t *testing.T) {
 	require.NoError(t, devClient.VMs().Delete(context.Background(), "test-vm"))
 
 	// Ensure that the worker has deleted this VM from disk
-	assert.True(t, Wait(2*time.Minute, func() bool {
+	assert.True(t, wait.Wait(2*time.Minute, func() bool {
 		t.Logf("Waiting for the VM to be garbage collected...")
 
 		return !hasVMByPredicate(t, func(info tart.VMInfo) bool {
@@ -102,7 +99,7 @@ func TestSingleVM(t *testing.T) {
 }
 
 func TestFailedStartupScript(t *testing.T) {
-	devClient := StartIntegrationTestEnvironment(t)
+	devClient, _, _ := devcontroller.StartIntegrationTestEnvironment(t)
 
 	workers, err := devClient.Workers().List(context.Background())
 	if err != nil {
@@ -125,7 +122,7 @@ func TestFailedStartupScript(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	assert.True(t, Wait(2*time.Minute, func() bool {
+	assert.True(t, wait.Wait(2*time.Minute, func() bool {
 		vm, err := devClient.VMs().Get(context.Background(), "test-vm")
 		if err != nil {
 			t.Fatal(err)
@@ -141,72 +138,10 @@ func TestFailedStartupScript(t *testing.T) {
 		"failed to run startup script: Process exited with status 123")
 }
 
-func Wait(duration time.Duration, condition func() bool) bool {
-	ctx, cancel := context.WithTimeout(context.Background(), duration)
-	defer cancel()
-	for {
-		if condition() {
-			// all good
-			return true
-		}
-		select {
-		case <-ctx.Done():
-			return false
-		case <-time.After(5 * time.Second):
-			// try again
-			continue
-		}
-	}
-}
-
-func StartIntegrationTestEnvironment(
-	t *testing.T,
-) *client.Client {
-	return StartIntegrationTestEnvironmentWithAdditionalOpts(t, nil, nil)
-}
-
-func StartIntegrationTestEnvironmentWithAdditionalOpts(
-	t *testing.T,
-	additionalControllerOpts []controller.Option,
-	additionalWorkerOpts []worker.Option,
-) *client.Client {
-	t.Setenv("ORCHARD_HOME", t.TempDir())
-	devController, devWorker, err := dev.CreateDevControllerAndWorker(t.TempDir(),
-		":0", nil, additionalControllerOpts, additionalWorkerOpts)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		_ = devWorker.Close()
-	})
-	devContext, cancelDevFunc := context.WithCancel(context.Background())
-	t.Cleanup(cancelDevFunc)
-	go func() {
-		err := devController.Run(devContext)
-		if err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, http.ErrServerClosed) {
-			t.Errorf("dev controller failed: %v", err)
-		}
-	}()
-	go func() {
-		err := devWorker.Run(devContext)
-		if err != nil && !errors.Is(err, context.Canceled) {
-			t.Errorf("dev worker failed: %v", err)
-		}
-	}()
-
-	time.Sleep(5 * time.Second)
-
-	devClient, err := client.New(client.WithAddress(devController.Address()))
-	if err != nil {
-		t.Fatal(err)
-	}
-	return devClient
-}
-
 func TestPortForwarding(t *testing.T) {
 	ctx := context.Background()
 
-	devClient := StartIntegrationTestEnvironment(t)
+	devClient, _, _ := devcontroller.StartIntegrationTestEnvironment(t)
 
 	// Create a generic macOS VM
 	err := devClient.VMs().Create(ctx, &v1.VM{
@@ -261,7 +196,7 @@ func TestPortForwarding(t *testing.T) {
 func TestSchedulerHealthCheckingNonExistentWorker(t *testing.T) {
 	ctx := context.Background()
 
-	devClient := StartIntegrationTestEnvironment(t)
+	devClient, _, _ := devcontroller.StartIntegrationTestEnvironment(t)
 
 	const (
 		dummyWorkerName = "dummy-worker"
@@ -304,7 +239,7 @@ func TestSchedulerHealthCheckingNonExistentWorker(t *testing.T) {
 	require.NoError(t, err)
 
 	// Wait for the dummy VM to get scheduled to a dummy worker
-	require.True(t, Wait(2*time.Minute, func() bool {
+	require.True(t, wait.Wait(2*time.Minute, func() bool {
 		vm, err := devClient.VMs().Get(context.Background(), dummyVMName)
 		require.NoError(t, err)
 
@@ -318,7 +253,7 @@ func TestSchedulerHealthCheckingNonExistentWorker(t *testing.T) {
 	require.NoError(t, err)
 
 	// Wait for the scheduler to change the dummy VM's status to "failed"
-	require.True(t, Wait(2*time.Minute, func() bool {
+	require.True(t, wait.Wait(2*time.Minute, func() bool {
 		vm, err := devClient.VMs().Get(context.Background(), dummyVMName)
 		require.NoError(t, err)
 
@@ -340,7 +275,7 @@ func TestSchedulerHealthCheckingNonExistentWorker(t *testing.T) {
 func TestSchedulerHealthCheckingOfflineWorker(t *testing.T) {
 	ctx := context.Background()
 
-	devClient := StartIntegrationTestEnvironmentWithAdditionalOpts(t,
+	devClient, _, _ := devcontroller.StartIntegrationTestEnvironmentWithAdditionalOpts(t,
 		[]controller.Option{controller.WithWorkerOfflineTimeout(1 * time.Minute)}, nil)
 
 	const (
@@ -379,7 +314,7 @@ func TestSchedulerHealthCheckingOfflineWorker(t *testing.T) {
 	require.NoError(t, err)
 
 	// Wait for the VM to be marked as failed
-	assert.True(t, Wait(2*time.Minute, func() bool {
+	assert.True(t, wait.Wait(2*time.Minute, func() bool {
 		vm, err := devClient.VMs().Get(context.Background(), dummyVMName)
 		require.NoError(t, err)
 
@@ -415,10 +350,10 @@ func TestVMGarbageCollection(t *testing.T) {
 	require.True(t, hasVM(t, vmName, logger))
 
 	// Start the Orchard Worker
-	_ = StartIntegrationTestEnvironment(t)
+	_, _, _ = devcontroller.StartIntegrationTestEnvironment(t)
 
 	// Wait for the Orchard Worker to garbage-collect this VM
-	require.True(t, Wait(2*time.Minute, func() bool {
+	require.True(t, wait.Wait(2*time.Minute, func() bool {
 		t.Logf("Waiting for the on-disk VM to be cleaned up by the worker")
 
 		return !hasVM(t, vmName, logger)
@@ -426,7 +361,7 @@ func TestVMGarbageCollection(t *testing.T) {
 }
 
 func TestHostDirs(t *testing.T) {
-	devClient := StartIntegrationTestEnvironment(t)
+	devClient, _, _ := devcontroller.StartIntegrationTestEnvironment(t)
 
 	dirToMount := t.TempDir()
 
@@ -461,7 +396,7 @@ func TestHostDirs(t *testing.T) {
 
 	var vm *v1.VM
 
-	require.True(t, Wait(2*time.Minute, func() bool {
+	require.True(t, wait.Wait(2*time.Minute, func() bool {
 		vm, err = devClient.VMs().Get(context.Background(), vmName)
 		require.NoError(t, err)
 
@@ -475,7 +410,7 @@ func TestHostDirs(t *testing.T) {
 
 	var logLines []string
 
-	require.True(t, Wait(2*time.Minute, func() bool {
+	require.True(t, wait.Wait(2*time.Minute, func() bool {
 		logLines, err = devClient.VMs().Logs(context.Background(), vmName)
 		require.NoError(t, err)
 
@@ -495,7 +430,7 @@ func TestHostDirs(t *testing.T) {
 }
 
 func TestHostDirsInvalidPolicy(t *testing.T) {
-	devClient := StartIntegrationTestEnvironment(t)
+	devClient, _, _ := devcontroller.StartIntegrationTestEnvironment(t)
 
 	dirToMount := t.TempDir()
 
