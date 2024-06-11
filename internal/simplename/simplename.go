@@ -8,7 +8,7 @@ import (
 var (
 	ErrNotASimpleName = errors.New("name contains restricted characters, please only use [A-Za-z0-9:-_.]")
 
-	ErrNotASimpleNameNext = errors.New("names with characters other than [a-zA-Z0-9-] will be deprecated in the future")
+	ErrNotASimpleNameNext = errors.New("names with characters other than [a-z0-9-] will be deprecated in the future")
 )
 
 func Validate(s string) error {
@@ -75,10 +75,6 @@ func ValidateNext(s string) error {
 
 func isAlphanumeric(ch uint8) bool {
 	if ch >= 'a' && ch <= 'z' {
-		return true
-	}
-
-	if ch >= 'A' && ch <= 'Z' {
 		return true
 	}
 
