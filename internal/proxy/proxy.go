@@ -2,11 +2,10 @@ package proxy
 
 import (
 	"io"
-	"net"
 	"strings"
 )
 
-func Connections(left net.Conn, right net.Conn) (finalErr error) {
+func Connections(left io.ReadWriteCloser, right io.ReadWriteCloser) (finalErr error) {
 	leftErrCh := make(chan error, 1)
 	rightErrCh := make(chan error, 1)
 
