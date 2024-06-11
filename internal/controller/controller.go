@@ -8,12 +8,14 @@ import (
 	"github.com/cirruslabs/orchard/internal/controller/notifier"
 	"github.com/cirruslabs/orchard/internal/controller/proxy"
 	"github.com/cirruslabs/orchard/internal/controller/scheduler"
+	"github.com/cirruslabs/orchard/internal/controller/sshserver"
 	storepkg "github.com/cirruslabs/orchard/internal/controller/store"
 	"github.com/cirruslabs/orchard/internal/controller/store/badger"
 	"github.com/cirruslabs/orchard/internal/netconstants"
 	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
 	"github.com/cirruslabs/orchard/rpc"
 	"go.uber.org/zap"
+	"golang.org/x/crypto/ssh"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 	"google.golang.org/grpc"
@@ -52,6 +54,10 @@ type Controller struct {
 	enableSwaggerDocs    bool
 	workerOfflineTimeout time.Duration
 	maxWorkersPerLicense uint
+
+	sshListenAddr string
+	sshSigner     ssh.Signer
+	sshServer     *sshserver.SSHServer
 
 	rpc.UnimplementedControllerServer
 }
@@ -94,16 +100,30 @@ func New(opts ...Option) (*Controller, error) {
 		controller.logger = zap.NewNop().Sugar()
 	}
 
-	// Instantiate controller
+	// Instantiate the database
 	store, err := badger.NewBadgerStore(controller.dataDir.DBPath())
 	if err != nil {
 		return nil, err
 	}
 	controller.store = store
+
+	// Instantiate the worker notifier
 	controller.workerNotifier = notifier.NewNotifier(controller.logger.With("component", "rpc"))
+
+	// Instantiate the scheduler
 	controller.scheduler = scheduler.NewScheduler(store, controller.workerNotifier,
 		controller.workerOfflineTimeout, controller.logger)
 
+	// Instantiate the SSH server (if configured)
+	if controller.sshListenAddr != "" && controller.sshSigner != nil {
+		controller.sshServer, err = sshserver.NewSSHServer(controller.sshListenAddr, controller.sshSigner,
+			store, controller.proxy, controller.workerNotifier, controller.logger)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Instantiate the controller
 	listener, err := net.Listen("tcp", controller.listenAddr)
 	if err != nil {
 		return nil, err
@@ -181,6 +201,11 @@ func (controller *Controller) Run(ctx context.Context) error {
 	// be assigned to a specific Worker
 	go controller.scheduler.Run()
 
+	// Run the SSH server (if configured)
+	if controller.sshServer != nil {
+		go controller.sshServer.Run()
+	}
+
 	// A helper function to shut down the HTTP server on context cancellation
 	go func() {
 		<-ctx.Done()
@@ -205,4 +230,12 @@ func (controller *Controller) Address() string {
 	}
 
 	return fmt.Sprintf("http://%s", hostPort)
+}
+
+func (controller *Controller) SSHAddress() (string, bool) {
+	if controller.sshServer == nil {
+		return "", false
+	}
+
+	return controller.sshServer.Address(), true
 }

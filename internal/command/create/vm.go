@@ -3,6 +3,7 @@ package create
 import (
 	"errors"
 	"fmt"
+	"github.com/cirruslabs/orchard/internal/simplename"
 	"github.com/cirruslabs/orchard/pkg/client"
 	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
 	"github.com/spf13/cobra"
@@ -65,6 +66,11 @@ func newCreateVMCommand() *cobra.Command {
 
 func runCreateVM(cmd *cobra.Command, args []string) error {
 	name := args[0]
+
+	// Issue a warning if the name used will be invalid in the future
+	if err := simplename.ValidateNext(name); err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "WARNING: %v\n", err)
+	}
 
 	// Convert arguments
 	var hostDirs []v1.HostDir

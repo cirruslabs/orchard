@@ -3,6 +3,7 @@ package controller
 import (
 	"crypto/tls"
 	"go.uber.org/zap"
+	"golang.org/x/crypto/ssh"
 	"time"
 )
 
@@ -23,6 +24,13 @@ func WithListenAddr(listenAddr string) Option {
 func WithTLSConfig(tlsConfig *tls.Config) Option {
 	return func(controller *Controller) {
 		controller.tlsConfig = tlsConfig
+	}
+}
+
+func WithSSHServer(listenAddr string, signer ssh.Signer) Option {
+	return func(controller *Controller) {
+		controller.sshListenAddr = listenAddr
+		controller.sshSigner = signer
 	}
 }
 

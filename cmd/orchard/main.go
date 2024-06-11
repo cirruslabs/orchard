@@ -2,8 +2,8 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"github.com/cirruslabs/orchard/internal/command"
-	"log"
 	"os"
 	"os/signal"
 )
@@ -25,6 +25,8 @@ func main() {
 
 	// Run the command
 	if err := command.NewRootCmd().ExecuteContext(ctx); err != nil {
-		log.Fatal(err)
+		_, _ = fmt.Fprintln(os.Stderr, err)
+
+		os.Exit(1)
 	}
 }
