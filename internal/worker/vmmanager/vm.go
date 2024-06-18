@@ -200,6 +200,18 @@ func (vm *VM) cloneAndConfigure(ctx context.Context) error {
 			return err
 		}
 	}
+
+	// Randomize the VM's MAC-address when using bridged networking
+	// to avoid collisions when cloning from an OCI image on multiple hosts
+	//
+	// See https://github.com/cirruslabs/orchard/issues/181 for more details.
+	if vm.Resource.NetBridged != "" {
+		_, _, err = tart.Tart(ctx, vm.logger, "set", "--random-mac")
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
