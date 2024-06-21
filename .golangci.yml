@@ -54,15 +54,6 @@ linters:
     - whitespace
 
   disable:
-    # Messages like "struct of size 104 bytes could be of size 96 bytes" from a package
-    # that was last updated 2 years ago[1] are barely helpful.
-    #
-    # After all, we're writing the code for other people, so let's trust the compiler here (that's
-    # constantly evolving compared to this linter) and revisit this if memory usage becomes a problem.
-    #
-    # [1]: https://github.com/mdempsky/maligned/commit/6e39bd26a8c8b58c5a22129593044655a9e25959
-    - maligned
-
     # We don't have high-performance requirements at this moment, so sacrificing
     # the code readability for marginal performance gains is not worth it.
     - prealloc
@@ -75,18 +66,11 @@ linters:
     # Unfortunately, we use globals due to how spf13/cobra works.
     - gochecknoglobals
 
-    # That's fine that some Proto objects don't have all fields initialized
-    - exhaustivestruct
-
     # Style linters that are total nuts.
     - wsl
     - gofumpt
     - goimports
     - funlen
-
-    # This conflicts with the Protocol Buffers Version 3 design,
-    # which is largely based on default values for struct fields.
-    - exhaustivestruct
 
     # Enough parallelism for now.
     - paralleltest
@@ -114,9 +98,6 @@ linters:
 
     # Needs package whitelists
     - depguard
-
-    # This is mostly a CLI tool, not a package, so it's OK to have dynamic errors
-    - goerr113
 
 issues:
   # Don't hide multiple issues that belong to one class since GitHub annotations can handle them all nicely.
