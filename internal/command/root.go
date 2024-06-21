@@ -16,6 +16,7 @@ import (
 	"github.com/cirruslabs/orchard/internal/command/ssh"
 	"github.com/cirruslabs/orchard/internal/command/vnc"
 	"github.com/cirruslabs/orchard/internal/command/worker"
+	"github.com/cirruslabs/orchard/internal/opentelemetry"
 	"github.com/cirruslabs/orchard/internal/version"
 	"github.com/spf13/cobra"
 )
@@ -26,6 +27,14 @@ func NewRootCmd() *cobra.Command {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		Version:       version.FullVersion,
+		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
+			// Configure OpenTelemetry
+			if err := opentelemetry.Configure(cmd.Context()); err != nil {
+				return err
+			}
+
+			return nil
+		},
 	}
 
 	addGroupedCommands(command, "Working With Resources:",
