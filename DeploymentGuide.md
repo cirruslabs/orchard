@@ -157,3 +157,5 @@ Both the controller and worker produce some useful OpenTelemetry metrics.
 By default, the telemetry is sent to https://localhost:4317 using the gRPC protocol and to http://localhost:4318 using the HTTP protocol.
 
 You can override this by setting the [standard OpenTelemetry environment variable](https://opentelemetry.io/docs/specs/otel/configuration/sdk-environment-variables/) `OTEL_EXPORTER_OTLP_ENDPOINT`.
+
+Please refer to [OTEL Collector documentation](https://opentelemetry.io/docs/collector/) for instruction on how to setup a sidecar for the metrics collections or find out if your SaaS monitoring has an available OTEL endpoint (see [Honeycomb](https://docs.honeycomb.io/send-data/opentelemetry/) as an example).
