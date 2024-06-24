@@ -252,6 +252,7 @@ func (controller *Controller) SSHAddress() (string, bool) {
 	return controller.sshServer.Address(), true
 }
 
+//nolint:gocognit // looks OK for now
 func (controller *Controller) initializeMetrics() error {
 	_, err := opentelemetry.DefaultMeter.Int64ObservableGauge("org.cirruslabs.orchard.controller.vm_status",
 		metric.WithInt64Callback(func(ctx context.Context, observer metric.Int64Observer) error {
@@ -277,6 +278,36 @@ func (controller *Controller) initializeMetrics() error {
 					observer.Observe(int64(count), metric.WithAttributes(
 						attribute.String("worker", key.Worker),
 						attribute.String("status", key.Status.String()),
+					))
+				}
+
+				return nil
+			})
+		}),
+	)
+	if err != nil {
+		return err
+	}
+
+	_, err = opentelemetry.DefaultMeter.Int64ObservableGauge("org.cirruslabs.orchard.controller.worker_status",
+		metric.WithInt64Callback(func(ctx context.Context, observer metric.Int64Observer) error {
+			return controller.store.View(func(txn storepkg.Transaction) error {
+				workers, err := txn.ListWorkers()
+				if err != nil {
+					return err
+				}
+
+				groups := lo.CountValuesBy(workers, func(worker v1.Worker) string {
+					if worker.Offline(time.Minute) {
+						return "offline"
+					}
+
+					return "online"
+				})
+
+				for status, count := range groups {
+					observer.Observe(int64(count), metric.WithAttributes(
+						attribute.String("status", status),
 					))
 				}
 
