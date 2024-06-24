@@ -23,7 +23,7 @@ import (
 func (worker *Worker) watchRPC(ctx context.Context) error {
 	worker.logger.Infof("connecting to %s over gRPC", worker.client.GRPCTarget())
 
-	conn, err := grpc.Dial(worker.client.GRPCTarget(),
+	conn, err := grpc.NewClient(worker.client.GRPCTarget(),
 		grpc.WithTransportCredentials(worker.client.GRPCTransportCredentials()),
 		grpc.WithKeepaliveParams(keepalive.ClientParameters{
 			Time: 30 * time.Second,

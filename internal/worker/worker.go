@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/avast/retry-go/v4"
+	"github.com/cirruslabs/orchard/internal/opentelemetry"
 	"github.com/cirruslabs/orchard/internal/worker/iokitregistry"
 	"github.com/cirruslabs/orchard/internal/worker/ondiskname"
 	"github.com/cirruslabs/orchard/internal/worker/tart"
@@ -13,6 +14,7 @@ import (
 	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
 	"github.com/cirruslabs/orchard/rpc"
 	"github.com/hashicorp/go-multierror"
+	"go.opentelemetry.io/otel/metric"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/metadata"
 	"os"
@@ -30,7 +32,10 @@ type Worker struct {
 	client        *client.Client
 	pollTicker    *time.Ticker
 	resources     v1.Resources
-	logger        *zap.SugaredLogger
+
+	vmPullTimeHistogram metric.Float64Histogram
+
+	logger *zap.SugaredLogger
 }
 
 func New(client *client.Client, opts ...Option) (*Worker, error) {
@@ -60,6 +65,16 @@ func New(client *client.Client, opts ...Option) (*Worker, error) {
 		v1.ResourceTartVMs: 2,
 	}
 	worker.resources = defaultResources.Merged(worker.resources)
+
+	// Worker, VMs and images-related metrics
+	var err error
+
+	worker.vmPullTimeHistogram, err = opentelemetry.DefaultMeter.Float64Histogram(
+		"org.cirruslabs.orchard.worker.vm.pull_time",
+	)
+	if err != nil {
+		return nil, err
+	}
 
 	if worker.logger == nil {
 		worker.logger = zap.NewNop().Sugar()
@@ -353,7 +368,7 @@ func (worker *Worker) deleteVM(vm *vmmanager.VM) error {
 func (worker *Worker) createVM(odn ondiskname.OnDiskName, vmResource v1.VM) {
 	eventStreamer := worker.client.VMs().StreamEvents(vmResource.Name)
 
-	vm := vmmanager.NewVM(vmResource, eventStreamer, worker.logger)
+	vm := vmmanager.NewVM(vmResource, eventStreamer, worker.vmPullTimeHistogram, worker.logger)
 
 	worker.vmm.Put(odn, vm)
 }

@@ -4,10 +4,12 @@ import (
 	"context"
 	"github.com/cirruslabs/orchard/internal/controller/notifier"
 	storepkg "github.com/cirruslabs/orchard/internal/controller/store"
+	"github.com/cirruslabs/orchard/internal/opentelemetry"
 	"github.com/cirruslabs/orchard/pkg/resource/v1"
 	"github.com/cirruslabs/orchard/rpc"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"go.opentelemetry.io/otel/metric"
 	"go.uber.org/zap"
 	"sort"
 	"time"
@@ -37,6 +39,8 @@ type Scheduler struct {
 	workerOfflineTimeout time.Duration
 	logger               *zap.SugaredLogger
 	schedulingRequested  chan bool
+
+	schedulingTimeHistogram metric.Float64Histogram
 }
 
 func NewScheduler(
@@ -44,14 +48,25 @@ func NewScheduler(
 	notifier *notifier.Notifier,
 	workerOfflineTimeout time.Duration,
 	logger *zap.SugaredLogger,
-) *Scheduler {
-	return &Scheduler{
+) (*Scheduler, error) {
+	scheduler := &Scheduler{
 		store:                store,
 		notifier:             notifier,
 		workerOfflineTimeout: workerOfflineTimeout,
 		logger:               logger,
 		schedulingRequested:  make(chan bool, 1),
 	}
+
+	// Metrics
+	var err error
+
+	scheduler.schedulingTimeHistogram, err = opentelemetry.DefaultMeter.
+		Float64Histogram("org.cirruslabs.orchard.controller.scheduling_time")
+	if err != nil {
+		return nil, err
+	}
+
+	return scheduler, nil
 }
 
 func (scheduler *Scheduler) Run() {
@@ -103,7 +118,7 @@ func (scheduler *Scheduler) schedulingLoopIteration() error {
 		if err != nil {
 			return err
 		}
-		unscheduledVMs, workerToResources := processVMs(vms)
+		unscheduledVMs, workerToResources := ProcessVMs(vms)
 
 		workers, err := txn.ListWorkers()
 		if err != nil {
@@ -119,6 +134,10 @@ func (scheduler *Scheduler) schedulingLoopIteration() error {
 				if resourcesRemaining.CanFit(unscheduledVM.Resources) &&
 					!worker.Offline(scheduler.workerOfflineTimeout) &&
 					!worker.SchedulingPaused {
+					// Metrics
+					scheduler.schedulingTimeHistogram.Record(context.Background(),
+						time.Since(unscheduledVM.CreatedAt).Seconds())
+
 					unscheduledVM.Worker = worker.Name
 
 					if err := txn.SetVM(unscheduledVM); err != nil {
@@ -148,7 +167,7 @@ func (scheduler *Scheduler) schedulingLoopIteration() error {
 	return err
 }
 
-func processVMs(vms []v1.VM) ([]v1.VM, WorkerToResources) {
+func ProcessVMs(vms []v1.VM) ([]v1.VM, WorkerToResources) {
 	var unscheduledVMs []v1.VM
 	workerToResources := make(WorkerToResources)
 
