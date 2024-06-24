@@ -152,7 +152,7 @@ Ansible playbook for convenient setup.
 
 ## Observability
 
-Both the controller and worker produce some useful OpenTelemetry metrics.
+Both the controller and worker produce some useful OpenTelemetry metrics. Metrics are scoped with `org.cirruslabs.orchard` prefix and include information about resource utilization, statuses or workers, scheduling/pull time and many more.
 
 By default, the telemetry is sent to https://localhost:4317 using the gRPC protocol and to http://localhost:4318 using the HTTP protocol.
 
