@@ -126,13 +126,34 @@ orchard context default production
 
 ## Configuring Orchard Workers
 
+First, create a service account limited with a minimal set of roles required for proper worker functioning:
+
 ```bash
 orchard create service-account worker-pool-m1 --roles "compute:read" --roles "compute:write"
+```
+
+Then, generate a bootstrap token:
+
+```shell
 orchard get bootstrap-token worker-pool-m1
 ```
 
-## Configuring Orchard Workers
+Then, for each worker machine, start the worker as follows:
+
+```shell
+orchard worker run --bootstrap-token <bootstrap token from the step above> <controller URL>
+```
+
+### Automation
 
 If you have a set of machines that you want to use as Orchard Workers, you can use Ansible to configure them.
 Please refer a [separate repository](https://github.com/cirruslabs/ansible-orchard) where we prepared a basic
 Ansible playbook for convenient setup.
+
+## Observability
+
+Both the controller and worker produce some useful OpenTelemetry metrics.
+
+By default, the telemetry is sent to https://localhost:4317 using the gRPC protocol and to http://localhost:4318 using the HTTP protocol.
+
+You can override this by setting the [standard OpenTelemetry environment variable](https://opentelemetry.io/docs/specs/otel/configuration/sdk-environment-variables/) `OTEL_EXPORTER_OTLP_ENDPOINT`.

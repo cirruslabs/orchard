@@ -12,8 +12,12 @@ import (
 	storepkg "github.com/cirruslabs/orchard/internal/controller/store"
 	"github.com/cirruslabs/orchard/internal/controller/store/badger"
 	"github.com/cirruslabs/orchard/internal/netconstants"
+	"github.com/cirruslabs/orchard/internal/opentelemetry"
 	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
 	"github.com/cirruslabs/orchard/rpc"
+	"github.com/samber/lo"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/net/http2"
@@ -111,8 +115,11 @@ func New(opts ...Option) (*Controller, error) {
 	controller.workerNotifier = notifier.NewNotifier(controller.logger.With("component", "rpc"))
 
 	// Instantiate the scheduler
-	controller.scheduler = scheduler.NewScheduler(store, controller.workerNotifier,
+	controller.scheduler, err = scheduler.NewScheduler(store, controller.workerNotifier,
 		controller.workerOfflineTimeout, controller.logger)
+	if err != nil {
+		return nil, err
+	}
 
 	// Instantiate the SSH server (if configured)
 	if controller.sshListenAddr != "" && controller.sshSigner != nil {
@@ -167,6 +174,11 @@ func New(opts ...Option) (*Controller, error) {
 	}); err != nil {
 		return nil, fmt.Errorf("%w: failed to ensure cluster settings object is present: %v",
 			ErrInitFailed, err)
+	}
+
+	// Metrics
+	if err := controller.initializeMetrics(); err != nil {
+		return nil, err
 	}
 
 	return controller, nil
@@ -238,4 +250,88 @@ func (controller *Controller) SSHAddress() (string, bool) {
 	}
 
 	return controller.sshServer.Address(), true
+}
+
+func (controller *Controller) initializeMetrics() error {
+	_, err := opentelemetry.DefaultMeter.Int64ObservableGauge("org.cirruslabs.orchard.controller.vm_status",
+		metric.WithInt64Callback(func(ctx context.Context, observer metric.Int64Observer) error {
+			return controller.store.View(func(txn storepkg.Transaction) error {
+				vms, err := txn.ListVMs()
+				if err != nil {
+					return err
+				}
+
+				type Key struct {
+					Worker string
+					Status v1.VMStatus
+				}
+
+				groups := lo.CountValuesBy(vms, func(vm v1.VM) Key {
+					return Key{
+						Worker: vm.Worker,
+						Status: vm.Status,
+					}
+				})
+
+				for key, count := range groups {
+					observer.Observe(int64(count), metric.WithAttributes(
+						attribute.String("worker", key.Worker),
+						attribute.String("status", key.Status.String()),
+					))
+				}
+
+				return nil
+			})
+		}),
+	)
+	if err != nil {
+		return err
+	}
+
+	_, err = opentelemetry.DefaultMeter.Int64ObservableGauge("org.cirruslabs.orchard.controller.worker_resource",
+		metric.WithInt64Callback(func(ctx context.Context, observer metric.Int64Observer) error {
+			return controller.store.View(func(txn storepkg.Transaction) error {
+				workers, err := txn.ListWorkers()
+				if err != nil {
+					return err
+				}
+
+				vms, err := txn.ListVMs()
+				if err != nil {
+					return err
+				}
+
+				_, workerToResources := scheduler.ProcessVMs(vms)
+
+				for _, worker := range workers {
+					resourcesUsed := workerToResources.Get(worker.Name)
+
+					for key, value := range resourcesUsed {
+						observer.Observe(int64(value), metric.WithAttributes(
+							attribute.String("worker", worker.Name),
+							attribute.String("resource", key),
+							attribute.String("type", "used"),
+						))
+					}
+
+					resourcesAvailable := worker.Resources.Subtracted(resourcesUsed)
+
+					for key, value := range resourcesAvailable {
+						observer.Observe(int64(value), metric.WithAttributes(
+							attribute.String("worker", worker.Name),
+							attribute.String("resource", key),
+							attribute.String("type", "available"),
+						))
+					}
+				}
+
+				return nil
+			})
+		}),
+	)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

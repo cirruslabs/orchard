@@ -10,6 +10,8 @@ import (
 	"github.com/cirruslabs/orchard/internal/worker/tart"
 	"github.com/cirruslabs/orchard/pkg/client"
 	"github.com/cirruslabs/orchard/pkg/resource/v1"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/ssh"
 	"io"
@@ -53,6 +55,7 @@ type VM struct {
 func NewVM(
 	vmResource v1.VM,
 	eventStreamer *client.EventStreamer,
+	vmPullTimeHistogram metric.Float64Histogram,
 	logger *zap.SugaredLogger,
 ) *VM {
 	vmContext, vmContextCancel := context.WithCancel(context.Background())
@@ -80,6 +83,8 @@ func NewVM(
 		if vmResource.ImagePullPolicy == v1.ImagePullPolicyAlways {
 			vm.logger.Debugf("pulling VM")
 
+			pullStartedAt := time.Now()
+
 			_, _, err := tart.Tart(vm.ctx, vm.logger, "pull", vm.Resource.Image)
 			if err != nil {
 				select {
@@ -91,6 +96,11 @@ func NewVM(
 
 				return
 			}
+
+			vmPullTimeHistogram.Record(vm.ctx, time.Since(pullStartedAt).Seconds(), metric.WithAttributes(
+				attribute.String("worker", vm.Resource.Worker),
+				attribute.String("image", vm.Resource.Image),
+			))
 		}
 
 		vm.logger.Debugf("creating VM")
