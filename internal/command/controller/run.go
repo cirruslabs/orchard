@@ -19,6 +19,7 @@ var BootstrapAdminAccountName = "bootstrap-admin"
 var address string
 var addressSSH string
 var debug bool
+var sshNoClientAuth bool
 
 func newRunCommand() *cobra.Command {
 	cmd := &cobra.Command{
@@ -48,6 +49,9 @@ func newRunCommand() *cobra.Command {
 			" (requires --controller-cert)")
 	cmd.PersistentFlags().StringVar(&sshHostKeyPath, "ssh-host-key", "",
 		"use the SSH private host key from the specified path instead of the auto-generated one")
+	cmd.PersistentFlags().BoolVar(&sshNoClientAuth, "insecure-ssh-no-client-auth", false,
+		"allow SSH clients to connect to the controller's SSH server without authentication, "+
+			"thus only authenticating on the target worker/VM's SSH server")
 
 	return cmd
 }
@@ -103,7 +107,7 @@ func runController(cmd *cobra.Command, args []string) (err error) {
 			return err
 		}
 
-		controllerOpts = append(controllerOpts, controller.WithSSHServer(addressSSH, signer))
+		controllerOpts = append(controllerOpts, controller.WithSSHServer(addressSSH, signer, sshNoClientAuth))
 	}
 
 	controllerInstance, err := controller.New(controllerOpts...)
