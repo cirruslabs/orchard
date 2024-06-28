@@ -59,9 +59,10 @@ type Controller struct {
 	workerOfflineTimeout time.Duration
 	maxWorkersPerLicense uint
 
-	sshListenAddr string
-	sshSigner     ssh.Signer
-	sshServer     *sshserver.SSHServer
+	sshListenAddr   string
+	sshSigner       ssh.Signer
+	sshNoClientAuth bool
+	sshServer       *sshserver.SSHServer
 
 	rpc.UnimplementedControllerServer
 }
@@ -124,7 +125,7 @@ func New(opts ...Option) (*Controller, error) {
 	// Instantiate the SSH server (if configured)
 	if controller.sshListenAddr != "" && controller.sshSigner != nil {
 		controller.sshServer, err = sshserver.NewSSHServer(controller.sshListenAddr, controller.sshSigner,
-			store, controller.proxy, controller.workerNotifier, controller.logger)
+			store, controller.proxy, controller.workerNotifier, controller.sshNoClientAuth, controller.logger)
 		if err != nil {
 			return nil, err
 		}

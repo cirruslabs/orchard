@@ -42,6 +42,7 @@ func NewSSHServer(
 	store storepkg.Store,
 	proxy *proxypkg.Proxy,
 	workerNotifier *notifier.Notifier,
+	noClientAuth bool,
 	logger *zap.SugaredLogger,
 ) (*SSHServer, error) {
 	server := &SSHServer{
@@ -58,6 +59,7 @@ func NewSSHServer(
 	server.listener = listener
 
 	server.serverConfig = &ssh.ServerConfig{
+		NoClientAuth:     noClientAuth,
 		PasswordCallback: server.passwordCallback,
 	}
 	server.serverConfig.AddHostKey(signer)

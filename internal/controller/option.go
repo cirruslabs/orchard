@@ -27,10 +27,11 @@ func WithTLSConfig(tlsConfig *tls.Config) Option {
 	}
 }
 
-func WithSSHServer(listenAddr string, signer ssh.Signer) Option {
+func WithSSHServer(listenAddr string, signer ssh.Signer, noClientAuth bool) Option {
 	return func(controller *Controller) {
 		controller.sshListenAddr = listenAddr
 		controller.sshSigner = signer
+		controller.sshNoClientAuth = noClientAuth
 	}
 }
 
