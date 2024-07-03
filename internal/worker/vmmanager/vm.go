@@ -216,7 +216,7 @@ func (vm *VM) cloneAndConfigure(ctx context.Context) error {
 	//
 	// See https://github.com/cirruslabs/orchard/issues/181 for more details.
 	if vm.Resource.NetBridged != "" {
-		_, _, err = tart.Tart(ctx, vm.logger, "set", "--random-mac")
+		_, _, err = tart.Tart(ctx, vm.logger, "set", "--random-mac", vm.id())
 		if err != nil {
 			return err
 		}

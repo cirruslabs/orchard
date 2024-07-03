@@ -57,6 +57,8 @@ func (worker *Worker) watchRPC(ctx context.Context) error {
 			go worker.handlePortForward(ctxWithMetadata, client, action.PortForwardAction)
 		case *rpc.WatchInstruction_SyncVmsAction:
 			worker.requestVMSyncing()
+		case *rpc.WatchInstruction_ResolveIpAction:
+			worker.handleGetIP(ctxWithMetadata, client, action.ResolveIpAction)
 		}
 	}
 }
@@ -128,4 +130,47 @@ func (worker *Worker) handlePortForward(
 	}
 
 	_ = proxy.Connections(vmConn, grpcConn)
+}
+
+func (worker *Worker) handleGetIP(
+	ctx context.Context,
+	client rpc.ControllerClient,
+	resolveIP *rpc.WatchInstruction_ResolveIP,
+) {
+	grpcMetadata := metadata.Join(
+		worker.grpcMetadata(),
+		metadata.Pairs(rpc.MetadataWorkerPortForwardingSessionKey, resolveIP.Session),
+	)
+	ctxWithMetadata := metadata.NewOutgoingContext(ctx, grpcMetadata)
+
+	// Find the desired VM
+	vm, ok := lo.Find(worker.vmm.List(), func(item *vmmanager.VM) bool {
+		return item.Resource.UID == resolveIP.VmUid
+	})
+	if !ok {
+		worker.logger.Warnf("failed to resolve IP for the VM with UID %q: VM not found",
+			resolveIP.VmUid)
+
+		return
+	}
+
+	// Obtain VM's IP address
+	ip, err := vm.IP(ctx)
+	if err != nil {
+		worker.logger.Warnf("failed to resolve IP for the VM with UID %q: \"tart ip\" failed: %v",
+			resolveIP.VmUid, err)
+
+		return
+	}
+
+	_, err = client.ResolveIP(ctxWithMetadata, &rpc.ResolveIPResult{
+		Session: resolveIP.Session,
+		Ip:      ip,
+	})
+	if err != nil {
+		worker.logger.Warnf("failed to resolve IP for the VM with UID %q: "+
+			"failed to call back to the controller: %v", resolveIP.VmUid, err)
+
+		return
+	}
 }

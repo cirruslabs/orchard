@@ -101,6 +101,22 @@ func (service *VMsService) PortForward(
 		})
 }
 
+func (service *VMsService) IP(ctx context.Context, name string, waitSeconds uint16) (string, error) {
+	result := struct {
+		IP string `json:"ip"`
+	}{}
+
+	err := service.client.request(ctx, http.MethodGet, fmt.Sprintf("vms/%s/ip", url.PathEscape(name)),
+		nil, &result, map[string]string{
+			"wait": strconv.FormatUint(uint64(waitSeconds), 10),
+		})
+	if err != nil {
+		return "", err
+	}
+
+	return result.IP, nil
+}
+
 func (service *VMsService) StreamEvents(name string) *EventStreamer {
 	return NewEventStreamer(service.client, fmt.Sprintf("vms/%s/events", url.PathEscape(name)))
 }

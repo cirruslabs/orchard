@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/cirruslabs/orchard/internal/controller/notifier"
-	proxypkg "github.com/cirruslabs/orchard/internal/controller/proxy"
+	"github.com/cirruslabs/orchard/internal/controller/rendezvous"
 	storepkg "github.com/cirruslabs/orchard/internal/controller/store"
 	"github.com/cirruslabs/orchard/internal/proxy"
 	"github.com/cirruslabs/orchard/pkg/resource/v1"
@@ -31,7 +31,7 @@ type SSHServer struct {
 	listener       net.Listener
 	serverConfig   *ssh.ServerConfig
 	store          storepkg.Store
-	proxy          *proxypkg.Proxy
+	connRendezvous *rendezvous.Rendezvous[net.Conn]
 	workerNotifier *notifier.Notifier
 	logger         *zap.SugaredLogger
 }
@@ -40,14 +40,14 @@ func NewSSHServer(
 	address string,
 	signer ssh.Signer,
 	store storepkg.Store,
-	proxy *proxypkg.Proxy,
+	connRendezvous *rendezvous.Rendezvous[net.Conn],
 	workerNotifier *notifier.Notifier,
 	noClientAuth bool,
 	logger *zap.SugaredLogger,
 ) (*SSHServer, error) {
 	server := &SSHServer{
 		store:          store,
-		proxy:          proxy,
+		connRendezvous: connRendezvous,
 		workerNotifier: workerNotifier,
 		logger:         logger,
 	}
@@ -232,7 +232,7 @@ func (server *SSHServer) handleDirectTCPIP(ctx context.Context, newChannel ssh.N
 	// The user wants to connect to an existing VM, request and wait
 	// for a connection with the worker before accepting the channel
 	session := uuid.New().String()
-	boomerangConnCh, cancel := server.proxy.Request(ctx, session)
+	boomerangConnCh, cancel := server.connRendezvous.Request(ctx, session)
 	defer cancel()
 
 	err = server.workerNotifier.Notify(ctx, vm.Worker, &rpc.WatchInstruction{

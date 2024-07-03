@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"context"
 	v1pkg "github.com/cirruslabs/orchard/pkg/resource/v1"
 	"github.com/cirruslabs/orchard/rpc"
 	"google.golang.org/grpc/metadata"
@@ -61,8 +62,8 @@ func (controller *Controller) PortForward(stream rpc.Controller_PortForwardServe
 		}),
 	}
 
-	// make proxy aware of the connection
-	proxyCtx, err := controller.proxy.Respond(sessionMetadataValue[0], conn)
+	// make connection rendezvous aware of the connection
+	proxyCtx, err := controller.connRendezvous.Respond(sessionMetadataValue[0], conn)
 	if err != nil {
 		return err
 	}
@@ -73,4 +74,23 @@ func (controller *Controller) PortForward(stream rpc.Controller_PortForwardServe
 	case <-stream.Context().Done():
 		return stream.Context().Err()
 	}
+}
+
+func (controller *Controller) ResolveIP(ctx context.Context, request *rpc.ResolveIPResult) (*emptypb.Empty, error) {
+	if !controller.authorizeGRPC(ctx, v1pkg.ServiceAccountRoleComputeWrite) {
+		return nil, status.Errorf(codes.Unauthenticated, "auth failed")
+	}
+
+	sessionMetadataValue := metadata.ValueFromIncomingContext(ctx, rpc.MetadataWorkerPortForwardingSessionKey)
+	if len(sessionMetadataValue) == 0 {
+		return nil, status.Errorf(codes.InvalidArgument, "no session in metadata")
+	}
+
+	// Respond with the resolved IP address
+	_, err := controller.ipRendezvous.Respond(sessionMetadataValue[0], request.Ip)
+	if err != nil {
+		return nil, err
+	}
+
+	return &emptypb.Empty{}, nil
 }

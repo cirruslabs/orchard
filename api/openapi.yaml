@@ -321,6 +321,31 @@ paths:
           description: VM resource with the given name doesn't exist
         '503':
           description: Failed to establish connection with the worker responsible for the specified VM
+  /vms/{name}/ip:
+    get:
+      summary: "Resolve the VM's IP address on the worker"
+      tags:
+        - vms
+      parameters:
+        - in: query
+          name: wait
+          description: Duration in seconds to wait for the VM to transition into "running" state if not already running.
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 65535
+          required: false
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IP'
+        '404':
+          description: VM resource with the given name doesn't exist
+        '503':
+          description: Failed to resolve the IP address on the worker responsible for the specified VM
 components:
   schemas:
     Worker:
@@ -369,6 +394,13 @@ components:
       type: object
       items:
         $ref: '#/components/schemas/Event'
+    IP:
+      title: Result of VM's IP resolution
+      type: object
+      properties:
+        ip:
+          type: string
+          description: The resolved IP address
     Event:
       title: Generic Resource Event
       type: object

@@ -59,7 +59,7 @@ func (controller *Controller) portForward(
 ) responder.Responder {
 	// Request and wait for a connection with a worker
 	session := uuid.New().String()
-	boomerangConnCh, cancel := controller.proxy.Request(ctx, session)
+	boomerangConnCh, cancel := controller.connRendezvous.Request(ctx, session)
 	defer cancel()
 
 	// send request to worker to initiate port-forwarding connection back to us
