@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/cirruslabs/orchard/internal/controller/notifier"
-	"github.com/cirruslabs/orchard/internal/controller/proxy"
+	"github.com/cirruslabs/orchard/internal/controller/rendezvous"
 	"github.com/cirruslabs/orchard/internal/controller/scheduler"
 	"github.com/cirruslabs/orchard/internal/controller/sshserver"
 	storepkg "github.com/cirruslabs/orchard/internal/controller/store"
@@ -54,7 +54,8 @@ type Controller struct {
 	logger               *zap.SugaredLogger
 	grpcServer           *grpc.Server
 	workerNotifier       *notifier.Notifier
-	proxy                *proxy.Proxy
+	connRendezvous       *rendezvous.Rendezvous[net.Conn]
+	ipRendezvous         *rendezvous.Rendezvous[string]
 	enableSwaggerDocs    bool
 	workerOfflineTimeout time.Duration
 	maxWorkersPerLicense uint
@@ -69,7 +70,8 @@ type Controller struct {
 
 func New(opts ...Option) (*Controller, error) {
 	controller := &Controller{
-		proxy:                proxy.NewProxy(),
+		connRendezvous:       rendezvous.New[net.Conn](),
+		ipRendezvous:         rendezvous.New[string](),
 		workerOfflineTimeout: 3 * time.Minute,
 		maxWorkersPerLicense: maxWorkersPerDefaultLicense,
 	}
@@ -125,7 +127,7 @@ func New(opts ...Option) (*Controller, error) {
 	// Instantiate the SSH server (if configured)
 	if controller.sshListenAddr != "" && controller.sshSigner != nil {
 		controller.sshServer, err = sshserver.NewSSHServer(controller.sshListenAddr, controller.sshSigner,
-			store, controller.proxy, controller.workerNotifier, controller.sshNoClientAuth, controller.logger)
+			store, controller.connRendezvous, controller.workerNotifier, controller.sshNoClientAuth, controller.logger)
 		if err != nil {
 			return nil, err
 		}

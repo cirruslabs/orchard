@@ -1,8 +1,8 @@
-package proxy_test
+package rendezvous_test
 
 import (
 	"context"
-	"github.com/cirruslabs/orchard/internal/controller/proxy"
+	"github.com/cirruslabs/orchard/internal/controller/rendezvous"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"net"
@@ -15,7 +15,7 @@ func TestProxy(t *testing.T) {
 
 	expectedConn, _ := net.Pipe()
 
-	proxy := proxy.NewProxy()
+	proxy := rendezvous.New[net.Conn]()
 
 	token := uuid.New().String()
 

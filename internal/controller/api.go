@@ -121,6 +121,9 @@ func (controller *Controller) initAPI() *gin.Engine {
 	v1.GET("/vms/:name/port-forward", func(c *gin.Context) {
 		controller.portForwardVM(c).Respond(c)
 	})
+	v1.GET("/vms/:name/ip", func(c *gin.Context) {
+		controller.ip(c).Respond(c)
+	})
 	v1.DELETE("/vms/:name", func(c *gin.Context) {
 		controller.deleteVM(c).Respond(c)
 	})

@@ -11,6 +11,9 @@ service Controller {
   // single purpose method when a port forward is requested and running
   // session information is passed in the requests metadata
   rpc PortForward(stream PortForwardData) returns (stream PortForwardData);
+
+  // worker calls this method when it has successfully resolved the VM's IP
+  rpc ResolveIP(ResolveIPResult) returns (google.protobuf.Empty);
 }
 
 message WatchInstruction {
@@ -23,14 +26,27 @@ message WatchInstruction {
     uint32 port = 3;
   }
   message SyncVMs {
+    // nothing for now
+  }
+  message ResolveIP {
+    // we can have multiple IP resolution requests for the same vm
+    // let's distinguish them by a unique session
+    string session = 1;
+    string vm_uid = 2;
   }
 
   oneof action {
     PortForward port_forward_action = 1;
     SyncVMs sync_vms_action = 2;
+    ResolveIP resolve_ip_action = 3;
   }
 }
 
 message PortForwardData {
   bytes data = 1;
+}
+
+message ResolveIPResult {
+  string session = 1;
+  string ip = 2;
 }
