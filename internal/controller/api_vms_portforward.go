@@ -33,7 +33,7 @@ func (controller *Controller) portForwardVM(ctx *gin.Context) responder.Responde
 		return responder.Code(http.StatusBadRequest)
 	}
 
-	waitRaw := ctx.Query("wait")
+	waitRaw := ctx.DefaultQuery("wait", "0")
 	wait, err := strconv.ParseUint(waitRaw, 10, 16)
 	if err != nil {
 		return responder.Code(http.StatusBadRequest)

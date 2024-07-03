@@ -20,7 +20,7 @@ func (controller *Controller) ip(ctx *gin.Context) responder.Responder {
 	// Retrieve and parse path and query parameters
 	name := ctx.Param("name")
 
-	waitRaw := ctx.Query("wait")
+	waitRaw := ctx.DefaultQuery("wait", "0")
 	wait, err := strconv.ParseUint(waitRaw, 10, 16)
 	if err != nil {
 		return responder.Code(http.StatusBadRequest)
