@@ -159,3 +159,10 @@ By default, the telemetry is sent to https://localhost:4317 using the gRPC proto
 You can override this by setting the [standard OpenTelemetry environment variable](https://opentelemetry.io/docs/specs/otel/configuration/sdk-environment-variables/) `OTEL_EXPORTER_OTLP_ENDPOINT`.
 
 Please refer to [OTEL Collector documentation](https://opentelemetry.io/docs/collector/) for instruction on how to setup a sidecar for the metrics collections or find out if your SaaS monitoring has an available OTEL endpoint (see [Honeycomb](https://docs.honeycomb.io/send-data/opentelemetry/) as an example).
+
+### Sending metrics to the Google Cloud Platform
+
+There are two standard options of ingesting metrics procuded by Orchard controller and workers into the GCP:
+
+* [OpenTelemetry Collector](https://opentelemetry.io/docs/collector/) + [Google Cloud Exporter](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/exporter/googlecloudexporter/README.md) — open-source solution that can be later re-purposed to send metrics to any OTLP-compatible endpoint by swapping a single [exporter](https://opentelemetry.io/docs/collector/configuration/#exporters)
+* [Ops Agent](https://cloud.google.com/monitoring/agent/ops-agent/otlp) — Google-backed solution with a syntax similar to OpenTelemetry Collector, but tied to GCP-only
