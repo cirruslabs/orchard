@@ -160,7 +160,7 @@ You can override this by setting the [standard OpenTelemetry environment variabl
 
 Please refer to [OTEL Collector documentation](https://opentelemetry.io/docs/collector/) for instruction on how to setup a sidecar for the metrics collections or find out if your SaaS monitoring has an available OTEL endpoint (see [Honeycomb](https://docs.honeycomb.io/send-data/opentelemetry/) as an example).
 
-### Sending metrics to the Google Cloud Platform
+### Sending metrics to Google Cloud Platform
 
 There are two standard options of ingesting metrics procuded by Orchard controller and workers into the GCP:
 
