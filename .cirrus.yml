@@ -3,6 +3,8 @@ task:
   persistent_worker:
     labels:
       name: dev-mini
+    resources:
+      tart-vms: 1
   pull_script:
     - tart pull ghcr.io/cirruslabs/macos-sonoma-base:latest
   test_script:
