@@ -23,6 +23,7 @@ func (controller *Controller) createServiceAccount(ctx *gin.Context) responder.R
 		return responder.JSON(http.StatusBadRequest, NewErrorResponse("invalid JSON was provided"))
 	}
 
+	// Validate service account name
 	if serviceAccount.Name == "" {
 		return responder.JSON(http.StatusPreconditionFailed,
 			NewErrorResponse("service account name is empty"))
@@ -31,7 +32,7 @@ func (controller *Controller) createServiceAccount(ctx *gin.Context) responder.R
 			NewErrorResponse("service account %v", err))
 	}
 
-	// validate roles
+	// Validate roles
 	for _, role := range serviceAccount.Roles {
 		_, err := v1.NewServiceAccountRole(string(role))
 		if err != nil {
@@ -80,8 +81,22 @@ func (controller *Controller) updateServiceAccount(ctx *gin.Context) responder.R
 		return responder.JSON(http.StatusBadRequest, NewErrorResponse("invalid JSON was provided"))
 	}
 
+	// Validate service account name
 	if userServiceAccount.Name == "" {
-		return responder.JSON(http.StatusPreconditionFailed, NewErrorResponse("service account name is empty"))
+		return responder.JSON(http.StatusPreconditionFailed,
+			NewErrorResponse("service account name is empty"))
+	} else if err := simplename.Validate(userServiceAccount.Name); err != nil {
+		return responder.JSON(http.StatusPreconditionFailed,
+			NewErrorResponse("service account %v", err))
+	}
+
+	// Validate roles
+	for _, role := range userServiceAccount.Roles {
+		_, err := v1.NewServiceAccountRole(string(role))
+		if err != nil {
+			return responder.JSON(http.StatusPreconditionFailed,
+				NewErrorResponse("unsupported role \"%s\"", role))
+		}
 	}
 
 	if userServiceAccount.Token == "" {
@@ -93,6 +108,9 @@ func (controller *Controller) updateServiceAccount(ctx *gin.Context) responder.R
 		if err != nil {
 			return responder.Error(err)
 		}
+
+		dbServiceAccount.Token = userServiceAccount.Token
+		dbServiceAccount.Roles = userServiceAccount.Roles
 
 		if err := txn.SetServiceAccount(dbServiceAccount); err != nil {
 			controller.logger.Errorf("failed to update service account in the DB: %v", err)

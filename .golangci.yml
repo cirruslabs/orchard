@@ -8,6 +8,10 @@ linters-settings:
   exhaustive:
     default-signifies-exhaustive: true
 
+  gosec:
+    excludes:
+      - G115
+
 linters:
   enable:
     - asciicheck
