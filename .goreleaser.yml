@@ -29,6 +29,20 @@ archives:
 release:
   prerelease: auto
 
+nfpms:
+  - package_name: orchard
+    vendor: Cirrus Labs, Inc.
+    homepage: https://github.com/cirruslabs/orchard
+    maintainer: support@cirruslabs.org
+    description: Orchestrator for running Tart Virtual Machines on a cluster of Apple Silicon devices
+    section: misc
+    formats:
+      - deb
+      - rpm
+
+furies:
+  - account: cirruslabs
+
 notarize:
   macos:
     - enabled: '{{ isEnvSet "MACOS_SIGN_P12" }}'
