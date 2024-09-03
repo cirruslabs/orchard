@@ -108,7 +108,7 @@ func New(opts ...Option) (*Controller, error) {
 	}
 
 	// Instantiate the database
-	store, err := badger.NewBadgerStore(controller.dataDir.DBPath())
+	store, err := badger.NewBadgerStore(controller.dataDir.DBPath(), controller.logger)
 	if err != nil {
 		return nil, err
 	}

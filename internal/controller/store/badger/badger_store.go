@@ -6,6 +6,7 @@ import (
 	"github.com/avast/retry-go/v4"
 	"github.com/cirruslabs/orchard/internal/controller/store"
 	"github.com/dgraph-io/badger/v3"
+	"go.uber.org/zap"
 )
 
 type Store struct {
@@ -18,8 +19,8 @@ type Transaction struct {
 	store.Transaction
 }
 
-func NewBadgerStore(dbPath string) (store.Store, error) {
-	opts := badger.DefaultOptions(dbPath)
+func NewBadgerStore(dbPath string, logger *zap.SugaredLogger) (store.Store, error) {
+	opts := badger.DefaultOptions(dbPath).WithLogger(newBadgerLogger(logger))
 
 	opts.SyncWrites = true
 
