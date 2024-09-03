@@ -2,12 +2,12 @@ package context
 
 import (
 	"context"
-	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
 	"github.com/cirruslabs/orchard/internal/bootstraptoken"
+	"github.com/cirruslabs/orchard/internal/certificatefingerprint"
 	"github.com/cirruslabs/orchard/internal/config"
 	"github.com/cirruslabs/orchard/internal/netconstants"
 	clientpkg "github.com/cirruslabs/orchard/pkg/client"
@@ -16,7 +16,6 @@ import (
 	"github.com/spf13/cobra"
 	"net/url"
 	"strconv"
-	"strings"
 )
 
 var ErrCreateFailed = errors.New("failed to create context")
@@ -200,8 +199,7 @@ func probeControllerCertificate(ctx context.Context, controllerURL *url.URL) (*x
 		// [1]: https://www.rfc-editor.org/rfc/rfc5246#section-7.4.2
 		// [2]: https://www.rfc-editor.org/rfc/rfc8446#section-4.4.2
 		controllerCert = state.PeerCertificates[0]
-		controllerCertFingerprint := sha256.Sum256(controllerCert.Raw)
-		formattedControllerCertFingerprint := formatFingerprint(controllerCertFingerprint[:])
+		formattedControllerCertFingerprint := certificatefingerprint.CertificateFingerprint(controllerCert.Raw)
 
 		shortControllerName := controllerURL.Hostname()
 		if controllerURL.Port() != strconv.FormatUint(netconstants.DefaultControllerPort, 10) {
@@ -209,7 +207,7 @@ func probeControllerCertificate(ctx context.Context, controllerURL *url.URL) (*x
 		}
 
 		fmt.Printf("The authencity of controller %s cannot be established.\n", shortControllerName)
-		fmt.Printf("Certificate SHA-256 fingerprint is %s.\n", formattedControllerCertFingerprint)
+		fmt.Printf("Certificate SHA-256 fingerprint is: %s.\n", formattedControllerCertFingerprint)
 
 		promptTemplates := &promptui.PromptTemplates{
 			Prompt:          "{{ . }} ",
@@ -261,14 +259,4 @@ func probeControllerCertificate(ctx context.Context, controllerURL *url.URL) (*x
 	}()
 
 	return controllerCert, nil
-}
-
-func formatFingerprint(fingerprint []byte) string {
-	var fingerprintPieces []string
-
-	for _, piece := range fingerprint {
-		fingerprintPieces = append(fingerprintPieces, fmt.Sprintf("%02X", piece))
-	}
-
-	return strings.Join(fingerprintPieces, " ")
 }

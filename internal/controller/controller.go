@@ -108,7 +108,7 @@ func New(opts ...Option) (*Controller, error) {
 	}
 
 	// Instantiate the database
-	store, err := badger.NewBadgerStore(controller.dataDir.DBPath())
+	store, err := badger.NewBadgerStore(controller.dataDir.DBPath(), controller.logger)
 	if err != nil {
 		return nil, err
 	}
@@ -185,6 +185,21 @@ func New(opts ...Option) (*Controller, error) {
 	}
 
 	return controller, nil
+}
+
+func (controller *Controller) NumServiceAccounts() (int, error) {
+	var serviceAccounts []*v1.ServiceAccount
+	var err error
+
+	if err := controller.store.View(func(txn storepkg.Transaction) error {
+		serviceAccounts, err = txn.ListServiceAccounts()
+
+		return err
+	}); err != nil {
+		return 0, fmt.Errorf("failed to retrieve a list of service accounts: %w", err)
+	}
+
+	return len(serviceAccounts), nil
 }
 
 func (controller *Controller) EnsureServiceAccount(serviceAccount *v1.ServiceAccount) error {

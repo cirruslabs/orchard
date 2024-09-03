@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"github.com/cirruslabs/orchard/internal/controller"
 	"github.com/cirruslabs/orchard/internal/netconstants"
-	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 	"os"
@@ -14,7 +13,6 @@ import (
 )
 
 var ErrRunFailed = errors.New("failed to run controller")
-var BootstrapAdminAccountName = "bootstrap-admin"
 
 var address string
 var addressSSH string
@@ -115,18 +113,7 @@ func runController(cmd *cobra.Command, args []string) (err error) {
 		return err
 	}
 
-	if adminToken, ok := os.LookupEnv("ORCHARD_BOOTSTRAP_ADMIN_TOKEN"); ok {
-		err = controllerInstance.EnsureServiceAccount(&v1.ServiceAccount{
-			Meta: v1.Meta{
-				Name: BootstrapAdminAccountName,
-			},
-			Token: adminToken,
-			Roles: v1.AllServiceAccountRoles(),
-		})
-	} else {
-		err = controllerInstance.DeleteServiceAccount(BootstrapAdminAccountName)
-	}
-	if err != nil {
+	if err := Bootstrap(controllerInstance, controllerCert); err != nil {
 		return err
 	}
 
