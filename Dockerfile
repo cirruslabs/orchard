@@ -1,4 +1,4 @@
-FROM goreleaser/goreleaser:latest as builder
+FROM goreleaser/goreleaser-pro:latest as builder
 
 WORKDIR /tmp/orchard
 ADD . /tmp/orchard/
