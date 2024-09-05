@@ -27,8 +27,9 @@ task:
     MACOS_NOTARY_KEY_ID: ENCRYPTED[!af9e5da1010a6b04e548ef494acc77a6e0ce176549de98f81c5b5cdd72856de09f77e51cf0849e3c4b7a2d2c22f25ca8!]
     MACOS_NOTARY_KEY: ENCRYPTED[!c70c53f3e6c163931c7cdf9d90aff8934ef21d5dd1090158688e00b94e97c68257d9cf4ae1df873e6ae0d949866aee72!]
     GITHUB_TOKEN: ENCRYPTED[!98ace8259c6024da912c14d5a3c5c6aac186890a8d4819fad78f3e0c41a4e0cd3a2537dd6e91493952fb056fa434be7c!]
+    GORELEASER_KEY: ENCRYPTED[!9b80b6ef684ceaf40edd4c7af93014ee156c8aba7e6e5795f41c482729887b5c31f36b651491d790f1f668670888d9fd!]
   container:
-    image: goreleaser/goreleaser:latest
+    image: goreleaser/goreleaser-pro:latest
     cpu: 4
     memory: 12G
   release_script: goreleaser
