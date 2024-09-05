@@ -99,9 +99,11 @@ func (scheduler *Scheduler) reportStats(workers []v1.Worker, vms []v1.VM) {
 		workersLastSeen.With(map[string]string{"worker_name": worker.Name}).Set(float64(worker.LastSeen.Unix()))
 		if worker.Offline(scheduler.workerOfflineTimeout) {
 			workersStatus.With(map[string]string{"worker_name": worker.Name, "status": "online"}).Set(0)
+			workersStatus.With(map[string]string{"worker_name": worker.Name, "status": "offline"}).Set(1)
 			workersStat.With(map[string]string{"status": "offline"}).Inc()
 		} else {
 			workersStatus.With(map[string]string{"worker_name": worker.Name, "status": "online"}).Set(1)
+			workersStatus.With(map[string]string{"worker_name": worker.Name, "status": "offline"}).Set(0)
 			workersStat.With(map[string]string{"status": "online"}).Inc()
 		}
 	}
