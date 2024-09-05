@@ -30,7 +30,7 @@ release:
   prerelease: auto
 
 nfpms:
-  - package_name: orchard
+  - package_name: orchard-controller
     vendor: Cirrus Labs, Inc.
     homepage: https://github.com/cirruslabs/orchard
     maintainer: support@cirruslabs.org
@@ -39,6 +39,14 @@ nfpms:
     formats:
       - deb
       - rpm
+    contents:
+      - src: packaging/orchard-controller.service
+        dst: /lib/systemd/system/orchard-controller.service
+        type: config
+    scripts:
+      postinstall: packaging/postinstall.sh
+      preremove: packaging/preremove.sh
+      postremove: packaging/postremove.sh
 
 furies:
   - account: cirruslabs
