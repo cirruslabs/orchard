@@ -12,7 +12,7 @@ ENV GIN_MODE=release
 ENV ORCHARD_HOME=/data
 EXPOSE 6120
 
-COPY --from=builder /tmp/orchard/dist/orchard_linux_*/orchard /bin/orchard
+COPY --from=builder /tmp/orchard/dist/linux_*/orchard_linux_*/orchard /bin/orchard
 
 ENTRYPOINT ["/bin/orchard"]
 
