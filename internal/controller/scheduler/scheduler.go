@@ -27,13 +27,7 @@ var (
 	})
 	workersStat = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "orchard_workers",
-	}, []string{"status"})
-	workersStatus = promauto.NewGaugeVec(prometheus.GaugeOpts{
-		Name: "orchard_worker_status",
 	}, []string{"worker_name", "status"})
-	workersLastSeen = promauto.NewGaugeVec(prometheus.GaugeOpts{
-		Name: "orchard_worker_last_seen",
-	}, []string{"worker_name"})
 	vmsStat = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "orchard_vms",
 	}, []string{"status"})
@@ -96,15 +90,12 @@ func (scheduler *Scheduler) Run() {
 
 func (scheduler *Scheduler) reportStats(workers []v1.Worker, vms []v1.VM) {
 	for _, worker := range workers {
-		workersLastSeen.With(map[string]string{"worker_name": worker.Name}).Set(float64(worker.LastSeen.Unix()))
 		if worker.Offline(scheduler.workerOfflineTimeout) {
-			workersStatus.With(map[string]string{"worker_name": worker.Name, "status": "online"}).Set(0)
-			workersStatus.With(map[string]string{"worker_name": worker.Name, "status": "offline"}).Set(1)
-			workersStat.With(map[string]string{"status": "offline"}).Inc()
+			workersStat.With(map[string]string{"worker_name": worker.Name, "status": "online"}).Set(0)
+			workersStat.With(map[string]string{"worker_name": worker.Name, "status": "offline"}).Set(1)
 		} else {
-			workersStatus.With(map[string]string{"worker_name": worker.Name, "status": "online"}).Set(1)
-			workersStatus.With(map[string]string{"worker_name": worker.Name, "status": "offline"}).Set(0)
-			workersStat.With(map[string]string{"status": "online"}).Inc()
+			workersStat.With(map[string]string{"worker_name": worker.Name, "status": "online"}).Set(1)
+			workersStat.With(map[string]string{"worker_name": worker.Name, "status": "offline"}).Set(0)
 		}
 	}
 	for _, vm := range vms {
