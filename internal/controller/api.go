@@ -10,6 +10,7 @@ import (
 	v1pkg "github.com/cirruslabs/orchard/pkg/resource/v1"
 	"github.com/cirruslabs/orchard/rpc"
 	"github.com/deckarep/golang-set/v2"
+	ginzap "github.com/gin-contrib/zap"
 	"github.com/gin-gonic/gin"
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/penglongli/gin-metrics/ginmetrics"
@@ -24,7 +25,12 @@ const ctxServiceAccountKey = "service-account"
 var ErrUnauthorized = errors.New("unauthorized")
 
 func (controller *Controller) initAPI() *gin.Engine {
-	ginEngine := gin.Default()
+	ginEngine := gin.New()
+
+	ginEngine.Use(
+		ginzap.Ginzap(controller.logger.Desugar(), "", true),
+		ginzap.RecoveryWithZap(controller.logger.Desugar(), true),
+	)
 
 	// expose metrics
 	monitor := ginmetrics.GetMonitor()

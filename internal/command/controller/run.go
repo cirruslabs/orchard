@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/cirruslabs/orchard/internal/controller"
 	"github.com/cirruslabs/orchard/internal/netconstants"
+	"github.com/gin-gonic/gin"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 	"os"
@@ -55,6 +56,9 @@ func newRunCommand() *cobra.Command {
 }
 
 func runController(cmd *cobra.Command, args []string) (err error) {
+	// Avoid fancy output that doesn't go through the logger
+	gin.SetMode(gin.ReleaseMode)
+
 	// Initialize the logger
 	zapConfig := zap.NewProductionConfig()
 	if debug {
