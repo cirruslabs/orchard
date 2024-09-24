@@ -2,6 +2,7 @@ package controller
 
 import (
 	"errors"
+	"github.com/cirruslabs/orchard/internal/controller/lifecycle"
 	storepkg "github.com/cirruslabs/orchard/internal/controller/store"
 	"github.com/cirruslabs/orchard/internal/responder"
 	"github.com/cirruslabs/orchard/internal/simplename"
@@ -130,6 +131,10 @@ func (controller *Controller) updateVM(ctx *gin.Context) responder.Responder {
 				NewErrorResponse("cannot update status for a VM in a terminal state"))
 		}
 
+		if dbVM.Status == v1.VMStatusPending && userVM.Status == v1.VMStatusRunning {
+			dbVM.StartedAt = time.Now()
+		}
+
 		dbVM.Status = userVM.Status
 		dbVM.StatusMessage = userVM.StatusMessage
 		dbVM.ImageFQN = userVM.ImageFQN
@@ -196,6 +201,8 @@ func (controller *Controller) deleteVM(ctx *gin.Context) responder.Responder {
 		if err != nil {
 			return responder.Error(err)
 		}
+
+		lifecycle.Report(vm, "VM deleted", controller.logger)
 
 		return responder.Code(http.StatusOK)
 	})
