@@ -57,6 +57,9 @@ type VM struct {
 	// by the worker using "tart fqn" command after it had pulled the image.
 	ImageFQN string `json:"image_fqn,omitempty"`
 
+	ScheduledAt time.Time `json:"scheduled_at,omitempty"`
+	StartedAt   time.Time `json:"started_at,omitempty"`
+
 	Meta
 }
 

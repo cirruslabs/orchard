@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	"github.com/cirruslabs/orchard/internal/controller/lifecycle"
 	"github.com/cirruslabs/orchard/internal/controller/notifier"
 	storepkg "github.com/cirruslabs/orchard/internal/controller/store"
 	"github.com/cirruslabs/orchard/internal/opentelemetry"
@@ -141,6 +142,7 @@ func (scheduler *Scheduler) schedulingLoopIteration() error {
 						time.Since(unscheduledVM.CreatedAt).Seconds())
 
 					unscheduledVM.Worker = worker.Name
+					unscheduledVM.ScheduledAt = time.Now()
 
 					if err := txn.SetVM(unscheduledVM); err != nil {
 						return err
@@ -240,11 +242,15 @@ func (scheduler *Scheduler) healthCheckVM(txn storepkg.Transaction, nameToWorker
 	if needsRestart {
 		logger.Debugf("restarting VM")
 
+		lifecycle.Report(&vm, "VM restarted", scheduler.logger)
+
 		vm.Status = v1.VMStatusPending
 		vm.StatusMessage = ""
 		vm.Worker = ""
 		vm.RestartedAt = time.Now()
 		vm.RestartCount++
+		vm.ScheduledAt = time.Time{}
+		vm.StartedAt = time.Time{}
 
 		return txn.SetVM(vm)
 	}
