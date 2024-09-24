@@ -131,7 +131,7 @@ func (controller *Controller) updateVM(ctx *gin.Context) responder.Responder {
 				NewErrorResponse("cannot update status for a VM in a terminal state"))
 		}
 
-		if dbVM.Status == v1.VMStatusPending && userVM.Status == v1.VMStatusRunning {
+		if userVM.Status == v1.VMStatusRunning && dbVM.StartedAt.IsZero() {
 			dbVM.StartedAt = time.Now()
 		}
 
