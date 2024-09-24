@@ -18,16 +18,16 @@ func Report(vm *v1.VM, message string, logger *zap.SugaredLogger) {
 
 	if vm.ScheduledAt.IsZero() {
 		// VM was never scheduled
-		args = append(args, "vm_scheduling_time", time.Since(vm.CreatedAt))
+		args = append(args, "vm_scheduling_duration", time.Since(vm.CreatedAt))
 	} else {
-		args = append(args, "vm_scheduling_time", vm.ScheduledAt.Sub(vm.CreatedAt))
+		args = append(args, "vm_scheduling_duration", vm.ScheduledAt.Sub(vm.CreatedAt))
 	}
 
 	if vm.StartedAt.IsZero() {
 		// VM was never started
-		args = append(args, "vm_run_time", time.Duration(0))
+		args = append(args, "vm_run_duration", time.Duration(0))
 	} else {
-		args = append(args, "vm_run_time", time.Since(vm.StartedAt))
+		args = append(args, "vm_run_duration", time.Since(vm.StartedAt))
 	}
 
 	logger.With(args...).Info(message)
