@@ -7,6 +7,12 @@ import (
 
 type Option func(*Worker)
 
+func WithName(name string) Option {
+	return func(worker *Worker) {
+		worker.name = name
+	}
+}
+
 func WithResources(resources v1.Resources) Option {
 	return func(worker *Worker) {
 		worker.resources = resources

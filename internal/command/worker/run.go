@@ -23,6 +23,7 @@ var (
 	ErrEmptyBootstrapTokenProvided = errors.New("empty bootstrap token was provided")
 )
 
+var name string
 var bootstrapTokenRaw string
 var bootstrapTokenStdin bool
 var logFilePath string
@@ -38,6 +39,8 @@ func newRunCommand() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 	}
 
+	cmd.PersistentFlags().StringVar(&name, "name", "",
+		"name of the worker (defaults to the hostname)")
 	cmd.PersistentFlags().StringVar(&bootstrapTokenRaw, "bootstrap-token", "",
 		"a bootstrap token retrieved via \"orchard get bootstrap-token <service-account-name-for-workers>\"")
 	cmd.PersistentFlags().BoolVar(&bootstrapTokenStdin, "bootstrap-token-stdin", false,
@@ -111,6 +114,7 @@ func runWorker(cmd *cobra.Command, args []string) (err error) {
 
 	workerInstance, err := worker.New(
 		controllerClient,
+		worker.WithName(name),
 		worker.WithResources(resources),
 		worker.WithLogger(logger),
 	)
