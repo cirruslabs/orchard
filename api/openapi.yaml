@@ -67,6 +67,12 @@ paths:
                 items:
                   $ref: '#/components/schemas/ServiceAccount'
   /service-accounts/{name}:
+    parameters:
+      - in: path
+        name: name
+        required: true
+        schema:
+          type: string
     get:
       summary: "Retrieve a Service Account"
       tags:
@@ -130,6 +136,12 @@ paths:
                 items:
                   $ref: '#/components/schemas/Worker'
   /workers/{name}:
+    parameters:
+      - in: path
+        name: name
+        required: true
+        schema:
+          type: string
     get:
       summary: "Retrieve a Worker"
       tags:
@@ -166,6 +178,12 @@ paths:
         '404':
           description: Worker resource with the given name doesn't exist
   /workers/{name}/port-forward:
+    parameters:
+      - in: path
+        name: name
+        required: true
+        schema:
+          type: string
     get:
       summary: "Port-forward to a worker using WebSocket protocol"
       tags:
@@ -183,10 +201,14 @@ paths:
           name: Connection
           description: WebSocket protocol required header
           required: true
+          schema:
+            type: string
         - in: header
           name: Upgrade
           description: WebSocket protocol required header
           required: true
+          schema:
+            type: string
       responses:
         '400':
           description: Invalid port specified
@@ -222,6 +244,12 @@ paths:
                 items:
                   $ref: '#/components/schemas/VM'
   /vms/{name}:
+    parameters:
+      - in: path
+        name: name
+        required: true
+        schema:
+          type: string
     get:
       summary: "Retrieve a VM"
       tags:
@@ -258,6 +286,12 @@ paths:
         '404':
           description: VM resource with the given name doesn't exist
   /vms/{name}/events:
+    parameters:
+      - in: path
+        name: name
+        required: true
+        schema:
+          type: string
     get:
       summary: "Retrieve events for a given VM"
       tags:
@@ -285,6 +319,12 @@ paths:
         '404':
           description: VM resource with the given name doesn't exist
   /vms/{name}/port-forward:
+    parameters:
+      - in: path
+        name: name
+        required: true
+        schema:
+          type: string
     get:
       summary: "Port-forward to a VM using WebSocket protocol"
       tags:
@@ -310,10 +350,14 @@ paths:
           name: Connection
           description: WebSocket protocol required header
           required: true
+          schema:
+            type: string
         - in: header
           name: Upgrade
           description: WebSocket protocol required header
           required: true
+          schema:
+            type: string
       responses:
         '400':
           description: Invalid port specified
@@ -322,6 +366,12 @@ paths:
         '503':
           description: Failed to establish connection with the worker responsible for the specified VM
   /vms/{name}/ip:
+    parameters:
+      - in: path
+        name: name
+        required: true
+        schema:
+          type: string
     get:
       summary: "Resolve the VM's IP address on the worker"
       tags:
