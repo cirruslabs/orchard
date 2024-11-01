@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/cirruslabs/orchard/internal/netconstants"
 	"github.com/cirruslabs/orchard/internal/orchardhome"
-	"github.com/gofrs/flock"
 	"gopkg.in/yaml.v3"
 	"os"
 	"path/filepath"
@@ -66,13 +65,11 @@ func (handle *Handle) SetConfig(config *Config) error {
 }
 
 func (handle *Handle) CreateContext(name string, context Context, force bool) error {
-	lock := flock.New(handle.configPath)
-	if err := lock.Lock(); err != nil {
+	unlock, err := handle.Lock()
+	if err != nil {
 		return err
 	}
-	defer func() {
-		_ = lock.Unlock()
-	}()
+	defer unlock()
 
 	config, err := handle.Config()
 	if err != nil {
@@ -90,13 +87,11 @@ func (handle *Handle) CreateContext(name string, context Context, force bool) er
 }
 
 func (handle *Handle) DefaultContext() (Context, error) {
-	lock := flock.New(handle.configPath)
-	if err := lock.Lock(); err != nil {
+	unlock, err := handle.Lock()
+	if err != nil {
 		return Context{}, err
 	}
-	defer func() {
-		_ = lock.Unlock()
-	}()
+	defer unlock()
 
 	config, err := handle.Config()
 	if err != nil {
@@ -131,13 +126,11 @@ func (handle *Handle) DefaultContext() (Context, error) {
 }
 
 func (handle *Handle) SetDefaultContext(name string) error {
-	lock := flock.New(handle.configPath)
-	if err := lock.Lock(); err != nil {
+	unlock, err := handle.Lock()
+	if err != nil {
 		return err
 	}
-	defer func() {
-		_ = lock.Unlock()
-	}()
+	defer unlock()
 
 	config, err := handle.Config()
 	if err != nil {
@@ -155,13 +148,11 @@ func (handle *Handle) SetDefaultContext(name string) error {
 }
 
 func (handle *Handle) DeleteContext(name string) error {
-	lock := flock.New(handle.configPath)
-	if err := lock.Lock(); err != nil {
+	unlock, err := handle.Lock()
+	if err != nil {
 		return err
 	}
-	defer func() {
-		_ = lock.Unlock()
-	}()
+	defer unlock()
 
 	config, err := handle.Config()
 	if err != nil {
