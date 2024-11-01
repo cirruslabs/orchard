@@ -15,8 +15,6 @@ task:
       - rm -rf ~/.tart/vms/orchard-*
 
 task:
-  name: Release Binaries
-  only_if: $CIRRUS_TAG != ''
   depends_on:
     - Lint
     - Test (macOS)
@@ -33,8 +31,15 @@ task:
     image: goreleaser/goreleaser-pro:latest
     cpu: 4
     memory: 12G
-  release_script: goreleaser
-
+  matrix:
+    - name: Release Binaries
+      only_if: $CIRRUS_TAG != ''
+      release_script: goreleaser
+    - name: Release Binaries (Dry Run)
+      only_if: $CIRRUS_TAG == ''
+      release_script: goreleaser release --skip=publish --snapshot --clean --verbose
+      binaries_artifacts:
+        path: "dist/orchard_*/orchard*"
 
 docker_builder:
   name: Release Docker Image
