@@ -98,16 +98,17 @@ func runSSHVM(cmd *cobra.Command, args []string) error {
 	// Switch controlling terminal into raw mode,
 	// otherwise ANSI escape sequences that allow
 	// for cursor control and more wouldn't work
-	terminalFd := int(os.Stdin.Fd())
-	state, err := term.MakeRaw(terminalFd)
+	stdinFD := int(os.Stdin.Fd())
+	state, err := term.MakeRaw(stdinFD)
 	if err != nil {
 		return fmt.Errorf("%w: failed to switch controlling terminal into raw mode: %v", ErrFailed, err)
 	}
 	defer func() {
-		_ = term.Restore(terminalFd, state)
+		_ = term.Restore(stdinFD, state)
 	}()
 
-	width, height, err := term.GetSize(terminalFd)
+	stdoutFD := int(os.Stdout.Fd())
+	width, height, err := term.GetSize(int(os.Stdout.Fd()))
 	if err != nil {
 		return err
 	}
@@ -131,7 +132,7 @@ func runSSHVM(cmd *cobra.Command, args []string) error {
 	// Periodically adjust remote terminal size
 	go func() {
 		for {
-			newWidth, newHeight, err := term.GetSize(terminalFd)
+			newWidth, newHeight, err := term.GetSize(stdoutFD)
 			if err != nil {
 				return
 			}
