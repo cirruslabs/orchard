@@ -39,7 +39,7 @@ func TestProxy(t *testing.T) {
 }
 
 // TestProxyNonBlockingRespond ensures that the Respond() won't block
-// the caller in the absense of the receiving party.
+// the caller in the absence of the receiving party.
 func TestProxyNonBlockingRespond(t *testing.T) {
 	ctx := context.Background()
 
