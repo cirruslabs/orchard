@@ -26,7 +26,7 @@ func New[T any]() *Rendezvous[T] {
 func (rendezvous *Rendezvous[T]) Request(ctx context.Context, session string) (chan T, func()) {
 	tokenSlot := &TokenSlot[T]{
 		ctx: ctx,
-		ch:  make(chan T),
+		ch:  make(chan T, 1),
 	}
 
 	rendezvous.sessions.Store(session, tokenSlot)
@@ -42,7 +42,12 @@ func (rendezvous *Rendezvous[T]) Respond(session string, conn T) (context.Contex
 		return nil, ErrInvalidToken
 	}
 
-	tokenSlot.ch <- conn
+	select {
+	case tokenSlot.ch <- conn:
+		// first response
+	default:
+		// the receiving party still hadn't picked up the previous response, so discard the new one
+	}
 
 	return tokenSlot.ctx, nil
 }
