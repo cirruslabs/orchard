@@ -150,6 +150,8 @@ func (scheduler *Scheduler) schedulingLoopIteration() error {
 					affectedWorkers[worker.Name] = true
 
 					workerToResources.Add(worker.Name, unscheduledVM.Resources)
+
+					break
 				}
 			}
 		}
