@@ -10,6 +10,7 @@ builds:
     ldflags: >
       -X github.com/cirruslabs/orchard/internal/version.Version={{.Version}}
       -X github.com/cirruslabs/orchard/internal/version.Commit={{.ShortCommit}}
+      -B gobuildid
     env:
       - CGO_ENABLED=0
     goos:
