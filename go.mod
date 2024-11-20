@@ -1,8 +1,6 @@
 module github.com/cirruslabs/orchard
 
-go 1.21
-
-toolchain go1.22.4
+go 1.23.3
 
 require (
 	github.com/avast/retry-go v3.0.0+incompatible
