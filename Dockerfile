@@ -1,4 +1,8 @@
-FROM goreleaser/goreleaser-pro:latest as builder
+FROM golang:latest as builder
+
+# Install GoReleaser Pro
+RUN echo 'deb [trusted=yes] https://repo.goreleaser.com/apt/ /' | tee /etc/apt/sources.list.d/goreleaser.list
+RUN apt update && apt -y install goreleaser-pro
 
 WORKDIR /tmp/orchard
 ADD . /tmp/orchard/
