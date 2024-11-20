@@ -28,15 +28,21 @@ task:
     GORELEASER_KEY: ENCRYPTED[!9b80b6ef684ceaf40edd4c7af93014ee156c8aba7e6e5795f41c482729887b5c31f36b651491d790f1f668670888d9fd!]
     FURY_TOKEN: ENCRYPTED[!97fe4497d9aca60a3d64904883b81e21f19706c6aedda625c97f62f67ec46b8efa74c55699956158bbf0a23726e7d9f6!]
   container:
-    image: goreleaser/goreleaser-pro:latest
+    image: golang:latest
     cpu: 4
     memory: 12G
   matrix:
     - name: Release Binaries
       only_if: $CIRRUS_TAG != ''
+      install_goreleaser_script:
+        - echo 'deb [trusted=yes] https://repo.goreleaser.com/apt/ /' | tee /etc/apt/sources.list.d/goreleaser.list
+        - apt update && apt -y install goreleaser-pro
       release_script: goreleaser
     - name: Release Binaries (Dry Run)
       only_if: $CIRRUS_TAG == ''
+      install_goreleaser_script:
+        - echo 'deb [trusted=yes] https://repo.goreleaser.com/apt/ /' | tee /etc/apt/sources.list.d/goreleaser.list
+        - apt update && apt -y install goreleaser-pro
       release_script: goreleaser release --skip=publish --snapshot --clean --verbose
       binaries_artifacts:
         path: "dist/orchard_*/orchard*"
