@@ -44,8 +44,12 @@ func (controller *Controller) updateClusterSettings(ctx *gin.Context) responder.
 		}
 	}
 
-	if _, err := v1.NewSchedulerProfile(string(clusterSettings.SchedulerProfile)); err != nil {
-		return responder.JSON(http.StatusBadRequest, NewErrorResponse("%v", err))
+	if clusterSettings.SchedulerProfile == "" {
+		clusterSettings.SchedulerProfile = v1.SchedulerProfileOptimizeUtilization
+	} else {
+		if _, err := v1.NewSchedulerProfile(string(clusterSettings.SchedulerProfile)); err != nil {
+			return responder.JSON(http.StatusBadRequest, NewErrorResponse("%v", err))
+		}
 	}
 
 	return controller.storeUpdate(func(txn storepkg.Transaction) responder.Responder {
