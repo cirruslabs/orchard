@@ -14,12 +14,17 @@ import (
 )
 
 func StartIntegrationTestEnvironment(t *testing.T) (*client.Client, *controller.Controller, *worker.Worker) {
-	return StartIntegrationTestEnvironmentWithAdditionalOpts(t, nil, nil)
+	return StartIntegrationTestEnvironmentWithAdditionalOpts(t,
+		false, nil,
+		false, nil,
+	)
 }
 
 func StartIntegrationTestEnvironmentWithAdditionalOpts(
 	t *testing.T,
+	noController bool,
 	additionalControllerOpts []controller.Option,
+	noWorker bool,
 	additionalWorkerOpts []worker.Option,
 ) (*client.Client, *controller.Controller, *worker.Worker) {
 	t.Setenv("ORCHARD_HOME", t.TempDir())
@@ -34,19 +39,23 @@ func StartIntegrationTestEnvironmentWithAdditionalOpts(
 	devContext, cancelDevFunc := context.WithCancel(context.Background())
 	t.Cleanup(cancelDevFunc)
 
-	go func() {
-		err := devController.Run(devContext)
-		if err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, http.ErrServerClosed) {
-			t.Errorf("dev controller failed: %v", err)
-		}
-	}()
+	if !noController {
+		go func() {
+			err := devController.Run(devContext)
+			if err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, http.ErrServerClosed) {
+				t.Errorf("dev controller failed: %v", err)
+			}
+		}()
+	}
 
-	go func() {
-		err := devWorker.Run(devContext)
-		if err != nil && !errors.Is(err, context.Canceled) {
-			t.Errorf("dev worker failed: %v", err)
-		}
-	}()
+	if !noWorker {
+		go func() {
+			err := devWorker.Run(devContext)
+			if err != nil && !errors.Is(err, context.Canceled) {
+				t.Errorf("dev worker failed: %v", err)
+			}
+		}()
+	}
 
 	time.Sleep(5 * time.Second)
 

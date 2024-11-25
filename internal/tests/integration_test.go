@@ -276,7 +276,9 @@ func TestSchedulerHealthCheckingOfflineWorker(t *testing.T) {
 	ctx := context.Background()
 
 	devClient, _, _ := devcontroller.StartIntegrationTestEnvironmentWithAdditionalOpts(t,
-		[]controller.Option{controller.WithWorkerOfflineTimeout(1 * time.Minute)}, nil)
+		false, []controller.Option{controller.WithWorkerOfflineTimeout(1 * time.Minute)},
+		false, nil,
+	)
 
 	const (
 		dummyWorkerName = "dummy-worker"

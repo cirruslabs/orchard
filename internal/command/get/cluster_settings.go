@@ -41,6 +41,8 @@ func runGetClusterSettings(cmd *cobra.Command, args []string) error {
 	hostDirPoliciesDescription := strings.Join(hostDirPoliciesAsStrings, ",")
 	table.AddRow("hostDir policies", nonEmptyOrNone(hostDirPoliciesDescription))
 
+	table.AddRow("Scheduler profile", clusterSettings.SchedulerProfile)
+
 	fmt.Println(table)
 
 	return nil

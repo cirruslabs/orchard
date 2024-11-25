@@ -29,9 +29,12 @@ func TestSSHServer(t *testing.T) {
 	require.NoError(t, err)
 
 	// Run the Controller
-	devClient, devController, _ := devcontroller.StartIntegrationTestEnvironmentWithAdditionalOpts(t, []controller.Option{
-		controller.WithSSHServer(":0", signer, false),
-	}, nil)
+	devClient, devController, _ := devcontroller.StartIntegrationTestEnvironmentWithAdditionalOpts(t,
+		false, []controller.Option{
+			controller.WithSSHServer(":0", signer, false),
+		},
+		false, nil,
+	)
 
 	// Create a VM to which we'll connect via Controller's SSH server
 	err = devClient.VMs().Create(context.Background(), &v1.VM{
