@@ -11,48 +11,47 @@ import (
 var ErrClusterSettingsFailed = errors.New("failed to set cluster settings")
 
 var hostDirPoliciesRaw []string
+var schedulerProfileRaw string
 
-const hostDirPoliciesFlag = "host-dir-policies"
+const (
+	hostDirPoliciesFlag  = "host-dir-policies"
+	schedulerProfileFlag = "scheduler-profile"
+)
 
 func newSetClusterSettingsCommand() *cobra.Command {
-	command := &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "cluster-settings",
 		Short: "Set cluster settings",
 		RunE:  runSetClusterSettings,
 	}
 
-	command.PersistentFlags().StringSliceVar(&hostDirPoliciesRaw, hostDirPoliciesFlag, []string{},
+	cmd.Flags().StringSliceVar(&hostDirPoliciesRaw, hostDirPoliciesFlag, []string{},
 		fmt.Sprintf("comma-separated list of hostDir policies containing an allowed path prefix "+
 			"and an optional \":ro\" modifier to only allow read-only mounts for that path prefix "+
 			"(for example, --%s=/Users/ci/sources:ro,/tmp)", hostDirPoliciesFlag))
+	cmd.Flags().StringVar(&schedulerProfileRaw, schedulerProfileFlag, "", fmt.Sprintf(
+		`scheduler profile to use:
 
-	return command
+* --%s=%s — when scheduling a pending VM to a worker, pick the busiest worker that can fit a VM first,
+falling back to less busier workers (this is the default behavior when no explicit scheduler profile is set)
+
+* --%s=%s — when scheduling a pending VM to a worker, pick the least occupied worker that can fit a VM first,
+falling back to more busier workers
+
+`, schedulerProfileFlag, v1.SchedulerProfileOptimizeUtilization, schedulerProfileFlag,
+		v1.SchedulerProfileDistributeLoad))
+
+	return cmd
 }
 
 func runSetClusterSettings(cmd *cobra.Command, args []string) error {
-	// Convert arguments
-	var hostDirPolicies []v1.HostDirPolicy
-
-	for _, hostDirPolicyRaw := range hostDirPoliciesRaw {
-		hostDirPolicy, err := v1.NewHostDirPolicyFromString(hostDirPolicyRaw)
-		if err != nil {
-			return err
-		}
-
-		hostDirPolicies = append(hostDirPolicies, hostDirPolicy)
-	}
-
-	// Check if we need to update anything in the cluster settings
-	if !cmd.Flag(hostDirPoliciesFlag).Changed {
-		return fmt.Errorf("%w: you need to specify at least one setting to update",
-			ErrClusterSettingsFailed)
-	}
-
 	// Update cluster settings
 	client, err := client.New()
 	if err != nil {
 		return err
 	}
+
+	var needUpdate bool
 
 	clusterSettings, err := client.ClusterSettings().Get(cmd.Context())
 	if err != nil {
@@ -60,7 +59,30 @@ func runSetClusterSettings(cmd *cobra.Command, args []string) error {
 	}
 
 	if cmd.Flag(hostDirPoliciesFlag).Changed {
-		clusterSettings.HostDirPolicies = hostDirPolicies
+		for _, hostDirPolicyRaw := range hostDirPoliciesRaw {
+			hostDirPolicy, err := v1.NewHostDirPolicyFromString(hostDirPolicyRaw)
+			if err != nil {
+				return err
+			}
+
+			clusterSettings.HostDirPolicies = append(clusterSettings.HostDirPolicies, hostDirPolicy)
+		}
+
+		needUpdate = true
+	}
+
+	if cmd.Flag(schedulerProfileFlag).Changed {
+		clusterSettings.SchedulerProfile, err = v1.NewSchedulerProfile(schedulerProfileRaw)
+		if err != nil {
+			return err
+		}
+
+		needUpdate = true
+	}
+
+	// Check if we need to update anything in the cluster settings
+	if !needUpdate {
+		return fmt.Errorf("%w: you need to specify at least one setting to update", ErrClusterSettingsFailed)
 	}
 
 	return client.ClusterSettings().Set(cmd.Context(), clusterSettings)

@@ -1,6 +1,7 @@
 package scheduler
 
 import (
+	"cmp"
 	"context"
 	"github.com/cirruslabs/orchard/internal/controller/lifecycle"
 	"github.com/cirruslabs/orchard/internal/controller/notifier"
@@ -12,6 +13,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.opentelemetry.io/otel/metric"
 	"go.uber.org/zap"
+	"slices"
 	"sort"
 	"time"
 )
@@ -121,17 +123,41 @@ func (scheduler *Scheduler) schedulingLoopIteration() error {
 		if err != nil {
 			return err
 		}
-		unscheduledVMs, workerToResources := ProcessVMs(vms)
+		unscheduledVMs, workerInfos := ProcessVMs(vms)
 
 		workers, err := txn.ListWorkers()
 		if err != nil {
 			return err
 		}
 
+		// Retrieve cluster settings to figure out which scheduler profile to use
+		clusterSettings, err := txn.GetClusterSettings()
+		if err != nil {
+			return err
+		}
+
 		for _, unscheduledVM := range unscheduledVMs {
+			// Order workers depending on the scheduler profile
+			switch clusterSettings.SchedulerProfile {
+			case v1.SchedulerProfileDistributeLoad:
+				slices.SortFunc(workers, func(a, b v1.Worker) int {
+					// Sort by the number of running VMs, ascending order
+					return cmp.Compare(workerInfos[a.Name].NumRunningVMs,
+						workerInfos[b.Name].NumRunningVMs)
+				})
+			case v1.SchedulerProfileOptimizeUtilization:
+				fallthrough
+			default:
+				slices.SortFunc(workers, func(a, b v1.Worker) int {
+					// Sort by the number of running VMs, descending order
+					return cmp.Compare(workerInfos[b.Name].NumRunningVMs,
+						workerInfos[a.Name].NumRunningVMs)
+				})
+			}
+
 			// Find a worker that can run this VM
 			for _, worker := range workers {
-				resourcesUsed := workerToResources.Get(worker.Name)
+				resourcesUsed := workerInfos.Get(worker.Name).ResourcesUsed
 				resourcesRemaining := worker.Resources.Subtracted(resourcesUsed)
 
 				if resourcesRemaining.CanFit(unscheduledVM.Resources) &&
@@ -149,7 +175,7 @@ func (scheduler *Scheduler) schedulingLoopIteration() error {
 					}
 					affectedWorkers[worker.Name] = true
 
-					workerToResources.Add(worker.Name, unscheduledVM.Resources)
+					workerInfos.AddVM(worker.Name, unscheduledVM.Resources)
 
 					break
 				}
@@ -173,15 +199,15 @@ func (scheduler *Scheduler) schedulingLoopIteration() error {
 	return err
 }
 
-func ProcessVMs(vms []v1.VM) ([]v1.VM, WorkerToResources) {
+func ProcessVMs(vms []v1.VM) ([]v1.VM, WorkerInfos) {
 	var unscheduledVMs []v1.VM
-	workerToResources := make(WorkerToResources)
+	workerToResources := make(WorkerInfos)
 
 	for _, vm := range vms {
 		if vm.Worker == "" {
 			unscheduledVMs = append(unscheduledVMs, vm)
 		} else if !vm.TerminalState() {
-			workerToResources.Add(vm.Worker, vm.Resources)
+			workerToResources.AddVM(vm.Worker, vm.Resources)
 		}
 	}
 

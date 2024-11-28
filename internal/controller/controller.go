@@ -350,10 +350,10 @@ func (controller *Controller) initializeMetrics() error {
 					return err
 				}
 
-				_, workerToResources := scheduler.ProcessVMs(vms)
+				_, workerInfos := scheduler.ProcessVMs(vms)
 
 				for _, worker := range workers {
-					resourcesUsed := workerToResources.Get(worker.Name)
+					resourcesUsed := workerInfos.Get(worker.Name).ResourcesUsed
 
 					for key, value := range resourcesUsed {
 						observer.Observe(int64(value), metric.WithAttributes(
