@@ -104,3 +104,16 @@ func TestResourcesMerged(t *testing.T) {
 		v1.ResourceTartVMs: 4,
 	}))
 }
+
+func TestEqual(t *testing.T) {
+	//nolint:gocritic // "dupArg: suspicious method call with the same argument and receiver" // it's not suspicious at all
+	require.True(t, v1.Resources{}.Equal(v1.Resources{}))
+
+	require.True(t, v1.Resources{"a": 10.0}.Equal(v1.Resources{"a": 10.0}))
+
+	require.False(t, v1.Resources{"a": 10.0}.Equal(v1.Resources{"a": 10.0, "b": 15.0}))
+
+	require.False(t, v1.Resources{"a": 10.0, "b": 15.0}.Equal(v1.Resources{"a": 10.0}))
+
+	require.False(t, v1.Resources{"a": 0.0}.Equal(v1.Resources{"b": 0.0}))
+}
