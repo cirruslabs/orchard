@@ -3,6 +3,7 @@ package v1
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"strconv"
 )
 
@@ -97,4 +98,8 @@ func (resources Resources) CanFit(other Resources) bool {
 	}
 
 	return true
+}
+
+func (resources Resources) Equal(other Resources) bool {
+	return maps.Equal(resources, other)
 }
