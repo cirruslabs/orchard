@@ -232,7 +232,7 @@ NextVM:
 			if worker.Offline(scheduler.workerOfflineTimeout) ||
 				worker.SchedulingPaused ||
 				!resourcesRemaining.CanFit(unscheduledVM.Resources) {
-				continue
+				continue NextWorker
 			}
 
 			err := scheduler.store.Update(func(txn storepkg.Transaction) error {
