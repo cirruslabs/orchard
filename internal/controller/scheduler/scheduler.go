@@ -90,7 +90,15 @@ func (scheduler *Scheduler) Run() {
 		if err := scheduler.healthCheckingLoopIteration(); err != nil {
 			scheduler.logger.Errorf("Failed to health-check VMs: %v", err)
 		}
-		if err := scheduler.schedulingLoopIteration(); err != nil {
+
+		schedulingLoopIterationStart := time.Now()
+		err := scheduler.schedulingLoopIteration()
+		schedulingLoopIterationEnd := time.Now()
+
+		scheduler.logger.Debugf("Scheduling loop iteration took %v",
+			schedulingLoopIterationEnd.Sub(schedulingLoopIterationStart))
+
+		if err != nil {
 			scheduler.logger.Errorf("Failed to schedule VMs: %v", err)
 		} else {
 			schedulerLoopIterationStat.Inc()
