@@ -19,8 +19,6 @@ linters:
     - dupl
     - errcheck
     - exhaustive
-    - exportloopref
-    - exportloopref
     - gochecknoinits
     - gocognit
     - goconst
@@ -96,9 +94,6 @@ linters:
     # No way to disable the "exported" check for the whole project[1]
     # [1]: https://github.com/mgechev/revive/issues/244#issuecomment-560512162
     - revive
-
-    # Unfortunately too much false-positives, e.g. for a 0700 umask or number 10 when using strconv.FormatInt()
-    - gomnd
 
     # Needs package whitelists
     - depguard
