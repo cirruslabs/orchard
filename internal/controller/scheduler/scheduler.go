@@ -87,15 +87,19 @@ func (scheduler *Scheduler) Run() {
 		case <-time.After(schedulerInterval):
 		}
 
+		healthCheckingLoopIterationStart := time.Now()
 		if err := scheduler.healthCheckingLoopIteration(); err != nil {
 			scheduler.logger.Errorf("Failed to health-check VMs: %v", err)
 		}
+		healthCheckingLoopIterationEnd := time.Now()
 
 		schedulingLoopIterationStart := time.Now()
 		err := scheduler.schedulingLoopIteration()
 		schedulingLoopIterationEnd := time.Now()
 
-		scheduler.logger.Debugf("Scheduling loop iteration took %v",
+		scheduler.logger.Debugf("Health checking loop iteration took %v, "+
+			"scheduling loop iteration took %v",
+			healthCheckingLoopIterationEnd.Sub(healthCheckingLoopIterationStart),
 			schedulingLoopIterationEnd.Sub(schedulingLoopIterationStart))
 
 		if err != nil {
@@ -352,46 +356,69 @@ func ProcessVMs(vms []v1.VM) ([]v1.VM, WorkerInfos) {
 }
 
 func (scheduler *Scheduler) healthCheckingLoopIteration() error {
-	return scheduler.store.Update(func(txn storepkg.Transaction) error {
-		// Retrieve scheduled VMs
-		vms, err := txn.ListVMs()
+	// Get a lagging view of VMs
+	var vms []v1.VM
+
+	if err := scheduler.store.View(func(txn storepkg.Transaction) error {
+		var err error
+
+		vms, err = txn.ListVMs()
 		if err != nil {
 			return err
 		}
 
-		var scheduledVMs []v1.VM
-
-		for _, vm := range vms {
-			if vm.Worker != "" {
-				scheduledVMs = append(scheduledVMs, vm)
-			}
-		}
-
-		// Retrieve and index workers by name
+		// Update metrics
 		workers, err := txn.ListWorkers()
 		if err != nil {
 			return err
 		}
 
-		nameToWorker := map[string]v1.Worker{}
-		for _, worker := range workers {
-			nameToWorker[worker.Name] = worker
-		}
-
 		scheduler.reportStats(workers, vms)
 
-		// Process scheduled VMs
-		for _, scheduledVM := range scheduledVMs {
-			if err := scheduler.healthCheckVM(txn, nameToWorker, scheduledVM); err != nil {
-				return err
-			}
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	// Process each VM in a lagging list of VMs in an individual
+	// transaction, re-checking that the VM still exists
+	// and it is still scheduled
+	for _, vm := range vms {
+		if vm.Worker == "" {
+			// Not a scheduled VM
+			//
+			// We'll re-check this below, but this allows us
+			// to avoid wasting cycles opening a transaction
+			// for nothing.
+			continue
 		}
 
-		return nil
-	})
+		if err := scheduler.store.Update(func(txn storepkg.Transaction) error {
+			currentVM, err := txn.GetVM(vm.Name)
+			if err != nil {
+				if errors.Is(err, storepkg.ErrNotFound) {
+					// VM ceased to exist, nothing to do
+					return nil
+				}
+
+				return err
+			}
+
+			if currentVM.Worker == "" {
+				// Not a scheduled VM, nothing to do
+				return nil
+			}
+
+			return scheduler.healthCheckVM(txn, *currentVM)
+		}); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
-func (scheduler *Scheduler) healthCheckVM(txn storepkg.Transaction, nameToWorker map[string]v1.Worker, vm v1.VM) error {
+func (scheduler *Scheduler) healthCheckVM(txn storepkg.Transaction, vm v1.VM) error {
 	logger := scheduler.logger.With("vm_name", vm.Name, "vm_uid", vm.UID, "vm_restart_count", vm.RestartCount)
 
 	// Schedule a VM restart if the restart policy mandates it
@@ -415,13 +442,17 @@ func (scheduler *Scheduler) healthCheckVM(txn storepkg.Transaction, nameToWorker
 		return txn.SetVM(vm)
 	}
 
-	worker, ok := nameToWorker[vm.Worker]
-	if !ok {
-		vm.Status = v1.VMStatusFailed
-		vm.StatusMessage = "VM is assigned to a worker that " +
-			"doesn't exist anymore"
+	worker, err := txn.GetWorker(vm.Worker)
+	if err != nil {
+		if errors.Is(err, storepkg.ErrNotFound) {
+			vm.Status = v1.VMStatusFailed
+			vm.StatusMessage = "VM is assigned to a worker that " +
+				"doesn't exist anymore"
 
-		return txn.SetVM(vm)
+			return txn.SetVM(vm)
+		}
+
+		return err
 	}
 
 	if worker.Offline(scheduler.workerOfflineTimeout) && !vm.TerminalState() {
