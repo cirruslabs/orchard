@@ -132,7 +132,9 @@ func (worker *Worker) runNewSession(ctx context.Context) error {
 
 	// Sync on-disk VMs
 	if err := worker.syncOnDiskVMs(ctx); err != nil {
-		return err
+		worker.logger.Errorf("failed to sync on-disk VMs: %v", err)
+
+		return nil
 	}
 
 	for {
