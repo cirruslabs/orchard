@@ -80,6 +80,8 @@ func (controller *Controller) createWorker(ctx *gin.Context) responder.Responder
 				if err := txn.SetWorker(worker); err != nil {
 					return responder.Error(err)
 				}
+
+				return responder.JSON(200, worker)
 			}
 
 			controller.logger.Errorf("failed to check if the worker "+
