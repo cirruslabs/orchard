@@ -71,22 +71,33 @@ func (controller *Controller) createWorker(ctx *gin.Context) responder.Responder
 
 	return controller.storeUpdate(func(txn storepkg.Transaction) responder.Responder {
 		// In case there already exist a worker with the same name,
-		// allow overwriting it if the request comes from a worker
-		// with the same machine ID
+		// update it (to avoid overwriting things like SchedulingPaused)
+		// if the request comes from a worker with the same machine ID
 		dbWorker, err := txn.GetWorker(worker.Name)
-		if err != nil && !errors.Is(err, storepkg.ErrNotFound) {
+		if err != nil {
+			if errors.Is(err, storepkg.ErrNotFound) {
+				// Create a new worker
+				if err := txn.SetWorker(worker); err != nil {
+					return responder.Error(err)
+				}
+			}
+
 			controller.logger.Errorf("failed to check if the worker "+
 				"with name %q exists in the DB: %v", worker.Name, err)
 
 			return responder.Code(http.StatusInternalServerError)
 		}
-		if err == nil && worker.MachineID != dbWorker.MachineID {
-			return responder.JSON(http.StatusConflict,
-				NewErrorResponse("this worker is managed from a different machine ID, "+
-					"delete this worker first to be able to re-create it"))
+
+		// Update an already existing worker
+		if worker.MachineID != dbWorker.MachineID {
+			return responder.JSON(http.StatusConflict, NewErrorResponse("this worker is managed "+
+				"from a different machine ID, delete this worker first to be able to re-create it"))
 		}
 
-		if err := txn.SetWorker(worker); err != nil {
+		dbWorker.LastSeen = worker.LastSeen
+		dbWorker.Resources = worker.Resources
+
+		if err := txn.SetWorker(*dbWorker); err != nil {
 			return responder.Error(err)
 		}
 
