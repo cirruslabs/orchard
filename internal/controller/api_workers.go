@@ -103,7 +103,7 @@ func (controller *Controller) createWorker(ctx *gin.Context) responder.Responder
 			return responder.Error(err)
 		}
 
-		return responder.JSON(200, worker)
+		return responder.JSON(200, dbWorker)
 	})
 }
 
