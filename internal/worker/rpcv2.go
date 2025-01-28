@@ -42,7 +42,7 @@ func (worker *Worker) handlePortForwardV2(ctx context.Context, portForward *v1.P
 
 	vmConn, err := worker.handlePortForwardV2Inner(ctx, portForward)
 	if err != nil {
-		errorMessage = fmt.Sprintf("port-forwarding failed: failed to connect to the worker/VM: %v", err)
+		errorMessage = fmt.Sprintf("port-forwarding failed: %v", err)
 
 		worker.logger.Warn(errorMessage)
 	}
@@ -77,20 +77,20 @@ func (worker *Worker) handlePortForwardV2Inner(
 			return item.Resource.UID == portForward.VMUID
 		})
 		if !ok {
-			return nil, fmt.Errorf("port forwarding failed: failed to get the VM: %v", err)
+			return nil, fmt.Errorf("failed to get the VM: %v", err)
 		}
 
 		// Obtain VM's IP address
 		host, err = vm.IP(ctx)
 		if err != nil {
-			return nil, fmt.Errorf("port forwarding failed: failed to get VM's IP: %v", err)
+			return nil, fmt.Errorf("failed to get VM's IP: %v", err)
 		}
 	}
 
 	// Connect to the VM's port
 	vmConn, err := net.Dial("tcp", fmt.Sprintf("%s:%d", host, portForward.Port))
 	if err != nil {
-		return nil, fmt.Errorf("port forwarding failed: failed to connect to the VM: %v", err)
+		return nil, fmt.Errorf("failed to connect to the VM: %v", err)
 	}
 
 	return vmConn, nil
