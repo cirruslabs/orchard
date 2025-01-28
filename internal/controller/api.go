@@ -111,6 +111,17 @@ func (controller *Controller) initAPI() *gin.Engine {
 		controller.deleteWorker(c).Respond(c)
 	})
 
+	// RPC v2
+	v1.GET("/rpc/watch", func(c *gin.Context) {
+		controller.rpcWatch(c).Respond(c)
+	})
+	v1.GET("/rpc/port-forward", func(c *gin.Context) {
+		controller.rpcPortForward(c).Respond(c)
+	})
+	v1.POST("/rpc/resolve-ip", func(c *gin.Context) {
+		controller.rpcResolveIP(c).Respond(c)
+	})
+
 	// VMs
 	v1.POST("/vms", func(c *gin.Context) {
 		controller.createVM(c).Respond(c)

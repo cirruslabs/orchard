@@ -488,6 +488,11 @@ components:
         commit:
           type: string
           description: Commit hash
+        capabilities:
+          type: array
+          items:
+            type: string
+          description: Supported capabilities
     ClusterSettings:
       title: Cluster settings
       type: object

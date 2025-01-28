@@ -338,3 +338,9 @@ func (client *Client) ClusterSettings() *ClusterSettingsService {
 		client: client,
 	}
 }
+
+func (client *Client) RPC() *RPCService {
+	return &RPCService{
+		client: client,
+	}
+}
