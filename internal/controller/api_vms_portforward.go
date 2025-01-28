@@ -81,7 +81,7 @@ func (controller *Controller) portForward(
 		},
 	})
 	if err != nil {
-		controller.logger.Warnf("port forwarding on the worker %s failed: %v",
+		controller.logger.Warnf("failed to request port-forwarding from the worker %s: %v",
 			workerName, err)
 
 		return responder.Code(http.StatusServiceUnavailable)
