@@ -40,6 +40,7 @@ func (worker *Worker) handlePortForwardV2(ctx context.Context, portForward *v1.P
 	worker.logger.Debugf("received port-forwarding request to VM UID %s, port %d",
 		portForward.VMUID, portForward.Port)
 
+	// Establish a connection with the VM
 	vmConn, err := worker.handlePortForwardV2Inner(ctx, portForward)
 	if err != nil {
 		errorMessage = fmt.Sprintf("port-forwarding failed: %v", err)
@@ -55,7 +56,7 @@ func (worker *Worker) handlePortForwardV2(ctx context.Context, portForward *v1.P
 		return
 	}
 
-	// Proxy bytes
+	// Proxy bytes if the connection was established without errors
 	if errorMessage == "" {
 		_ = proxy.Connections(vmConn, netConn)
 	}
@@ -101,9 +102,10 @@ func (worker *Worker) handleGetIPV2(ctx context.Context, resolveIP *v1.ResolveIP
 
 	worker.logger.Debugf("received IP resolution request to VM UID %s", resolveIP.VMUID)
 
+	// Retrieve the VM's IP
 	ip, err := worker.handleGetIPV2Inner(ctx, resolveIP)
 	if err != nil {
-		errorMessage = fmt.Sprintf("failed to handle get IP: %v", err)
+		errorMessage = fmt.Sprintf("failed to resolve VM's IP: %v", err)
 
 		worker.logger.Warn(errorMessage)
 	}
@@ -126,15 +128,13 @@ func (worker *Worker) handleGetIPV2Inner(
 		return item.Resource.UID == resolveIP.VMUID
 	})
 	if !ok {
-		return "", fmt.Errorf("failed to resolve IP for the VM with UID %q: VM not found",
-			resolveIP.VMUID)
+		return "", fmt.Errorf("VM %q not found", resolveIP.VMUID)
 	}
 
 	// Obtain VM's IP address
 	ip, err := vm.IP(ctx)
 	if err != nil {
-		return "", fmt.Errorf("failed to resolve IP for the VM with UID %q: \"tart ip\" failed: %v",
-			resolveIP.VMUID, err)
+		return "", fmt.Errorf("\"tart ip\" failed for VM %q: %v", resolveIP.VMUID, err)
 	}
 
 	return ip, nil
