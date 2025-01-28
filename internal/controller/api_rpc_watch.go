@@ -76,6 +76,7 @@ func (controller *Controller) rpcWatch(ctx *gin.Context) responder.Responder {
 					"connection might time out: %v", workerName, err)
 			}
 		case <-ctx.Done():
+			// Connection shouldn't be normally closed by the worker
 			return controller.wsError(wsConn, websocket.StatusAbnormalClosure, "watch RPC",
 				"unexpectedly disconnected worker", err)
 		}
