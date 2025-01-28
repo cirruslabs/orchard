@@ -8,7 +8,7 @@ task:
   pull_script:
     - tart pull ghcr.io/cirruslabs/macos-sonoma-base:latest
   test_script:
-    - go test -v -count=1 ./...
+    - go test -ldflags="-B gobuildid" -v -count=1 ./...
   always:
     cleanup_script:
       - tart list
