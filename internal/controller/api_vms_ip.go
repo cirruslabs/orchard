@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"fmt"
 	"github.com/cirruslabs/orchard/internal/responder"
 	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
 	"github.com/cirruslabs/orchard/rpc"
@@ -55,11 +56,16 @@ func (controller *Controller) ip(ctx *gin.Context) responder.Responder {
 	}
 
 	select {
-	case ip := <-boomerangConnCh:
+	case rendezvousResponse := <-boomerangConnCh:
+		if rendezvousResponse.ErrorMessage != "" {
+			return responder.Error(fmt.Errorf("VM's IP resolution on the worker %s failed: %s",
+				vm.Worker, rendezvousResponse.ErrorMessage))
+		}
+
 		result := struct {
 			IP string `json:"ip"`
 		}{
-			IP: ip,
+			IP: rendezvousResponse.Result,
 		}
 
 		return responder.JSON(http.StatusOK, &result)

@@ -31,7 +31,7 @@ type SSHServer struct {
 	listener       net.Listener
 	serverConfig   *ssh.ServerConfig
 	store          storepkg.Store
-	connRendezvous *rendezvous.Rendezvous[net.Conn]
+	connRendezvous *rendezvous.Rendezvous[rendezvous.ResultWithErrorMessage[net.Conn]]
 	workerNotifier *notifier.Notifier
 	logger         *zap.SugaredLogger
 }
@@ -40,7 +40,7 @@ func NewSSHServer(
 	address string,
 	signer ssh.Signer,
 	store storepkg.Store,
-	connRendezvous *rendezvous.Rendezvous[net.Conn],
+	connRendezvous *rendezvous.Rendezvous[rendezvous.ResultWithErrorMessage[net.Conn]],
 	workerNotifier *notifier.Notifier,
 	noClientAuth bool,
 	logger *zap.SugaredLogger,
@@ -253,7 +253,19 @@ func (server *SSHServer) handleDirectTCPIP(ctx context.Context, newChannel ssh.N
 
 	// Wait for the connection from worker and commence port forwarding
 	select {
-	case fromWorkerConnection := <-boomerangConnCh:
+	case rendezvousResponse := <-boomerangConnCh:
+		if rendezvousResponse.ErrorMessage != "" {
+			message := fmt.Sprintf("failed to establish port forwarding session on the worker: %s",
+				rendezvousResponse.ErrorMessage)
+
+			if err := newChannel.Reject(ssh.ConnectionFailed, message); err != nil {
+				server.logger.Warnf("failed to reject new channel due to "+
+					"failure establishing port forwarding session on the worker: %v", err)
+			}
+
+			return
+		}
+
 		// Now that we have the connection from worker we can accept the channel
 		acceptedChannel, acceptedChannelRequests, err := newChannel.Accept()
 		if err != nil {
@@ -277,7 +289,7 @@ func (server *SSHServer) handleDirectTCPIP(ctx context.Context, newChannel ssh.N
 		}()
 
 		// Commence port forwarding
-		if err := proxy.Connections(acceptedChannel, fromWorkerConnection); err != nil {
+		if err := proxy.Connections(acceptedChannel, rendezvousResponse.Result); err != nil {
 			server.logger.Warnf("failed to port-forward: %v", err)
 		}
 	case <-ctx.Done():

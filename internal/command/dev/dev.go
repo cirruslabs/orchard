@@ -20,6 +20,7 @@ var ErrFailed = errors.New("failed to run development controller and worker")
 
 var devDataDirPath string
 var stringToStringResources map[string]string
+var experimentalRPCV2 bool
 
 func NewCommand() *cobra.Command {
 	command := &cobra.Command{
@@ -32,6 +33,8 @@ func NewCommand() *cobra.Command {
 		"path to persist data between runs")
 	command.PersistentFlags().StringToStringVar(&stringToStringResources, "resources", map[string]string{},
 		"resources that the development worker will provide")
+	command.PersistentFlags().BoolVar(&experimentalRPCV2, "experimental-rpc-v2", false,
+		"enable experimental RPC v2 (https://github.com/cirruslabs/orchard/issues/235)")
 
 	return command
 }
@@ -51,9 +54,15 @@ func runDev(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("%w: %v", ErrFailed, err)
 	}
 
+	var additionalControllerOpts []controller.Option
+
+	if experimentalRPCV2 {
+		additionalControllerOpts = append(additionalControllerOpts, controller.WithExperimentalRPCV2())
+	}
+
 	devController, devWorker, err := CreateDevControllerAndWorker(devDataDirPath,
 		fmt.Sprintf(":%d", netconstants.DefaultControllerPort), resources,
-		nil, nil)
+		additionalControllerOpts, nil)
 	if err != nil {
 		return err
 	}

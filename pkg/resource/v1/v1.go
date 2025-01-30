@@ -103,7 +103,27 @@ const (
 	VMStatusFailed VMStatus = "failed"
 )
 
+type ControllerCapability string
+
+const (
+	ControllerCapabilityRPCV1 ControllerCapability = "rpc-v1"
+	ControllerCapabilityRPCV2 ControllerCapability = "rpc-v2"
+)
+
+type ControllerCapabilities []ControllerCapability
+
+func (controllerCapabilities ControllerCapabilities) Has(capability ControllerCapability) bool {
+	for _, controllerCapability := range controllerCapabilities {
+		if controllerCapability == capability {
+			return true
+		}
+	}
+
+	return false
+}
+
 type ControllerInfo struct {
-	Version string `json:"version,omitempty"`
-	Commit  string `json:"commit,omitempty"`
+	Version      string                 `json:"version,omitempty"`
+	Commit       string                 `json:"commit,omitempty"`
+	Capabilities ControllerCapabilities `json:"capabilities,omitempty"`
 }

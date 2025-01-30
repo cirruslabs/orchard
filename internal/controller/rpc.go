@@ -2,10 +2,12 @@ package controller
 
 import (
 	"context"
+	"github.com/cirruslabs/orchard/internal/controller/rendezvous"
 	v1pkg "github.com/cirruslabs/orchard/pkg/resource/v1"
 	"github.com/cirruslabs/orchard/rpc"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/emptypb"
+	"net"
 
 	//nolint:staticcheck // https://github.com/mitchellh/go-grpc-net-conn/pull/1
 	"github.com/golang/protobuf/proto"
@@ -63,7 +65,11 @@ func (controller *Controller) PortForward(stream rpc.Controller_PortForwardServe
 	}
 
 	// make connection rendezvous aware of the connection
-	proxyCtx, err := controller.connRendezvous.Respond(sessionMetadataValue[0], conn)
+	proxyCtx, err := controller.connRendezvous.Respond(sessionMetadataValue[0],
+		rendezvous.ResultWithErrorMessage[net.Conn]{
+			Result: conn,
+		},
+	)
 	if err != nil {
 		return err
 	}
@@ -87,7 +93,9 @@ func (controller *Controller) ResolveIP(ctx context.Context, request *rpc.Resolv
 	}
 
 	// Respond with the resolved IP address
-	_, err := controller.ipRendezvous.Respond(sessionMetadataValue[0], request.Ip)
+	_, err := controller.ipRendezvous.Respond(sessionMetadataValue[0], rendezvous.ResultWithErrorMessage[string]{
+		Result: request.Ip,
+	})
 	if err != nil {
 		return nil, err
 	}

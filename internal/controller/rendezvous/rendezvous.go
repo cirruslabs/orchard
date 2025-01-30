@@ -12,6 +12,11 @@ type Rendezvous[T any] struct {
 	sessions *concurrentmap.ConcurrentMap[*TokenSlot[T]]
 }
 
+type ResultWithErrorMessage[T any] struct {
+	Result       T
+	ErrorMessage string
+}
+
 type TokenSlot[T any] struct {
 	ctx context.Context
 	ch  chan T

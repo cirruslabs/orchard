@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"fmt"
 	storepkg "github.com/cirruslabs/orchard/internal/controller/store"
 	"github.com/cirruslabs/orchard/internal/netconncancel"
 	"github.com/cirruslabs/orchard/internal/proxy"
@@ -88,7 +89,12 @@ func (controller *Controller) portForward(
 
 	// worker will asynchronously start port-forwarding so we wait
 	select {
-	case fromWorkerConnection := <-boomerangConnCh:
+	case rendezvousResponse := <-boomerangConnCh:
+		if rendezvousResponse.ErrorMessage != "" {
+			return responder.Error(fmt.Errorf("failed to establish port forwarding session on the worker: %s",
+				rendezvousResponse.ErrorMessage))
+		}
+
 		wsConn, err := websocket.Accept(ctx.Writer, ctx.Request, &websocket.AcceptOptions{
 			OriginPatterns: []string{"*"},
 		})
@@ -105,7 +111,7 @@ func (controller *Controller) portForward(
 		}
 
 		wsConnAsNetConn := websocket.NetConn(ctx, wsConn, expectedMsgType)
-		fromWorkerConnectionWithCancel := netconncancel.New(fromWorkerConnection, rendezvousCtxCancel)
+		fromWorkerConnectionWithCancel := netconncancel.New(rendezvousResponse.Result, rendezvousCtxCancel)
 
 		if err := proxy.Connections(wsConnAsNetConn, fromWorkerConnectionWithCancel); err != nil {
 			var websocketCloseError websocket.CloseError

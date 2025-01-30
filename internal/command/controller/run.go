@@ -19,6 +19,7 @@ var address string
 var addressSSH string
 var debug bool
 var sshNoClientAuth bool
+var experimentalRPCV2 bool
 
 func newRunCommand() *cobra.Command {
 	cmd := &cobra.Command{
@@ -51,6 +52,8 @@ func newRunCommand() *cobra.Command {
 	cmd.PersistentFlags().BoolVar(&sshNoClientAuth, "insecure-ssh-no-client-auth", false,
 		"allow SSH clients to connect to the controller's SSH server without authentication, "+
 			"thus only authenticating on the target worker/VM's SSH server")
+	cmd.PersistentFlags().BoolVar(&experimentalRPCV2, "experimental-rpc-v2", false,
+		"enable experimental RPC v2 (https://github.com/cirruslabs/orchard/issues/235)")
 
 	return cmd
 }
@@ -110,6 +113,10 @@ func runController(cmd *cobra.Command, args []string) (err error) {
 		}
 
 		controllerOpts = append(controllerOpts, controller.WithSSHServer(addressSSH, signer, sshNoClientAuth))
+	}
+
+	if experimentalRPCV2 {
+		controllerOpts = append(controllerOpts, controller.WithExperimentalRPCV2())
 	}
 
 	controllerInstance, err := controller.New(controllerOpts...)

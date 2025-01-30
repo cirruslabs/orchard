@@ -122,13 +122,34 @@ func (worker *Worker) runNewSession(ctx context.Context) error {
 		return nil
 	}
 
-	go func() {
-		_ = retry.Do(func() error {
-			return worker.watchRPC(subCtx)
-		}, retry.OnRetry(func(n uint, err error) {
-			worker.logger.Warnf("failed to watch RPC: %v", err)
-		}), retry.Context(subCtx), retry.Attempts(0))
-	}()
+	info, err := worker.client.Controller().Info(ctx)
+	if err != nil {
+		worker.logger.Warnf("failed to retrieve controller info: %v", err)
+
+		return nil
+	}
+
+	if info.Capabilities.Has(v1.ControllerCapabilityRPCV2) {
+		worker.logger.Infof("using WebSocket-based v2 RPC")
+
+		go func() {
+			_ = retry.Do(func() error {
+				return worker.watchRPCV2(subCtx)
+			}, retry.OnRetry(func(n uint, err error) {
+				worker.logger.Warnf("failed to watch RPC v2: %v", err)
+			}), retry.Context(subCtx), retry.Attempts(0))
+		}()
+	} else {
+		worker.logger.Infof("using gRPC-based v1 RPC")
+
+		go func() {
+			_ = retry.Do(func() error {
+				return worker.watchRPC(subCtx)
+			}, retry.OnRetry(func(n uint, err error) {
+				worker.logger.Warnf("failed to watch RPC v1: %v", err)
+			}), retry.Context(subCtx), retry.Attempts(0))
+		}()
+	}
 
 	// Sync on-disk VMs
 	if err := worker.syncOnDiskVMs(ctx); err != nil {

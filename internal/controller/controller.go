@@ -54,11 +54,12 @@ type Controller struct {
 	logger               *zap.SugaredLogger
 	grpcServer           *grpc.Server
 	workerNotifier       *notifier.Notifier
-	connRendezvous       *rendezvous.Rendezvous[net.Conn]
-	ipRendezvous         *rendezvous.Rendezvous[string]
+	connRendezvous       *rendezvous.Rendezvous[rendezvous.ResultWithErrorMessage[net.Conn]]
+	ipRendezvous         *rendezvous.Rendezvous[rendezvous.ResultWithErrorMessage[string]]
 	enableSwaggerDocs    bool
 	workerOfflineTimeout time.Duration
 	maxWorkersPerLicense uint
+	experimentalRPCV2    bool
 
 	sshListenAddr   string
 	sshSigner       ssh.Signer
@@ -70,8 +71,8 @@ type Controller struct {
 
 func New(opts ...Option) (*Controller, error) {
 	controller := &Controller{
-		connRendezvous:       rendezvous.New[net.Conn](),
-		ipRendezvous:         rendezvous.New[string](),
+		connRendezvous:       rendezvous.New[rendezvous.ResultWithErrorMessage[net.Conn]](),
+		ipRendezvous:         rendezvous.New[rendezvous.ResultWithErrorMessage[string]](),
 		workerOfflineTimeout: 3 * time.Minute,
 		maxWorkersPerLicense: maxWorkersPerDefaultLicense,
 	}
