@@ -68,12 +68,14 @@ func runGetVM(cmd *cobra.Command, args []string) error {
 
 	cpu := vm.CPU
 	if cpu == 0 {
+		// Implicit CPU assignment, CPU will always be 0
 		cpu = vm.AssignedCPU
 	}
 	table.AddRow("CPU", cpu)
 
 	memory := vm.Memory
 	if memory == 0 {
+		// Implicit memory assignment, memory will always be 0
 		memory = vm.AssignedMemory
 	}
 	table.AddRow("Memory", memory)
