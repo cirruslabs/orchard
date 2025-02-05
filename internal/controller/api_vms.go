@@ -34,12 +34,6 @@ func (controller *Controller) createVM(ctx *gin.Context) responder.Responder {
 	if vm.Image == "" {
 		return responder.JSON(http.StatusPreconditionFailed, NewErrorResponse("VM image is empty"))
 	}
-	if vm.CPU == 0 {
-		return responder.JSON(http.StatusPreconditionFailed, NewErrorResponse("VM CPU is zero"))
-	}
-	if vm.Memory == 0 {
-		return responder.JSON(http.StatusPreconditionFailed, NewErrorResponse("VM memory is zero"))
-	}
 
 	vm.Status = v1.VMStatusPending
 	vm.CreatedAt = time.Now()

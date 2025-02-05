@@ -29,6 +29,8 @@ var bootstrapTokenStdin bool
 var logFilePath string
 var stringToStringResources map[string]string
 var noPKI bool
+var defaultCPU uint64
+var defaultMemory uint64
 var debug bool
 
 func newRunCommand() *cobra.Command {
@@ -53,6 +55,10 @@ func newRunCommand() *cobra.Command {
 		"do not use the host's root CA set and instead validate the Controller's presented "+
 			"certificate using a bootstrap token (or manually via fingerprint, "+
 			"if no bootstrap token is provided)")
+	cmd.PersistentFlags().Uint64Var(&defaultCPU, "default-cpu", 4, "number of CPUs to use for VMs "+
+		"that do not explicitly specify a value")
+	cmd.PersistentFlags().Uint64Var(&defaultMemory, "default-memory", 8*1024, "megabytes of memory "+
+		"to use for VMs that do not explicitly specify a value")
 	cmd.PersistentFlags().BoolVar(&debug, "debug", false, "enable debug logging")
 
 	return cmd
@@ -116,6 +122,7 @@ func runWorker(cmd *cobra.Command, args []string) (err error) {
 		controllerClient,
 		worker.WithName(name),
 		worker.WithResources(resources),
+		worker.WithDefaultCPUAndMemory(defaultCPU, defaultMemory),
 		worker.WithLogger(logger),
 	)
 	if err != nil {

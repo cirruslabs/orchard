@@ -65,8 +65,21 @@ func runGetVM(cmd *cobra.Command, args []string) error {
 	table.AddRow("Created", createdAtInfo)
 	table.AddRow("Image", vm.Image)
 	table.AddRow("Image pull policy", vm.ImagePullPolicy)
-	table.AddRow("CPU", vm.CPU)
-	table.AddRow("Memory", vm.Memory)
+
+	cpu := vm.CPU
+	if cpu == 0 {
+		// Implicit CPU assignment, CPU will always be 0
+		cpu = vm.AssignedCPU
+	}
+	table.AddRow("CPU", cpu)
+
+	memory := vm.Memory
+	if memory == 0 {
+		// Implicit memory assignment, memory will always be 0
+		memory = vm.AssignedMemory
+	}
+	table.AddRow("Memory", memory)
+
 	table.AddRow("Softnet enabled", vm.NetSoftnet)
 	table.AddRow("Bridged networking interface", nonEmptyOrNone(vm.NetBridged))
 	table.AddRow("Headless mode", vm.Headless)

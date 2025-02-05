@@ -33,6 +33,9 @@ type Worker struct {
 	pollTicker    *time.Ticker
 	resources     v1.Resources
 
+	defaultCPU    uint64
+	defaultMemory uint64
+
 	vmPullTimeHistogram metric.Float64Histogram
 
 	logger *zap.SugaredLogger
@@ -191,9 +194,11 @@ func (worker *Worker) registerWorker(ctx context.Context) error {
 		Meta: v1.Meta{
 			Name: worker.name,
 		},
-		Resources: worker.resources,
-		LastSeen:  time.Now(),
-		MachineID: platformUUID,
+		Resources:     worker.resources,
+		LastSeen:      time.Now(),
+		MachineID:     platformUUID,
+		DefaultCPU:    worker.defaultCPU,
+		DefaultMemory: worker.defaultMemory,
 	})
 	if err != nil {
 		return err

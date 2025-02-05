@@ -34,6 +34,19 @@ type VM struct {
 	// Worker field is set by the Controller to assign this VM to a specific Worker.
 	Worker string `json:"worker,omitempty"`
 
+	// AssignedCPU is set by the Controller when the VM is scheduled.
+	//
+	// It's set to CPU when CPU non-zero, otherwise the value is taken from
+	// Worker's DefaultCPU field. If Worker's DefaultCPU field is zero, it defaults
+	// to 4.
+	AssignedCPU uint64 `json:"assignedCPU,omitempty"`
+	// AssignedMemory is set by the Controller
+	//
+	// It's set to Memory when Memory non-zero, otherwise the value is taken from
+	// Worker's DefaultCPU field. If Worker's DefaultCPU field is zero, it defaults
+	// to 8192.
+	AssignedMemory uint64 `json:"assignedMemory,omitempty"`
+
 	Username      string    `json:"username,omitempty"`
 	Password      string    `json:"password,omitempty"`
 	StartupScript *VMScript `json:"startup_script,omitempty"`
