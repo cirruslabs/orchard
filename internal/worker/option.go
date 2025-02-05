@@ -19,6 +19,13 @@ func WithResources(resources v1.Resources) Option {
 	}
 }
 
+func WithDefaultCPUAndMemory(defaultCPU uint64, defaultMemory uint64) Option {
+	return func(worker *Worker) {
+		worker.defaultCPU = defaultCPU
+		worker.defaultMemory = defaultMemory
+	}
+}
+
 func WithLogger(logger *zap.Logger) Option {
 	return func(worker *Worker) {
 		worker.logger = logger.Sugar()

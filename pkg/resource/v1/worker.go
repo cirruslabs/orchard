@@ -14,6 +14,13 @@ type Worker struct {
 	// Resources available on this Worker.
 	Resources Resources `json:"resources,omitempty"`
 
+	// DefaultCPU is the amount of CPUs to assign to a VM
+	// when it doesn't explicitly request a specific amount.
+	DefaultCPU uint64 `json:"defaultCPU,omitempty"`
+	// DefaultMemory is the amount of memory to assign to a VM
+	// when it doesn't explicitly request a specific amount.
+	DefaultMemory uint64 `json:"defaultMemory,omitempty"`
+
 	Meta
 }
 

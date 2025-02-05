@@ -134,7 +134,7 @@ func (scheduler *Scheduler) RequestScheduling() {
 	}
 }
 
-//nolint:gocognit // this logic could be said to be considered even more complex if split into multiple functions
+//nolint:gocognit,gocyclo // this logic could be seen as even more complex if split into multiple functions
 func (scheduler *Scheduler) schedulingLoopIteration() error {
 	affectedWorkers := mapset.NewSet[string]()
 
@@ -289,6 +289,30 @@ NextVM:
 				unscheduledVM.Worker = worker.Name
 				unscheduledVM.ScheduledAt = time.Now()
 
+				// Fill out the actual CPU allocation
+				if unscheduledVM.CPU == 0 {
+					// Provide defaults for VMs with implicit CPU specification
+					if worker.DefaultCPU != 0 {
+						unscheduledVM.AssignedCPU = worker.DefaultCPU
+					} else {
+						unscheduledVM.AssignedCPU = 4
+					}
+				} else {
+					unscheduledVM.AssignedCPU = unscheduledVM.CPU
+				}
+
+				// Fill out the actual memory allocation
+				if unscheduledVM.Memory == 0 {
+					// Provide defaults for VMs with implicit memory specification
+					if worker.DefaultMemory != 0 {
+						unscheduledVM.AssignedMemory = worker.DefaultMemory
+					} else {
+						unscheduledVM.AssignedMemory = 8192
+					}
+				} else {
+					unscheduledVM.AssignedMemory = unscheduledVM.Memory
+				}
+
 				if err := txn.SetVM(unscheduledVM); err != nil {
 					return err
 				}
@@ -434,6 +458,8 @@ func (scheduler *Scheduler) healthCheckVM(txn storepkg.Transaction, vm v1.VM) er
 		vm.Status = v1.VMStatusPending
 		vm.StatusMessage = ""
 		vm.Worker = ""
+		vm.AssignedCPU = 0
+		vm.AssignedMemory = 0
 		vm.RestartedAt = time.Now()
 		vm.RestartCount++
 		vm.ScheduledAt = time.Time{}
