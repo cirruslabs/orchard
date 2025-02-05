@@ -98,6 +98,8 @@ func (controller *Controller) createWorker(ctx *gin.Context) responder.Responder
 
 		dbWorker.LastSeen = worker.LastSeen
 		dbWorker.Resources = worker.Resources
+		dbWorker.DefaultCPU = worker.DefaultCPU
+		dbWorker.DefaultMemory = worker.DefaultMemory
 
 		if err := txn.SetWorker(*dbWorker); err != nil {
 			return responder.Error(err)
