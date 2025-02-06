@@ -42,8 +42,7 @@ func (controller *Controller) portForwardVM(ctx *gin.Context) responder.Responde
 	if err != nil {
 		return responder.Code(http.StatusBadRequest)
 	}
-	waitDuration := time.Duration(wait) * time.Second
-	waitContext, waitContextCancel := context.WithTimeout(ctx, waitDuration)
+	waitContext, waitContextCancel := context.WithTimeout(ctx, time.Duration(wait)*time.Second)
 	defer waitContextCancel()
 
 	// Look-up the VM
@@ -53,15 +52,15 @@ func (controller *Controller) portForwardVM(ctx *gin.Context) responder.Responde
 	}
 
 	// Commence port-forwarding
-	return controller.portForward(ctx, vm.Worker, vm.UID, uint32(port), waitDuration)
+	return controller.portForward(ctx, waitContext, vm.Worker, vm.UID, uint32(port))
 }
 
 func (controller *Controller) portForward(
 	ctx *gin.Context,
+	notifyContext context.Context,
 	workerName string,
 	vmUID string,
 	port uint32,
-	waitTimeout time.Duration,
 ) responder.Responder {
 	// Request and wait for a connection with a worker
 	rendezvousCtx, rendezvousCtxCancel := context.WithCancel(ctx)
@@ -73,9 +72,7 @@ func (controller *Controller) portForward(
 	defer cancel()
 
 	// send request to worker to initiate port-forwarding connection back to us
-	waitContext, waitContextCancel := context.WithTimeout(ctx, waitTimeout)
-	defer waitContextCancel()
-	err := controller.workerNotifier.Notify(waitContext, workerName, &rpc.WatchInstruction{
+	err := controller.workerNotifier.Notify(notifyContext, workerName, &rpc.WatchInstruction{
 		Action: &rpc.WatchInstruction_PortForwardAction{
 			PortForwardAction: &rpc.WatchInstruction_PortForward{
 				Session: session,
