@@ -63,6 +63,9 @@ type VM struct {
 	// Resources required by this VM.
 	Resources Resources `json:"resources,omitempty"`
 
+	// Labels required by this VM.
+	Labels Labels `json:"labels,omitempty"`
+
 	// HostDir is a list of host directories to be mounted to the VM.
 	HostDirs []HostDir `json:"hostDirs,omitempty"`
 

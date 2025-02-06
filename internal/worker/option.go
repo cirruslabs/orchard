@@ -19,6 +19,12 @@ func WithResources(resources v1.Resources) Option {
 	}
 }
 
+func WithLabels(labels v1.Labels) Option {
+	return func(worker *Worker) {
+		worker.labels = labels
+	}
+}
+
 func WithDefaultCPUAndMemory(defaultCPU uint64, defaultMemory uint64) Option {
 	return func(worker *Worker) {
 		worker.defaultCPU = defaultCPU

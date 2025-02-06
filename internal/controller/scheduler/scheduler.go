@@ -235,7 +235,8 @@ NextVM:
 
 			if worker.Offline(scheduler.workerOfflineTimeout) ||
 				worker.SchedulingPaused ||
-				!resourcesRemaining.CanFit(unscheduledVM.Resources) {
+				!resourcesRemaining.CanFit(unscheduledVM.Resources) ||
+				!worker.Labels.Contains(unscheduledVM.Labels) {
 				continue NextWorker
 			}
 

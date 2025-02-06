@@ -32,6 +32,7 @@ type Worker struct {
 	client        *client.Client
 	pollTicker    *time.Ticker
 	resources     v1.Resources
+	labels        v1.Labels
 
 	defaultCPU    uint64
 	defaultMemory uint64
@@ -195,6 +196,7 @@ func (worker *Worker) registerWorker(ctx context.Context) error {
 			Name: worker.name,
 		},
 		Resources:     worker.resources,
+		Labels:        worker.labels,
 		LastSeen:      time.Now(),
 		MachineID:     platformUUID,
 		DefaultCPU:    worker.defaultCPU,
