@@ -17,6 +17,7 @@ import (
 	"golang.org/x/crypto/ssh"
 	"net"
 	"strings"
+	"time"
 )
 
 const (
@@ -235,7 +236,9 @@ func (server *SSHServer) handleDirectTCPIP(ctx context.Context, newChannel ssh.N
 	boomerangConnCh, cancel := server.connRendezvous.Request(ctx, session)
 	defer cancel()
 
-	err = server.workerNotifier.Notify(ctx, vm.Worker, &rpc.WatchInstruction{
+	notifyContext, notifyContextCancel := context.WithTimeout(ctx, time.Second)
+	defer notifyContextCancel()
+	err = server.workerNotifier.Notify(notifyContext, vm.Worker, &rpc.WatchInstruction{
 		Action: &rpc.WatchInstruction_PortForwardAction{
 			PortForwardAction: &rpc.WatchInstruction_PortForward{
 				Session: session,
