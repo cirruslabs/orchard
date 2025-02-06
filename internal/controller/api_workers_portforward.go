@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"context"
 	storepkg "github.com/cirruslabs/orchard/internal/controller/store"
 	"github.com/cirruslabs/orchard/internal/responder"
 	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
@@ -32,7 +33,8 @@ func (controller *Controller) portForwardWorker(ctx *gin.Context) responder.Resp
 	if err != nil {
 		return responder.Code(http.StatusBadRequest)
 	}
-	waitDuration := time.Duration(wait) * time.Second
+	waitContext, waitContextCancel := context.WithTimeout(ctx, time.Duration(wait)*time.Second)
+	defer waitContextCancel()
 
 	var worker *v1.Worker
 
@@ -48,5 +50,5 @@ func (controller *Controller) portForwardWorker(ctx *gin.Context) responder.Resp
 	}
 
 	// Commence port-forwarding
-	return controller.portForward(ctx, worker.Name, "", uint32(port), waitDuration)
+	return controller.portForward(ctx, waitContext, worker.Name, "", uint32(port))
 }

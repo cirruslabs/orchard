@@ -354,6 +354,7 @@ paths:
             type: integer
             minimum: 0
             maximum: 65535
+            default: 10
           required: false
         - in: header
           name: Connection
@@ -393,6 +394,7 @@ paths:
             type: integer
             minimum: 0
             maximum: 65535
+            default: 0
           required: false
       responses:
         '200':

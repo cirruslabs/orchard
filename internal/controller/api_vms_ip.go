@@ -26,8 +26,7 @@ func (controller *Controller) ip(ctx *gin.Context) responder.Responder {
 	if err != nil {
 		return responder.Code(http.StatusBadRequest)
 	}
-	waitDuration := time.Duration(wait) * time.Second
-	waitContext, waitContextCancel := context.WithTimeout(ctx, waitDuration)
+	waitContext, waitContextCancel := context.WithTimeout(ctx, time.Duration(wait)*time.Second)
 	defer waitContextCancel()
 
 	// Look-up the VM
