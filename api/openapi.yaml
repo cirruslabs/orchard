@@ -197,6 +197,15 @@ paths:
             minimum: 1
             maximum: 65535
           required: true
+        - in: query
+          name: wait
+          description: Duration in seconds for the worker to become available if it's not available already
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 65535
+            default: 10
+          required: false
         - in: header
           name: Connection
           description: WebSocket protocol required header

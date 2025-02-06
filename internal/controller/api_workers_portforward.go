@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"net/http"
 	"strconv"
+	"time"
 )
 
 func (controller *Controller) portForwardWorker(ctx *gin.Context) responder.Responder {
@@ -26,6 +27,13 @@ func (controller *Controller) portForwardWorker(ctx *gin.Context) responder.Resp
 		return responder.Code(http.StatusBadRequest)
 	}
 
+	waitRaw := ctx.DefaultQuery("wait", "10")
+	wait, err := strconv.ParseUint(waitRaw, 10, 16)
+	if err != nil {
+		return responder.Code(http.StatusBadRequest)
+	}
+	waitDuration := time.Duration(wait) * time.Second
+
 	var worker *v1.Worker
 
 	if responder := controller.storeView(func(txn storepkg.Transaction) responder.Responder {
@@ -40,5 +48,5 @@ func (controller *Controller) portForwardWorker(ctx *gin.Context) responder.Resp
 	}
 
 	// Commence port-forwarding
-	return controller.portForward(ctx, worker.Name, "", uint32(port))
+	return controller.portForward(ctx, worker.Name, "", uint32(port), waitDuration)
 }

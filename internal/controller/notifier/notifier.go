@@ -3,10 +3,10 @@ package notifier
 import (
 	"context"
 	"errors"
-	"fmt"
 	"github.com/cirruslabs/orchard/internal/concurrentmap"
 	"github.com/cirruslabs/orchard/rpc"
 	"go.uber.org/zap"
+	"time"
 )
 
 var ErrNoWorker = errors.New("no worker registered with this name")
@@ -47,8 +47,16 @@ func (watcher *Notifier) Register(ctx context.Context, worker string) (chan *rpc
 
 func (watcher *Notifier) Notify(ctx context.Context, worker string, msg *rpc.WatchInstruction) error {
 	slot, ok := watcher.workers.Load(worker)
-	if !ok {
-		return fmt.Errorf("%w: %s", ErrNoWorker, worker)
+
+	for !ok {
+		select {
+		case <-ctx.Done():
+			watcher.logger.Warnf("failed to notify watcher of worker %s due to timeout: %v", worker, ctx.Err())
+			return ctx.Err()
+		case <-time.After(time.Second):
+			watcher.logger.Infof("waiting for worker %s to re-connect...", worker)
+		}
+		slot, ok = watcher.workers.Load(worker)
 	}
 
 	select {

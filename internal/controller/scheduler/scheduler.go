@@ -350,11 +350,13 @@ NextVM:
 		// It's fine to not treat the error as fatal here,
 		// since the worker will sync the VMs on the next
 		// scheduling iteration
-		if err := scheduler.notifier.Notify(context.Background(), affectedWorker, &rpc.WatchInstruction{
+		notifyContext, notifyContextCancel := context.WithTimeout(context.Background(), time.Second)
+		if err := scheduler.notifier.Notify(notifyContext, affectedWorker, &rpc.WatchInstruction{
 			Action: &rpc.WatchInstruction_SyncVmsAction{},
 		}); err != nil {
 			scheduler.logger.Errorf("Failed to reactively sync VMs on worker %s: %v", affectedWorker, err)
 		}
+		notifyContextCancel()
 	}
 
 	return nil
