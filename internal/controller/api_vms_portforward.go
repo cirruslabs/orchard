@@ -56,7 +56,13 @@ func (controller *Controller) portForwardVM(ctx *gin.Context) responder.Responde
 	return controller.portForward(ctx, vm.Worker, vm.UID, uint32(port), waitDuration)
 }
 
-func (controller *Controller) portForward(ctx *gin.Context, workerName string, vmUID string, port uint32, waitTimeout time.Duration) responder.Responder {
+func (controller *Controller) portForward(
+	ctx *gin.Context,
+	workerName string,
+	vmUID string,
+	port uint32,
+	waitTimeout time.Duration,
+) responder.Responder {
 	// Request and wait for a connection with a worker
 	rendezvousCtx, rendezvousCtxCancel := context.WithCancel(ctx)
 	defer rendezvousCtxCancel()
