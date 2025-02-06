@@ -28,6 +28,7 @@ var bootstrapTokenRaw string
 var bootstrapTokenStdin bool
 var logFilePath string
 var stringToStringResources map[string]string
+var labels map[string]string
 var noPKI bool
 var defaultCPU uint64
 var defaultMemory uint64
@@ -51,6 +52,8 @@ func newRunCommand() *cobra.Command {
 		"optional path to a file where logs (up to 100 Mb) will be written.")
 	cmd.PersistentFlags().StringToStringVar(&stringToStringResources, "resources", map[string]string{},
 		"resources that this worker provides")
+	cmd.PersistentFlags().StringToStringVar(&labels, "labels", map[string]string{},
+		"labels that this worker supports")
 	cmd.PersistentFlags().BoolVar(&noPKI, "no-pki", false,
 		"do not use the host's root CA set and instead validate the Controller's presented "+
 			"certificate using a bootstrap token (or manually via fingerprint, "+
@@ -122,6 +125,7 @@ func runWorker(cmd *cobra.Command, args []string) (err error) {
 		controllerClient,
 		worker.WithName(name),
 		worker.WithResources(resources),
+		worker.WithLabels(labels),
 		worker.WithDefaultCPUAndMemory(defaultCPU, defaultMemory),
 		worker.WithLogger(logger),
 	)

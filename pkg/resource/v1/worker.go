@@ -14,6 +14,9 @@ type Worker struct {
 	// Resources available on this Worker.
 	Resources Resources `json:"resources,omitempty"`
 
+	// Labels that this Worker supports.
+	Labels Labels `json:"labels,omitempty"`
+
 	// DefaultCPU is the amount of CPUs to assign to a VM
 	// when it doesn't explicitly request a specific amount.
 	DefaultCPU uint64 `json:"defaultCPU,omitempty"`

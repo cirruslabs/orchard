@@ -98,6 +98,7 @@ func (controller *Controller) createWorker(ctx *gin.Context) responder.Responder
 
 		dbWorker.LastSeen = worker.LastSeen
 		dbWorker.Resources = worker.Resources
+		dbWorker.Labels = worker.Labels
 		dbWorker.DefaultCPU = worker.DefaultCPU
 		dbWorker.DefaultMemory = worker.DefaultMemory
 

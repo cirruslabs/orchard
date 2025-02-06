@@ -22,6 +22,7 @@ var headless bool
 var username string
 var password string
 var resources map[string]string
+var labels map[string]string
 var restartPolicy string
 var startupScript string
 var hostDirsRaw []string
@@ -47,6 +48,8 @@ func newCreateVMCommand() *cobra.Command {
 		"SSH password to use when executing a startup script on the VM")
 	command.PersistentFlags().StringToStringVar(&resources, "resources", map[string]string{},
 		"resources to request for this VM")
+	command.PersistentFlags().StringToStringVar(&labels, "labels", map[string]string{},
+		"labels required by this VM")
 	command.PersistentFlags().StringVar(&restartPolicy, "restart-policy", string(v1.RestartPolicyNever),
 		fmt.Sprintf("restart policy for this VM: specify %q to never restart or %q "+
 			"to only restart when the VM fails", v1.RestartPolicyNever, v1.RestartPolicyOnFailure))
@@ -96,6 +99,7 @@ func runCreateVM(cmd *cobra.Command, args []string) error {
 		Headless:   headless,
 		Username:   username,
 		Password:   password,
+		Labels:     labels,
 		HostDirs:   hostDirs,
 	}
 
