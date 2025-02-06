@@ -26,7 +26,8 @@ func (controller *Controller) ip(ctx *gin.Context) responder.Responder {
 	if err != nil {
 		return responder.Code(http.StatusBadRequest)
 	}
-	waitContext, waitContextCancel := context.WithTimeout(ctx, time.Duration(wait)*time.Second)
+	waitDuration := time.Duration(wait) * time.Second
+	waitContext, waitContextCancel := context.WithTimeout(ctx, waitDuration)
 	defer waitContextCancel()
 
 	// Look-up the VM
@@ -40,7 +41,7 @@ func (controller *Controller) ip(ctx *gin.Context) responder.Responder {
 	boomerangConnCh, cancel := controller.ipRendezvous.Request(ctx, session)
 	defer cancel()
 
-	err = controller.workerNotifier.Notify(ctx, vm.Worker, &rpc.WatchInstruction{
+	err = controller.workerNotifier.Notify(waitContext, vm.Worker, &rpc.WatchInstruction{
 		Action: &rpc.WatchInstruction_ResolveIpAction{
 			ResolveIpAction: &rpc.WatchInstruction_ResolveIP{
 				Session: session,
