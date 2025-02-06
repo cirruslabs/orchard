@@ -40,9 +40,7 @@ func Bootstrap(controllerInstance *controller.Controller, controllerCert tls.Cer
 				// Avoid generating $ and " symbols
 				// as they cause issues in shell
 				switch r {
-				case '$':
-					fallthrough
-				case '"':
+				case '$', '"':
 					return -1
 				default:
 					return r
