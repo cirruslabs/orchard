@@ -9,6 +9,7 @@ import (
 	"github.com/pterm/pterm"
 	"github.com/sethvargo/go-password/password"
 	"os"
+	"strings"
 )
 
 const BootstrapAdminName = "bootstrap-admin"
@@ -31,7 +32,27 @@ func Bootstrap(controllerInstance *controller.Controller, controllerCert tls.Cer
 
 	// Generate a bootstrap admin token if not present in the environment variable
 	if !orchardBootstrapAdminTokenPresent {
-		orchardBootstrapAdminToken, err = password.Generate(32, 10, 10,
+		passwordGenerator, err := password.NewGenerator(&password.GeneratorInput{
+			LowerLetters: password.LowerLetters,
+			UpperLetters: password.UpperLetters,
+			Digits:       password.Digits,
+			Symbols: strings.Map(func(r rune) rune {
+				// Avoid generating $ and " symbols
+				// as they cause issues in shell
+				switch r {
+				case '$', '"':
+					return -1
+				default:
+					return r
+				}
+			}, password.Symbols),
+		})
+		if err != nil {
+			return fmt.Errorf("failed to generate bootstrap admin token: "+
+				"failed to initialize password generator: %w", err)
+		}
+
+		orchardBootstrapAdminToken, err = passwordGenerator.Generate(32, 10, 10,
 			false, false)
 		if err != nil {
 			return fmt.Errorf("failed to generate bootstrap admin token: %w", err)
