@@ -1,13 +1,14 @@
 package controller
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"github.com/cirruslabs/orchard/internal/responder"
 	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
 	"github.com/cirruslabs/orchard/rpc"
+	"github.com/coder/websocket"
 	"github.com/gin-gonic/gin"
-	"nhooyr.io/websocket"
 	"time"
 )
 
@@ -35,6 +36,12 @@ func (controller *Controller) rpcWatch(ctx *gin.Context) responder.Responder {
 	if err != nil {
 		return responder.Error(err)
 	}
+
+	// Ensure that pongs will be processed by reading
+	// from the connection in the background
+	//
+	// Otherwise the wsConn.Ping() will wait forever.
+	wsConn.CloseRead(ctx)
 
 	for {
 		select {
@@ -71,10 +78,14 @@ func (controller *Controller) rpcWatch(ctx *gin.Context) responder.Responder {
 					"failure to write the watch instruction", err)
 			}
 		case <-time.After(30 * time.Second):
-			if err := wsConn.Ping(ctx); err != nil {
+			pingCtx, pingCtxCancel := context.WithTimeout(ctx, 5*time.Second)
+
+			if err := wsConn.Ping(pingCtx); err != nil {
 				controller.logger.Warnf("watch RPC: failed to ping the worker %s, "+
 					"connection might time out: %v", workerName, err)
 			}
+
+			pingCtxCancel()
 		case <-ctx.Done():
 			// Connection shouldn't be normally closed by the worker
 			return controller.wsError(wsConn, websocket.StatusAbnormalClosure, "watch RPC",

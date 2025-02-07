@@ -12,6 +12,7 @@ import (
 	"github.com/cirruslabs/orchard/internal/config"
 	"github.com/cirruslabs/orchard/internal/version"
 	"github.com/cirruslabs/orchard/rpc"
+	"github.com/coder/websocket"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
@@ -19,7 +20,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"nhooyr.io/websocket"
 	"time"
 )
 
