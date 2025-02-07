@@ -4,9 +4,9 @@ import (
 	"github.com/cirruslabs/orchard/internal/controller/rendezvous"
 	"github.com/cirruslabs/orchard/internal/responder"
 	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
+	"github.com/coder/websocket"
 	"github.com/gin-gonic/gin"
 	"net"
-	"nhooyr.io/websocket"
 )
 
 func (controller *Controller) rpcPortForward(ctx *gin.Context) responder.Responder {

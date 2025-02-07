@@ -3,7 +3,7 @@ package controller
 import (
 	"fmt"
 	"github.com/cirruslabs/orchard/internal/responder"
-	"nhooyr.io/websocket"
+	"github.com/coder/websocket"
 )
 
 func (controller *Controller) wsError(

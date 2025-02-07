@@ -5,6 +5,7 @@ go 1.23.3
 require (
 	github.com/avast/retry-go v3.0.0+incompatible
 	github.com/avast/retry-go/v4 v4.3.3
+	github.com/coder/websocket v1.8.12
 	github.com/deckarep/golang-set/v2 v2.1.0
 	github.com/dgraph-io/badger/v3 v3.2103.5
 	github.com/dustin/go-humanize v1.0.1
@@ -43,7 +44,6 @@ require (
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	gopkg.in/yaml.v3 v3.0.1
 	howett.net/plist v1.0.0
-	nhooyr.io/websocket v1.8.7
 )
 
 require (
