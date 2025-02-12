@@ -68,7 +68,7 @@ func TestSingleVM(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		return len(logLines) > 0
+		return len(logLines) >= 1000
 	}), "failed to wait for logs to become available")
 	logLines, err := devClient.VMs().Logs(context.Background(), "test-vm")
 	if err != nil {
