@@ -55,6 +55,10 @@ type VM struct {
 	RestartedAt   time.Time     `json:"restarted_at,omitempty"`
 	RestartCount  uint64        `json:"restart_count,omitempty"`
 
+	// RandomSerial controls whether the worker will run the
+	// "tart set --random-serial" when instantiating this VM.
+	RandomSerial bool `json:"randomSerial,omitempty"`
+
 	// UID is a useful field for avoiding data races within a single Name.
 	//
 	// It is populated by the Controller when receiving a POST request.

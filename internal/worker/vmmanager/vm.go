@@ -222,6 +222,13 @@ func (vm *VM) cloneAndConfigure(ctx context.Context) error {
 		}
 	}
 
+	if vm.Resource.RandomSerial {
+		_, _, err = tart.Tart(ctx, vm.logger, "set", "--random-serial", vm.id())
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 

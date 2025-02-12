@@ -23,6 +23,7 @@ var username string
 var password string
 var resources map[string]string
 var labels map[string]string
+var randomSerial bool
 var restartPolicy string
 var startupScript string
 var hostDirsRaw []string
@@ -50,6 +51,8 @@ func newCreateVMCommand() *cobra.Command {
 		"resources to request for this VM")
 	command.PersistentFlags().StringToStringVar(&labels, "labels", map[string]string{},
 		"labels required by this VM")
+	command.PersistentFlags().BoolVar(&randomSerial, "random-serial", false,
+		"generate a new random serial number if this is a macOS VM (no-op for Linux VMs)")
 	command.PersistentFlags().StringVar(&restartPolicy, "restart-policy", string(v1.RestartPolicyNever),
 		fmt.Sprintf("restart policy for this VM: specify %q to never restart or %q "+
 			"to only restart when the VM fails", v1.RestartPolicyNever, v1.RestartPolicyOnFailure))
@@ -91,16 +94,17 @@ func runCreateVM(cmd *cobra.Command, args []string) error {
 		Meta: v1.Meta{
 			Name: name,
 		},
-		Image:      image,
-		CPU:        cpu,
-		Memory:     memory,
-		NetSoftnet: netSoftnet,
-		NetBridged: netBridged,
-		Headless:   headless,
-		Username:   username,
-		Password:   password,
-		Labels:     labels,
-		HostDirs:   hostDirs,
+		Image:        image,
+		CPU:          cpu,
+		Memory:       memory,
+		NetSoftnet:   netSoftnet,
+		NetBridged:   netBridged,
+		Headless:     headless,
+		Username:     username,
+		Password:     password,
+		RandomSerial: randomSerial,
+		Labels:       labels,
+		HostDirs:     hostDirs,
 	}
 
 	// Convert resources

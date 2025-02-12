@@ -95,14 +95,17 @@ func runGetVM(cmd *cobra.Command, args []string) error {
 	table.AddRow("Restarted", restartedAtInfo)
 	table.AddRow("Restart count", vm.RestartCount)
 
-	var resourcesInfo string
-	if len(vm.Resources) != 0 {
-		resourceDescriptions := lo.MapToSlice(vm.Resources, func(key string, value uint64) string {
-			return fmt.Sprintf("%s: %d", key, value)
-		})
-		resourcesInfo = strings.Join(resourceDescriptions, "\n")
-	}
+	resourcesInfo := strings.Join(lo.MapToSlice(vm.Resources, func(key string, value uint64) string {
+		return fmt.Sprintf("%s: %d", key, value)
+	}), "\n")
 	table.AddRow("Resources", nonEmptyOrNone(resourcesInfo))
+
+	labelsInfo := strings.Join(lo.MapToSlice(vm.Labels, func(key string, value string) string {
+		return fmt.Sprintf("%s: %s", key, value)
+	}), "\n")
+	table.AddRow("Labels", nonEmptyOrNone(labelsInfo))
+
+	table.AddRow("Random serial", vm.RandomSerial)
 
 	var hostDirsInfo string
 	if len(vm.HostDirs) != 0 {
