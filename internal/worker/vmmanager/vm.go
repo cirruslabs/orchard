@@ -316,31 +316,15 @@ func (vm *VM) shell(
 	env map[string]string,
 	consumeLine func(line string),
 ) error {
-	ip, err := vm.IP(ctx)
-	if err != nil {
-		return fmt.Errorf("%w to get IP", ErrVMFailed)
-	}
+	var sess *ssh.Session
 
-	var netConn net.Conn
-
-	addr := ip + ":22"
-
-	if err := retry.Do(func() error {
-		dialer := net.Dialer{}
-
-		netConn, err = dialer.DialContext(ctx, "tcp", addr)
-
-		return err
-	}, retry.Context(ctx)); err != nil {
-		return fmt.Errorf("%w to dial: %v", ErrVMFailed, err)
-	}
-
-	// set default user and password if not provided
+	// Set default user and password if not provided
 	if sshUser == "" && sshPassword == "" {
 		sshUser = "admin"
 		sshPassword = "admin"
 	}
 
+	// Configure SSH client
 	sshConfig := &ssh.ClientConfig{
 		HostKeyCallback: func(hostname string, remote net.Addr, key ssh.PublicKey) error {
 			return nil
@@ -351,15 +335,40 @@ func (vm *VM) shell(
 		},
 	}
 
-	sshConn, chans, reqs, err := ssh.NewClientConn(netConn, addr, sshConfig)
-	if err != nil {
-		return fmt.Errorf("%w to connect via SSH: %v", ErrVMFailed, err)
-	}
-	cli := ssh.NewClient(sshConn, chans, reqs)
+	if err := retry.Do(func() error {
+		ip, err := vm.IP(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to get VM's IP: %w", err)
+		}
 
-	sess, err := cli.NewSession()
-	if err != nil {
-		return fmt.Errorf("%w: failed to open SSH session: %v", ErrVMFailed, err)
+		addr := ip + ":22"
+
+		dialer := net.Dialer{
+			Timeout: 5 * time.Second,
+		}
+
+		netConn, err := dialer.DialContext(ctx, "tcp", addr)
+		if err != nil {
+			return fmt.Errorf("failed to dial %s: %w", addr, err)
+		}
+
+		sshConn, chans, reqs, err := ssh.NewClientConn(netConn, addr, sshConfig)
+		if err != nil {
+			return fmt.Errorf("SSH handshake with %s failed: %w", addr, err)
+		}
+
+		sshClient := ssh.NewClient(sshConn, chans, reqs)
+
+		sess, err = sshClient.NewSession()
+		if err != nil {
+			return fmt.Errorf("failed to open an SSH session on %s: %w", addr, err)
+		}
+
+		return nil
+	}, retry.Context(ctx), retry.OnRetry(func(n uint, err error) {
+		consumeLine(fmt.Sprintf("attempt %d to establish SSH connection failed: %v", n, err))
+	})); err != nil {
+		return fmt.Errorf("failed to establish SSH connection: %w", err)
 	}
 
 	// Log output from the virtual machine

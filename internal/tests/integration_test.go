@@ -68,7 +68,7 @@ func TestSingleVM(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		return len(logLines) > 0
+		return len(logLines) >= 1000
 	}), "failed to wait for logs to become available")
 	logLines, err := devClient.VMs().Logs(context.Background(), "test-vm")
 	if err != nil {
@@ -78,7 +78,7 @@ func TestSingleVM(t *testing.T) {
 	for i := 1; i <= 1000; i++ {
 		expectedLogs = append(expectedLogs, strconv.Itoa(i))
 	}
-	assert.Equal(t, expectedLogs, logLines)
+	assert.Contains(t, strings.Join(logLines, "\n"), strings.Join(expectedLogs, "\n"))
 
 	// Ensure that the VM exists on disk before deleting it
 	require.True(t, hasVMByPredicate(t, func(info tart.VMInfo) bool {
@@ -416,17 +416,17 @@ func TestHostDirs(t *testing.T) {
 		logLines, err = devClient.VMs().Logs(context.Background(), vmName)
 		require.NoError(t, err)
 
-		return len(logLines) > 0
+		return len(logLines) >= 4
 	}), "failed to wait for logs to become available")
 
 	fmt.Println(logLines)
 
-	require.EqualValues(t, []string{
+	require.Contains(t, strings.Join(logLines, "\n"), strings.Join([]string{
 		"Read-write mount exists",
 		"Read-only mount exists",
 		"Failed to create a file in read-only mount",
 		"Successfully created a file in read-write mount",
-	}, logLines)
+	}, "\n"))
 	require.FileExists(t, filepath.Join(dirToMount, "test-rw.txt"))
 	require.NoFileExists(t, filepath.Join(dirToMount, "test-ro.txt"))
 }
