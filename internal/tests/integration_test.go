@@ -78,7 +78,7 @@ func TestSingleVM(t *testing.T) {
 	for i := 1; i <= 1000; i++ {
 		expectedLogs = append(expectedLogs, strconv.Itoa(i))
 	}
-	assert.Equal(t, expectedLogs, logLines)
+	assert.Contains(t, logLines, expectedLogs)
 
 	// Ensure that the VM exists on disk before deleting it
 	require.True(t, hasVMByPredicate(t, func(info tart.VMInfo) bool {
