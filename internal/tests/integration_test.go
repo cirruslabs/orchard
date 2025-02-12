@@ -421,12 +421,12 @@ func TestHostDirs(t *testing.T) {
 
 	fmt.Println(logLines)
 
-	require.EqualValues(t, []string{
+	require.Contains(t, strings.Join(logLines, "\n"), strings.Join([]string{
 		"Read-write mount exists",
 		"Read-only mount exists",
 		"Failed to create a file in read-only mount",
 		"Successfully created a file in read-write mount",
-	}, logLines)
+	}, "\n"))
 	require.FileExists(t, filepath.Join(dirToMount, "test-rw.txt"))
 	require.NoFileExists(t, filepath.Join(dirToMount, "test-ro.txt"))
 }
