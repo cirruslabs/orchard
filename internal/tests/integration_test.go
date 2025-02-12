@@ -416,7 +416,7 @@ func TestHostDirs(t *testing.T) {
 		logLines, err = devClient.VMs().Logs(context.Background(), vmName)
 		require.NoError(t, err)
 
-		return len(logLines) > 0
+		return len(logLines) >= 4
 	}), "failed to wait for logs to become available")
 
 	fmt.Println(logLines)
