@@ -224,11 +224,15 @@ func (vm *VM) cloneAndConfigure(ctx context.Context) error {
 	//}
 	//
 	// The next VM to start with a MAC address 22:22:22:22:22:22 will assume that
-	// 192.168.64.2 is free and will add a new entry to /var/db/dhcpd_leases.
+	// 192.168.64.2 is free (because its lease expired a long time ago) and will
+	// add a new entry using its MAC address and 192.168.64.2 to the /var/db/dhcpd_leases.
 	//
 	// Afterward, when an OCI VM with MAC address 11:11:11:11:11:11 is cloned and run,
 	// it will re-use the 192.168.64.2 entry instead of creating a new one, even through
 	// its lease had already expired.
+	//
+	// As a result, you will see two VMs with different MAC address using an identical
+	// IP address 192.168.64.2.
 	//
 	// Another scenarion when this is important is when using bridged networking
 	// to avoid collisions when cloning from an OCI image on multiple hosts[1].
