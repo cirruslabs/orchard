@@ -211,15 +211,32 @@ func (vm *VM) cloneAndConfigure(ctx context.Context) error {
 		}
 	}
 
-	// Randomize the VM's MAC-address when using bridged networking
-	// to avoid collisions when cloning from an OCI image on multiple hosts
+	// Randomize VM's MAC-address, this is important when using shared (NAT) networking
+	// with full /var/db/dhcpd_leases file (e.g. 256 entries) having an expired entry
+	// for a MAC address used by some OCI image, for example:
 	//
-	// See https://github.com/cirruslabs/orchard/issues/181 for more details.
-	if vm.Resource.NetBridged != "" {
-		_, _, err = tart.Tart(ctx, vm.logger, "set", "--random-mac", vm.id())
-		if err != nil {
-			return err
-		}
+	// {
+	//	name=adminsVlMachine
+	//	ip_address=192.168.64.2
+	//	hw_address=1,11:11:11:11:11:11
+	//	identifier=1,11:11:11:11:11:11
+	//	lease=0x1234
+	//}
+	//
+	// The next VM to start with a MAC address 22:22:22:22:22:22 will assume that
+	// 192.168.64.2 is free and will add a new entry to /var/db/dhcpd_leases.
+	//
+	// Afterward, when an OCI VM with MAC address 11:11:11:11:11:11 is cloned and run,
+	// it will re-use the 192.168.64.2 entry instead of creating a new one, even through
+	// its lease had already expired.
+	//
+	// Another scenarion when this is important is when using bridged networking
+	// to avoid collisions when cloning from an OCI image on multiple hosts[1].
+	//
+	// [1]: https://github.com/cirruslabs/orchard/issues/181
+	_, _, err = tart.Tart(ctx, vm.logger, "set", "--random-mac", vm.id())
+	if err != nil {
+		return err
 	}
 
 	if vm.Resource.RandomSerial {
