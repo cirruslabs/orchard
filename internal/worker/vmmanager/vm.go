@@ -195,17 +195,31 @@ func (vm *VM) cloneAndConfigure(ctx context.Context) error {
 		vm.imageFQN.Store(&fqn)
 	}
 
-	if vm.Resource.Memory != 0 {
+	// Set memory
+	memory := vm.Resource.AssignedMemory
+
+	if memory == 0 {
+		memory = vm.Resource.Memory
+	}
+
+	if memory != 0 {
 		_, _, err = tart.Tart(ctx, vm.logger, "set", "--memory",
-			strconv.FormatUint(vm.Resource.Memory, 10), vm.id())
+			strconv.FormatUint(memory, 10), vm.id())
 		if err != nil {
 			return err
 		}
 	}
 
-	if vm.Resource.CPU != 0 {
+	// Set CPU
+	cpu := vm.Resource.AssignedCPU
+
+	if cpu == 0 {
+		cpu = vm.Resource.CPU
+	}
+
+	if cpu != 0 {
 		_, _, err = tart.Tart(ctx, vm.logger, "set", "--cpu",
-			strconv.FormatUint(vm.Resource.CPU, 10), vm.id())
+			strconv.FormatUint(cpu, 10), vm.id())
 		if err != nil {
 			return err
 		}
