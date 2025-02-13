@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/avast/retry-go/v4"
 	"github.com/cirruslabs/orchard/internal/opentelemetry"
+	"github.com/cirruslabs/orchard/internal/worker/dhcpleasetime"
 	"github.com/cirruslabs/orchard/internal/worker/iokitregistry"
 	"github.com/cirruslabs/orchard/internal/worker/ondiskname"
 	"github.com/cirruslabs/orchard/internal/worker/tart"
@@ -88,6 +89,10 @@ func New(client *client.Client, opts ...Option) (*Worker, error) {
 }
 
 func (worker *Worker) Run(ctx context.Context) error {
+	if err := dhcpleasetime.Check(); err != nil {
+		worker.logger.Warnf("%v", err)
+	}
+
 	for {
 		if err := worker.runNewSession(ctx); err != nil {
 			return err

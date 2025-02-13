@@ -225,15 +225,67 @@ func (vm *VM) cloneAndConfigure(ctx context.Context) error {
 		}
 	}
 
-	// Randomize the VM's MAC-address when using bridged networking
-	// to avoid collisions when cloning from an OCI image on multiple hosts
+	// Randomize VM's MAC-address, this is important when using shared (NAT) networking
+	// with full /var/db/dhcpd_leases file (e.g. 256 entries) having an expired entry
+	// for a MAC address used by some OCI image, for example:
 	//
-	// See https://github.com/cirruslabs/orchard/issues/181 for more details.
-	if vm.Resource.NetBridged != "" {
-		_, _, err = tart.Tart(ctx, vm.logger, "set", "--random-mac", vm.id())
-		if err != nil {
-			return err
-		}
+	// {
+	//	name=adminsVlMachine
+	//	ip_address=192.168.64.2
+	//	hw_address=1,11:11:11:11:11:11
+	//	identifier=1,11:11:11:11:11:11
+	//	lease=0x1234
+	//}
+	//
+	// The next VM to start with a MAC address 22:22:22:22:22:22 will assume that
+	// 192.168.64.2 is free (because its lease expired a long time ago) and will
+	// add a new entry using its MAC address and 192.168.64.2 to the
+	// /var/db/dhcpd_leases and won't delete the old entry:
+	//
+	// {
+	//	name=adminsVlMachine
+	//	ip_address=192.168.64.2
+	//	hw_address=1,11:11:11:11:11:11
+	//	identifier=1,11:11:11:11:11:11
+	//	lease=0x1234
+	// }
+	// {
+	//	name=adminsVlMachine
+	//	ip_address=192.168.64.2
+	//	hw_address=1,22:22:22:22:22:22
+	//	identifier=1,22:22:22:22:22:22
+	//	lease=0x67ade532
+	// }
+	//
+	// Afterward, when an OCI VM with MAC address 11:11:11:11:11:11 is cloned and run,
+	// it will re-use the 192.168.64.2 entry instead of creating a new one, even through
+	// its lease had already expired. The resulting /var/db/dhcpd_leases will look like this:
+	//
+	// {
+	//	name=adminsVlMachine
+	//	ip_address=192.168.64.2
+	//	hw_address=1,11:11:11:11:11:11
+	//	identifier=1,11:11:11:11:11:11
+	//	lease=0x67ade5c6
+	// }
+	// {
+	//	name=adminsVlMachine
+	//	ip_address=192.168.64.2
+	//	hw_address=1,22:22:22:22:22:22
+	//	identifier=1,22:22:22:22:22:22
+	//	lease=0x67ade532
+	// }
+	//
+	// As a result, you will see two VMs with different MAC address using an identical
+	// IP address 192.168.64.2.
+	//
+	// Another scenarion when this is important is when using bridged networking
+	// to avoid collisions when cloning from an OCI image on multiple hosts[1].
+	//
+	// [1]: https://github.com/cirruslabs/orchard/issues/181
+	_, _, err = tart.Tart(ctx, vm.logger, "set", "--random-mac", vm.id())
+	if err != nil {
+		return err
 	}
 
 	if vm.Resource.RandomSerial {
