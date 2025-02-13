@@ -245,7 +245,22 @@ func (vm *VM) cloneAndConfigure(ctx context.Context) error {
 	//
 	// Afterward, when an OCI VM with MAC address 11:11:11:11:11:11 is cloned and run,
 	// it will re-use the 192.168.64.2 entry instead of creating a new one, even through
-	// its lease had already expired.
+	// its lease had already expired. The resulting /var/db/dhcpd_leases will look like this:
+	//
+	// {
+	//	name=adminsVlMachine
+	//	ip_address=192.168.64.2
+	//	hw_address=1,11:11:11:11:11:11
+	//	identifier=1,11:11:11:11:11:11
+	//	lease=0x67ade5c6
+	// }
+	// {
+	//	name=adminsVlMachine
+	//	ip_address=192.168.64.2
+	//	hw_address=1,22:22:22:22:22:22
+	//	identifier=1,22:22:22:22:22:22
+	//	lease=0x67ade532
+	// }
 	//
 	// As a result, you will see two VMs with different MAC address using an identical
 	// IP address 192.168.64.2.
