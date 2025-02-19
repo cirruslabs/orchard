@@ -13,14 +13,22 @@ func (controller *Controller) wsError(
 	reason string,
 	err error,
 ) responder.Responder {
-	message := fmt.Sprintf("%s: %v", reason, err)
+	responder := controller.wsErrorNoClose(component, reason, err)
 
-	controller.logger.Warn(message)
-
-	if err := wsConn.Close(code, message); err != nil {
+	if err := wsConn.Close(code, fmt.Sprintf("%s: %v", reason, err)); err != nil {
 		controller.logger.Warnf("%s: failed to close the WebSocket connection that entered error state"+
 			" due to %s: %v", component, reason, err)
 	}
+
+	return responder
+}
+
+func (controller *Controller) wsErrorNoClose(
+	component string,
+	reason string,
+	err error,
+) responder.Responder {
+	controller.logger.Warnf("%s: %s: %v", component, reason, err)
 
 	return responder.Empty()
 }

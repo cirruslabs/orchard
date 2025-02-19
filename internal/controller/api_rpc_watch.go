@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/cirruslabs/orchard/internal/responder"
 	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
 	"github.com/cirruslabs/orchard/rpc"
@@ -41,7 +42,7 @@ func (controller *Controller) rpcWatch(ctx *gin.Context) responder.Responder {
 	// from the connection in the background
 	//
 	// Otherwise the wsConn.Ping() will wait forever.
-	wsConn.CloseRead(ctx)
+	closeReadCtx := wsConn.CloseRead(ctx)
 
 	for {
 		select {
@@ -86,10 +87,14 @@ func (controller *Controller) rpcWatch(ctx *gin.Context) responder.Responder {
 			}
 
 			pingCtxCancel()
+		case <-closeReadCtx.Done():
+			// Connection shouldn't be normally closed by the worker
+			return controller.wsErrorNoClose("watch RPC",
+				fmt.Sprintf("worker %s unexpectedly disconnected", workerName), closeReadCtx.Err())
 		case <-ctx.Done():
 			// Connection shouldn't be normally closed by the worker
-			return controller.wsError(wsConn, websocket.StatusAbnormalClosure, "watch RPC",
-				"unexpectedly disconnected worker", err)
+			return controller.wsErrorNoClose("watch RPC",
+				fmt.Sprintf("worker %s unexpectedly disconnected", workerName), ctx.Err())
 		}
 	}
 }
