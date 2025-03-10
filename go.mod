@@ -24,7 +24,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.15.0
 	github.com/pterm/pterm v0.12.80
-	github.com/samber/lo v1.38.1
+	github.com/samber/lo v1.49.1
 	github.com/sethvargo/go-password v0.3.1
 	github.com/skratchdot/open-golang v0.0.0-20200116055534-eef842397966
 	github.com/spf13/cobra v1.6.0
