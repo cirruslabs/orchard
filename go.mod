@@ -39,8 +39,8 @@ require (
 	golang.org/x/exp v0.0.0-20230321023759-10a507213a29
 	golang.org/x/net v0.35.0
 	golang.org/x/term v0.30.0
-	google.golang.org/grpc v1.70.0
-	google.golang.org/protobuf v1.35.2
+	google.golang.org/grpc v1.71.0
+	google.golang.org/protobuf v1.36.4
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	gopkg.in/yaml.v3 v3.0.1
 	howett.net/plist v1.0.0
