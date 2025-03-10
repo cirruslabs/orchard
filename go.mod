@@ -40,7 +40,7 @@ require (
 	golang.org/x/net v0.35.0
 	golang.org/x/term v0.30.0
 	google.golang.org/grpc v1.70.0
-	google.golang.org/protobuf v1.35.2
+	google.golang.org/protobuf v1.36.5
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	gopkg.in/yaml.v3 v3.0.1
 	howett.net/plist v1.0.0
