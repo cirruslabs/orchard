@@ -43,7 +43,7 @@ require (
 	google.golang.org/protobuf v1.36.5
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	gopkg.in/yaml.v3 v3.0.1
-	howett.net/plist v1.0.0
+	howett.net/plist v1.0.1
 )
 
 require (
