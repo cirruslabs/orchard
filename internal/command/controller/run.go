@@ -123,12 +123,12 @@ func runController(cmd *cobra.Command, args []string) (err error) {
 		controllerOpts = append(controllerOpts, controller.WithSSHServer(addressSSH, signer, sshNoClientAuth))
 	}
 
-	if experimentalRPCV2 {
-		logger.Warn("--experimental-rpc-v2 flag is deprecated: experimental RPC v2 is now enabled by default")
-	}
-
 	if experimentalRPCV2 && noExperimentalRPCV2 {
 		return fmt.Errorf("--experimental-rpc-v2 and --no-experimental-rpc-v2 flags are mutually exclusive")
+	}
+
+	if experimentalRPCV2 {
+		logger.Warn("--experimental-rpc-v2 flag is deprecated: experimental RPC v2 is now enabled by default")
 	}
 
 	if !noExperimentalRPCV2 {
