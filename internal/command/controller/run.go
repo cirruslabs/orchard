@@ -20,6 +20,7 @@ var addressSSH string
 var debug bool
 var sshNoClientAuth bool
 var experimentalRPCV2 bool
+var noExperimentalRPCV2 bool
 
 func newRunCommand() *cobra.Command {
 	cmd := &cobra.Command{
@@ -54,6 +55,9 @@ func newRunCommand() *cobra.Command {
 			"thus only authenticating on the target worker/VM's SSH server")
 	cmd.PersistentFlags().BoolVar(&experimentalRPCV2, "experimental-rpc-v2", false,
 		"enable experimental RPC v2 (https://github.com/cirruslabs/orchard/issues/235)")
+	_ = cmd.PersistentFlags().MarkHidden("experimental-rpc-v2")
+	cmd.PersistentFlags().BoolVar(&noExperimentalRPCV2, "no-experimental-rpc-v2", false,
+		"disable experimental RPC v2 (https://github.com/cirruslabs/orchard/issues/235)")
 
 	return cmd
 }
@@ -120,6 +124,10 @@ func runController(cmd *cobra.Command, args []string) (err error) {
 	}
 
 	if experimentalRPCV2 {
+		logger.Warn("--experimental-rpc-v2 flag is deprecated: experimental RPC v2 is now enabled by default")
+	}
+
+	if !noExperimentalRPCV2 {
 		controllerOpts = append(controllerOpts, controller.WithExperimentalRPCV2())
 	}
 
