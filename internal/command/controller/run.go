@@ -103,6 +103,10 @@ func runController(cmd *cobra.Command, args []string) (err error) {
 			Certificates: []tls.Certificate{
 				controllerCert,
 			},
+			// Since gRPC clients started enforcing ALPN at some point, we need to advertise it
+			//
+			// See https://github.com/grpc/grpc-go/issues/7922 for more details.
+			NextProtos: []string{"http/1.1", "h2"},
 		}),
 	}
 
