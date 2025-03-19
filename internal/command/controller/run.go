@@ -21,6 +21,7 @@ var debug bool
 var sshNoClientAuth bool
 var experimentalRPCV2 bool
 var noExperimentalRPCV2 bool
+var enableTLS bool
 
 func newRunCommand() *cobra.Command {
 	cmd := &cobra.Command{
@@ -58,6 +59,8 @@ func newRunCommand() *cobra.Command {
 	_ = cmd.PersistentFlags().MarkHidden("experimental-rpc-v2")
 	cmd.PersistentFlags().BoolVar(&noExperimentalRPCV2, "no-experimental-rpc-v2", false,
 		"disable experimental RPC v2 (https://github.com/cirruslabs/orchard/issues/235)")
+	cmd.PersistentFlags().BoolVar(&enableTLS, "enableTLS", false,
+		"enable TLS")
 
 	return cmd
 }
@@ -93,16 +96,19 @@ func runController(cmd *cobra.Command, args []string) (err error) {
 		return err
 	}
 
-	controllerCert, err := FindControllerCertificate(dataDir)
-	if err != nil {
-		return err
-	}
-
 	controllerOpts := []controller.Option{
 		controller.WithListenAddr(address),
 		controller.WithDataDir(dataDir),
 		controller.WithLogger(logger),
-		controller.WithTLSConfig(&tls.Config{
+	}
+	var controllerCert tls.Certificate
+	if enableTLS {
+		controllerCert, err := FindControllerCertificate(dataDir)
+		if err != nil {
+			return err
+		}
+
+		controllerOpts = append(controllerOpts, controller.WithTLSConfig(&tls.Config{
 			MinVersion: tls.VersionTLS12,
 			Certificates: []tls.Certificate{
 				controllerCert,
@@ -111,7 +117,7 @@ func runController(cmd *cobra.Command, args []string) (err error) {
 			//
 			// See https://github.com/grpc/grpc-go/issues/7922 for more details.
 			NextProtos: []string{"http/1.1", "h2"},
-		}),
+		}))
 	}
 
 	if addressSSH != "" {

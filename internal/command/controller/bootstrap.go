@@ -89,9 +89,14 @@ func Bootstrap(controllerInstance *controller.Controller, controllerCert tls.Cer
 		pterm.Sprintln(),
 		pterm.Sprintf("Service account name: %s\n", pterm.Bold.Sprint(BootstrapAdminName)),
 		pterm.Sprintf("Service account token: %s\n", pterm.Bold.Sprint(serviceAccountTokenToDisplay)),
-		pterm.Sprintf("Certificate SHA-256 fingerprint: %s.\n",
-			pterm.Bold.Sprint(certificatefingerprint.CertificateFingerprint(controllerCert.Certificate[0]))),
 	)
+
+	if enableTLS {
+		pterm.Info.Print(
+			pterm.Sprintf("Certificate SHA-256 fingerprint: %s.\n",
+				pterm.Bold.Sprint(certificatefingerprint.CertificateFingerprint(controllerCert.Certificate[0]))),
+		)
+	}
 
 	return nil
 }
