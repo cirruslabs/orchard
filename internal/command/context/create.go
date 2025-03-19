@@ -26,6 +26,14 @@ var serviceAccountToken string
 var force bool
 var noPKI bool
 
+var defaultPromptTemplates = &promptui.PromptTemplates{
+	Prompt:          "{{ . }} ",
+	Valid:           "{{ . }} ",
+	Invalid:         "{{ . }} ",
+	Success:         "{{ . }} ",
+	ValidationError: "{{ . }} ",
+}
+
 func newCreateCommand() *cobra.Command {
 	command := &cobra.Command{
 		Use:   "create NAME",
@@ -74,6 +82,47 @@ func runCreate(cmd *cobra.Command, args []string) error {
 		}
 		if serviceAccountToken == "" {
 			serviceAccountToken = bootstrapToken.ServiceAccountToken()
+		}
+	}
+
+	if serviceAccountName == "" {
+		prompt := promptui.Prompt{
+			Label: "Service account name:",
+			Validate: func(s string) error {
+				if s == "" {
+					//nolint:goerr113,golint,stylecheck // this is not a standard error
+					return fmt.Errorf("Service account name cannot be empty.")
+				}
+
+				return nil
+			},
+			Templates: defaultPromptTemplates,
+		}
+
+		serviceAccountName, err = prompt.Run()
+		if err != nil {
+			return err
+		}
+	}
+
+	if serviceAccountToken == "" {
+		prompt := promptui.Prompt{
+			Label: "Service account token:",
+			Validate: func(s string) error {
+				if s == "" {
+					//nolint:goerr113,golint,stylecheck // this is not a standard error
+					return fmt.Errorf("Service account token cannot be empty.")
+				}
+
+				return nil
+			},
+			Templates: defaultPromptTemplates,
+			Mask:      '*',
+		}
+
+		serviceAccountToken, err = prompt.Run()
+		if err != nil {
+			return err
 		}
 	}
 
@@ -209,13 +258,6 @@ func probeControllerCertificate(ctx context.Context, controllerURL *url.URL) (*x
 		fmt.Printf("The authencity of controller %s cannot be established.\n", shortControllerName)
 		fmt.Printf("Certificate SHA-256 fingerprint is: %s.\n", formattedControllerCertFingerprint)
 
-		promptTemplates := &promptui.PromptTemplates{
-			Prompt:          "{{ . }} ",
-			Valid:           "{{ . }} ",
-			Invalid:         "{{ . }} ",
-			Success:         "{{ . }} ",
-			ValidationError: "{{ . }} ",
-		}
 		prompt := promptui.Prompt{
 			Label: "Are you sure you want to establish trust to this certificate? (yes/no)",
 			Validate: func(s string) error {
@@ -226,7 +268,7 @@ func probeControllerCertificate(ctx context.Context, controllerURL *url.URL) (*x
 
 				return nil
 			},
-			Templates: promptTemplates,
+			Templates: defaultPromptTemplates,
 		}
 
 		promptResult, err := prompt.Run()
