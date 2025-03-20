@@ -21,7 +21,7 @@ var debug bool
 var sshNoClientAuth bool
 var experimentalRPCV2 bool
 var noExperimentalRPCV2 bool
-var enableTLS bool
+var noTLS bool
 
 func newRunCommand() *cobra.Command {
 	cmd := &cobra.Command{
@@ -102,7 +102,7 @@ func runController(cmd *cobra.Command, args []string) (err error) {
 		controller.WithLogger(logger),
 	}
 	var controllerCert tls.Certificate
-	if enableTLS {
+	if !noTLS {
 		controllerCert, err := FindControllerCertificate(dataDir)
 		if err != nil {
 			return err

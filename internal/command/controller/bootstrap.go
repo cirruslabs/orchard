@@ -84,19 +84,19 @@ func Bootstrap(controllerInstance *controller.Controller, controllerCert tls.Cer
 		serviceAccountTokenToDisplay = orchardBootstrapAdminToken
 	}
 
-	pterm.Info.Print(
-		pterm.Sprintf("%s:\n", reasonToDisplay),
+	messages := []any{
+		pterm.Sprintf("Orchard has been bootstrapped successfully. %s.", reasonToDisplay),
 		pterm.Sprintln(),
-		pterm.Sprintf("Service account name: %s\n", pterm.Bold.Sprint(BootstrapAdminName)),
-		pterm.Sprintf("Service account token: %s\n", pterm.Bold.Sprint(serviceAccountTokenToDisplay)),
-	)
-
-	if enableTLS {
-		pterm.Info.Print(
-			pterm.Sprintf("Certificate SHA-256 fingerprint: %s.\n",
-				pterm.Bold.Sprint(certificatefingerprint.CertificateFingerprint(controllerCert.Certificate[0]))),
-		)
+		pterm.Sprintf("Service account name: %s", pterm.Bold.Sprint(BootstrapAdminName)),
+		pterm.Sprintf("Service account token: %s", pterm.Bold.Sprint(serviceAccountTokenToDisplay)),
 	}
+
+	if !noTLS {
+		messages = append(messages, pterm.Sprintf("Certificate SHA-256 fingerprint: %s.\n",
+			pterm.Bold.Sprint(certificatefingerprint.CertificateFingerprint(controllerCert.Certificate[0]))))
+	}
+
+	pterm.Info.Print(messages...)
 
 	return nil
 }
