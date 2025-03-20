@@ -59,8 +59,8 @@ func newRunCommand() *cobra.Command {
 	_ = cmd.PersistentFlags().MarkHidden("experimental-rpc-v2")
 	cmd.PersistentFlags().BoolVar(&noExperimentalRPCV2, "no-experimental-rpc-v2", false,
 		"disable experimental RPC v2 (https://github.com/cirruslabs/orchard/issues/235)")
-	cmd.PersistentFlags().BoolVar(&enableTLS, "enableTLS", false,
-		"enable TLS")
+	cmd.PersistentFlags().BoolVar(&noTLS, "insecure-no-tls", false,
+		"disable TLS, making all connections to the controller unencrypted")
 
 	return cmd
 }
