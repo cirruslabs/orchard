@@ -18,10 +18,10 @@ var ErrRunFailed = errors.New("failed to run controller")
 var address string
 var addressSSH string
 var debug bool
+var noTLS bool
 var sshNoClientAuth bool
 var experimentalRPCV2 bool
 var noExperimentalRPCV2 bool
-var noTLS bool
 
 func newRunCommand() *cobra.Command {
 	cmd := &cobra.Command{
@@ -51,6 +51,8 @@ func newRunCommand() *cobra.Command {
 			" (requires --controller-cert)")
 	cmd.PersistentFlags().StringVar(&sshHostKeyPath, "ssh-host-key", "",
 		"use the SSH private host key from the specified path instead of the auto-generated one")
+	cmd.PersistentFlags().BoolVar(&noTLS, "insecure-no-tls", false,
+		"disable TLS, making all connections to the controller unencrypted")
 	cmd.PersistentFlags().BoolVar(&sshNoClientAuth, "insecure-ssh-no-client-auth", false,
 		"allow SSH clients to connect to the controller's SSH server without authentication, "+
 			"thus only authenticating on the target worker/VM's SSH server")
@@ -59,8 +61,6 @@ func newRunCommand() *cobra.Command {
 	_ = cmd.PersistentFlags().MarkHidden("experimental-rpc-v2")
 	cmd.PersistentFlags().BoolVar(&noExperimentalRPCV2, "no-experimental-rpc-v2", false,
 		"disable experimental RPC v2 (https://github.com/cirruslabs/orchard/issues/235)")
-	cmd.PersistentFlags().BoolVar(&noTLS, "insecure-no-tls", false,
-		"disable TLS, making all connections to the controller unencrypted")
 
 	return cmd
 }
