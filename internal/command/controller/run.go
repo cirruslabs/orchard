@@ -105,7 +105,7 @@ func runController(cmd *cobra.Command, args []string) (err error) {
 	var controllerCert tls.Certificate
 
 	if !noTLS {
-		controllerCert, err := FindControllerCertificate(dataDir)
+		controllerCert, err = FindControllerCertificate(dataDir)
 		if err != nil {
 			return err
 		}
