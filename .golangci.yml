@@ -1,3 +1,5 @@
+version: 2
+
 run:
   timeout: 5m
 
@@ -12,48 +14,11 @@ linters-settings:
     excludes:
       - G115
 
+formatters:
+  enable-all: true
+
 linters:
-  enable:
-    - asciicheck
-    - bodyclose
-    - dupl
-    - errcheck
-    - exhaustive
-    - gochecknoinits
-    - gocognit
-    - goconst
-    - gocritic
-    - gocyclo
-    - godot
-    - godox
-    - gofmt
-    - goheader
-    - gomodguard
-    - goprintffuncname
-    - gosec
-    - gosimple
-    - govet
-    - ineffassign
-    - lll
-    - makezero
-    - misspell
-    - nakedret
-    - nestif
-    - noctx
-    - nolintlint
-    - predeclared
-    - rowserrcheck
-    - sqlclosecheck
-    - staticcheck
-    - stylecheck
-    - testpackage
-    - tparallel
-    - typecheck
-    - unconvert
-    - unparam
-    - unused
-    - unused
-    - whitespace
+  enable-all: true
 
   disable:
     # We don't have high-performance requirements at this moment, so sacrificing
@@ -70,8 +35,6 @@ linters:
 
     # Style linters that are total nuts.
     - wsl
-    - gofumpt
-    - goimports
     - funlen
 
     # Enough parallelism for now.
@@ -97,6 +60,9 @@ linters:
 
     # Needs package whitelists
     - depguard
+
+    # Not all errors need to be checked
+    - errcheck
 
 issues:
   # Don't hide multiple issues that belong to one class since GitHub annotations can handle them all nicely.

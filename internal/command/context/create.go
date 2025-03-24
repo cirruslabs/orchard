@@ -90,7 +90,7 @@ func runCreate(cmd *cobra.Command, args []string) error {
 			Label: "Service account name:",
 			Validate: func(s string) error {
 				if s == "" {
-					//nolint:goerr113,golint,stylecheck // this is not a standard error
+					//nolint:staticcheck // this is not a standard error
 					return fmt.Errorf("Service account name cannot be empty.")
 				}
 
@@ -110,7 +110,7 @@ func runCreate(cmd *cobra.Command, args []string) error {
 			Label: "Service account token:",
 			Validate: func(s string) error {
 				if s == "" {
-					//nolint:goerr113,golint,stylecheck // this is not a standard error
+					//nolint:staticcheck // this is not a standard error
 					return fmt.Errorf("Service account token cannot be empty.")
 				}
 
@@ -262,7 +262,7 @@ func probeControllerCertificate(ctx context.Context, controllerURL *url.URL) (*x
 			Label: "Are you sure you want to establish trust to this certificate? (yes/no)",
 			Validate: func(s string) error {
 				if s != "yes" && s != "no" {
-					//nolint:goerr113,golint,stylecheck // this is not a standard error
+					//nolint:staticcheck // this is not a standard error
 					return fmt.Errorf("Please specify \"yes\" or \"no\".")
 				}
 
