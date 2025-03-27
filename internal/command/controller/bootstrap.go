@@ -13,7 +13,7 @@ import (
 	"strings"
 )
 
-const BootstrapContextName = "boostrap-context"
+const BootstrapContextName = "bootstrap-context"
 const BootstrapAdminName = "bootstrap-admin"
 
 func Bootstrap(controllerInstance *controller.Controller, controllerCert tls.Certificate) (string, string, error) {
