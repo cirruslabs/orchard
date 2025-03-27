@@ -188,7 +188,7 @@ func New(opts ...Option) (*Controller, error) {
 	return controller, nil
 }
 
-func (controller *Controller) NumServiceAccounts() (int, error) {
+func (controller *Controller) ServiceAccounts() ([]*v1.ServiceAccount, error) {
 	var serviceAccounts []*v1.ServiceAccount
 	var err error
 
@@ -197,10 +197,10 @@ func (controller *Controller) NumServiceAccounts() (int, error) {
 
 		return err
 	}); err != nil {
-		return 0, fmt.Errorf("failed to retrieve a list of service accounts: %w", err)
+		return nil, fmt.Errorf("failed to retrieve a list of service accounts: %w", err)
 	}
 
-	return len(serviceAccounts), nil
+	return serviceAccounts, nil
 }
 
 func (controller *Controller) EnsureServiceAccount(serviceAccount *v1.ServiceAccount) error {

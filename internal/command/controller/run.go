@@ -2,8 +2,10 @@ package controller
 
 import (
 	"crypto/tls"
+	"encoding/pem"
 	"errors"
 	"fmt"
+	configpkg "github.com/cirruslabs/orchard/internal/config"
 	"github.com/cirruslabs/orchard/internal/controller"
 	"github.com/cirruslabs/orchard/internal/netconstants"
 	"github.com/gin-gonic/gin"
@@ -148,9 +150,64 @@ func runController(cmd *cobra.Command, args []string) (err error) {
 		return err
 	}
 
-	if err := Bootstrap(controllerInstance, controllerCert); err != nil {
+	// Return bootstrap service account credentials, optionally creating it
+	serviceAccountName, serviceAccountToken, err := Bootstrap(controllerInstance, controllerCert)
+	if err != nil {
 		return err
 	}
 
+	// If bootstrap service account still exists, update a context for it,
+	// optionally making this context the default one
+	if serviceAccountName != "" && serviceAccountToken != "" {
+		if err := createBootstrapContext(controllerInstance.Address(), controllerCert,
+			serviceAccountName, serviceAccountToken); err != nil {
+			return err
+		}
+	}
+
 	return controllerInstance.Run(cmd.Context())
+}
+
+func createBootstrapContext(
+	controllerAddress string,
+	controllerCert tls.Certificate,
+	serviceAccountName string,
+	serviceAccountToken string,
+) error {
+	configHandle, err := configpkg.NewHandle()
+	if err != nil {
+		return err
+	}
+
+	context := configpkg.Context{
+		URL:                 controllerAddress,
+		ServiceAccountName:  serviceAccountName,
+		ServiceAccountToken: serviceAccountToken,
+	}
+
+	if !noTLS {
+		certificatePEMBytes := pem.EncodeToMemory(&pem.Block{
+			Type:  "CERTIFICATE",
+			Bytes: controllerCert.Certificate[0],
+		})
+
+		context.Certificate = certificatePEMBytes
+	}
+
+	if err := configHandle.CreateContext(BootstrapContextName, context, true); err != nil {
+		return err
+	}
+
+	config, err := configHandle.Config()
+	if err != nil {
+		return err
+	}
+
+	if config.DefaultContext == "" {
+		if err := configHandle.SetDefaultContext(BootstrapContextName); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
