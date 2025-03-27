@@ -7,27 +7,39 @@ import (
 	"github.com/cirruslabs/orchard/internal/controller"
 	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
 	"github.com/pterm/pterm"
+	"github.com/samber/lo"
 	"github.com/sethvargo/go-password/password"
 	"os"
 	"strings"
 )
 
+const BootstrapContextName = "bootstrap-context"
 const BootstrapAdminName = "bootstrap-admin"
 
-func Bootstrap(controllerInstance *controller.Controller, controllerCert tls.Certificate) error {
+func Bootstrap(controllerInstance *controller.Controller, controllerCert tls.Certificate) (string, string, error) {
 	// Determine if we need to do anything at all
 	orchardBootstrapAdminToken, orchardBootstrapAdminTokenPresent := os.LookupEnv("ORCHARD_BOOTSTRAP_ADMIN_TOKEN")
 
-	numServiceAccounts, err := controllerInstance.NumServiceAccounts()
+	serviceAccounts, err := controllerInstance.ServiceAccounts()
 	if err != nil {
-		return fmt.Errorf("failed to retrieve the number of service accounts: %w", err)
+		return "", "", fmt.Errorf("failed to retrieve the number of service accounts: %w", err)
 	}
 
-	if numServiceAccounts != 0 && !orchardBootstrapAdminTokenPresent {
+	if len(serviceAccounts) != 0 && !orchardBootstrapAdminTokenPresent {
 		// No bootstrap is needed because there are service accounts
 		// present in the database (so it's not the first start)
 		// and no bootstrap admin token change is requested
-		return nil
+		//
+		// However, if the BootstrapAdminName service account still exists,
+		// return its credentials. We'll use them for updating the
+		// BootstrapContextName context.
+		if serviceAccount, ok := lo.Find(serviceAccounts, func(serviceAccount *v1.ServiceAccount) bool {
+			return serviceAccount.Name == BootstrapAdminName
+		}); ok {
+			return serviceAccount.Name, serviceAccount.Token, nil
+		}
+
+		return "", "", nil
 	}
 
 	// Generate a bootstrap admin token if not present in the environment variable
@@ -48,14 +60,14 @@ func Bootstrap(controllerInstance *controller.Controller, controllerCert tls.Cer
 			}, password.Symbols),
 		})
 		if err != nil {
-			return fmt.Errorf("failed to generate bootstrap admin token: "+
+			return "", "", fmt.Errorf("failed to generate bootstrap admin token: "+
 				"failed to initialize password generator: %w", err)
 		}
 
 		orchardBootstrapAdminToken, err = passwordGenerator.Generate(32, 10, 10,
 			false, false)
 		if err != nil {
-			return fmt.Errorf("failed to generate bootstrap admin token: %w", err)
+			return "", "", fmt.Errorf("failed to generate bootstrap admin token: %w", err)
 		}
 	}
 
@@ -67,7 +79,7 @@ func Bootstrap(controllerInstance *controller.Controller, controllerCert tls.Cer
 		Token: orchardBootstrapAdminToken,
 		Roles: v1.AllServiceAccountRoles(),
 	}); err != nil {
-		return err
+		return "", "", err
 	}
 
 	// Report bootstrapping result to the user
@@ -98,5 +110,5 @@ func Bootstrap(controllerInstance *controller.Controller, controllerCert tls.Cer
 
 	pterm.Info.Print(messages...)
 
-	return nil
+	return BootstrapAdminName, orchardBootstrapAdminToken, nil
 }
