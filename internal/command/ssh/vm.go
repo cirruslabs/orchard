@@ -132,6 +132,13 @@ func runSSHVM(cmd *cobra.Command, args []string) error {
 	// Periodically adjust remote terminal size
 	go func() {
 		for {
+			select {
+			case <-time.After(time.Second * time.Duration(wait)):
+				// Proceed with adjusting the remote terminal size
+			case <-cmd.Context().Done():
+				return
+			}
+
 			newWidth, newHeight, err := term.GetSize(stdoutFD)
 			if err != nil {
 				return
@@ -147,8 +154,6 @@ func runSSHVM(cmd *cobra.Command, args []string) error {
 
 			height = newHeight
 			width = newWidth
-
-			time.Sleep(time.Second)
 		}
 	}()
 
