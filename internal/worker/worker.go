@@ -279,6 +279,12 @@ func (worker *Worker) syncVMs(ctx context.Context) error {
 				if _, err := worker.client.VMs().Update(ctx, remoteVM); err != nil {
 					return err
 				}
+			} else if vm.Status() != remoteVM.StatusMessage {
+				// Report the new VM status message
+				remoteVM.StatusMessage = vm.Status()
+				if _, err := worker.client.VMs().Update(ctx, remoteVM); err != nil {
+					return err
+				}
 			}
 		}
 	}

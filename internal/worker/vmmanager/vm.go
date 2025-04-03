@@ -44,7 +44,8 @@ type VM struct {
 	// Image FQN feature, see https://github.com/cirruslabs/orchard/issues/164
 	imageFQN atomic.Pointer[string]
 
-	err atomic.Pointer[error]
+	status atomic.Pointer[string]
+	err    atomic.Pointer[error]
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -81,7 +82,7 @@ func NewVM(
 		defer vm.wg.Done()
 
 		if vmResource.ImagePullPolicy == v1.ImagePullPolicyAlways {
-			vm.logger.Debugf("pulling VM")
+			vm.setStatus("pulling VM image...")
 
 			pullStartedAt := time.Now()
 
@@ -103,8 +104,6 @@ func NewVM(
 			))
 		}
 
-		vm.logger.Debugf("creating VM")
-
 		if err := vm.cloneAndConfigure(vm.ctx); err != nil {
 			select {
 			case <-vm.ctx.Done():
@@ -118,12 +117,14 @@ func NewVM(
 
 		vm.cloned.Store(true)
 
-		vm.logger.Debugf("spawned VM")
-
 		// Launch the startup script goroutine as close as possible
 		// to the VM startup (below) to avoid "tart ip" timing out
 		if vm.Resource.StartupScript != nil {
+			vm.setStatus("VM started, running startup script...")
+
 			go vm.runScript(vm.Resource.StartupScript, eventStreamer)
+		} else {
+			vm.setStatus("VM started")
 		}
 
 		vm.started.Store(true)
@@ -168,6 +169,21 @@ func (vm *VM) id() string {
 	return vm.onDiskName.String()
 }
 
+func (vm *VM) Status() string {
+	status := vm.status.Load()
+
+	if status != nil {
+		return *status
+	}
+
+	return ""
+}
+
+func (vm *VM) setStatus(status string) {
+	vm.logger.Debugf(status)
+	vm.status.Store(&status)
+}
+
 func (vm *VM) Err() error {
 	if err := vm.err.Load(); err != nil {
 		return *err
@@ -183,6 +199,8 @@ func (vm *VM) setErr(err error) {
 }
 
 func (vm *VM) cloneAndConfigure(ctx context.Context) error {
+	vm.setStatus("cloning VM...")
+
 	_, _, err := tart.Tart(ctx, vm.logger, "clone", vm.Resource.Image, vm.id())
 	if err != nil {
 		return err
@@ -196,6 +214,8 @@ func (vm *VM) cloneAndConfigure(ctx context.Context) error {
 	}
 
 	// Set memory
+	vm.setStatus("configuring VM...")
+
 	memory := vm.Resource.AssignedMemory
 
 	if memory == 0 {
