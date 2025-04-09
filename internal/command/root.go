@@ -58,8 +58,11 @@ func NewRootCmd() *cobra.Command {
 
 	administrativeCommands := []*cobra.Command{
 		context.NewCommand(),
-		dev.NewCommand(),
 		controller.NewCommand(),
+	}
+
+	if devCommand := dev.NewCommand(); devCommand != nil {
+		administrativeCommands = append(administrativeCommands, devCommand)
 	}
 
 	if workerCommand := worker.NewCommand(); workerCommand != nil {
