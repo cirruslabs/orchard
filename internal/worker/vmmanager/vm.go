@@ -53,14 +53,14 @@ type VM struct {
 
 	wg *sync.WaitGroup
 
-	localNetworkHerlper *localnetworkhelper.LocalNetworkHelper
+	localNetworkHelper *localnetworkhelper.LocalNetworkHelper
 }
 
 func NewVM(
 	vmResource v1.VM,
 	eventStreamer *client.EventStreamer,
 	vmPullTimeHistogram metric.Float64Histogram,
-	localNetworkHerlper *localnetworkhelper.LocalNetworkHelper,
+	localNetworkHelper *localnetworkhelper.LocalNetworkHelper,
 	logger *zap.SugaredLogger,
 ) *VM {
 	vmContext, vmContextCancel := context.WithCancel(context.Background())
@@ -79,7 +79,7 @@ func NewVM(
 
 		wg: &sync.WaitGroup{},
 
-		localNetworkHerlper: localNetworkHerlper,
+		localNetworkHelper: localNetworkHelper,
 	}
 
 	vm.wg.Add(1)
@@ -440,8 +440,8 @@ func (vm *VM) shell(
 
 		var netConn net.Conn
 
-		if vm.localNetworkHerlper != nil {
-			netConn, err = vm.localNetworkHerlper.PrivilegedDialContext(dialCtx, "tcp", addr)
+		if vm.localNetworkHelper != nil {
+			netConn, err = vm.localNetworkHelper.PrivilegedDialContext(dialCtx, "tcp", addr)
 		} else {
 			dialer := net.Dialer{}
 
