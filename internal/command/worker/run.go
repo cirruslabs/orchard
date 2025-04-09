@@ -1,8 +1,12 @@
+//go:build unix
+
 package worker
 
 import (
 	"errors"
 	"fmt"
+	"github.com/cirruslabs/chacha/pkg/localnetworkhelper"
+	"github.com/cirruslabs/chacha/pkg/privdrop"
 	"github.com/cirruslabs/orchard/internal/bootstraptoken"
 	"github.com/cirruslabs/orchard/internal/netconstants"
 	"github.com/cirruslabs/orchard/internal/worker"
@@ -32,6 +36,7 @@ var labels map[string]string
 var noPKI bool
 var defaultCPU uint64
 var defaultMemory uint64
+var username string
 var debug bool
 
 func newRunCommand() *cobra.Command {
@@ -62,6 +67,8 @@ func newRunCommand() *cobra.Command {
 		"that do not explicitly specify a value")
 	cmd.PersistentFlags().Uint64Var(&defaultMemory, "default-memory", 8*1024, "megabytes of memory "+
 		"to use for VMs that do not explicitly specify a value")
+	cmd.Flags().StringVar(&username, "user", "", "username to drop privileges to "+
+		"(\"Local Network\" permission workaround on macOS Sequoia)")
 	cmd.PersistentFlags().BoolVar(&debug, "debug", false, "enable debug logging")
 
 	return cmd
@@ -87,16 +94,39 @@ func runWorker(cmd *cobra.Command, args []string) (err error) {
 		return err
 	}
 
+	clientOpts := []client.Option{
+		client.WithAddress(controllerURL.String()),
+		client.WithCredentials(bootstrapToken.ServiceAccountName(), bootstrapToken.ServiceAccountToken()),
+	}
+
+	workerOpts := []worker.Option{
+		worker.WithName(name),
+		worker.WithLabels(labels),
+		worker.WithDefaultCPUAndMemory(defaultCPU, defaultMemory),
+	}
+
+	// Run the macOS "Local Network" permission helper
+	// when privilege dropping is requested
+	if username != "" {
+		localNetworkHelper, err := localnetworkhelper.New(cmd.Context())
+		if err != nil {
+			return err
+		}
+
+		workerOpts = append(workerOpts, worker.WithLocalNetworkHelper(localNetworkHelper))
+		clientOpts = append(clientOpts, client.WithDialContext(localNetworkHelper.PrivilegedDialContext))
+
+		if err := privdrop.Drop(username); err != nil {
+			return err
+		}
+	}
+
 	// Convert resources
 	resources, err := v1.NewResourcesFromStringToString(stringToStringResources)
 	if err != nil {
 		return fmt.Errorf("%w: %v", ErrRunFailed, err)
 	}
-
-	clientOpts := []client.Option{
-		client.WithAddress(controllerURL.String()),
-		client.WithCredentials(bootstrapToken.ServiceAccountName(), bootstrapToken.ServiceAccountToken()),
-	}
+	workerOpts = append(workerOpts, worker.WithResources(resources))
 
 	if trustedCertificate := bootstrapToken.Certificate(); trustedCertificate != nil {
 		clientOpts = append(clientOpts, client.WithTrustedCertificate(trustedCertificate))
@@ -120,14 +150,11 @@ func runWorker(cmd *cobra.Command, args []string) (err error) {
 			err = syncErr
 		}
 	}()
+	workerOpts = append(workerOpts, worker.WithLogger(logger))
 
 	workerInstance, err := worker.New(
 		controllerClient,
-		worker.WithName(name),
-		worker.WithResources(resources),
-		worker.WithLabels(labels),
-		worker.WithDefaultCPUAndMemory(defaultCPU, defaultMemory),
-		worker.WithLogger(logger),
+		workerOpts...,
 	)
 	if err != nil {
 		return err

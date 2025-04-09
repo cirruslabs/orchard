@@ -1,6 +1,7 @@
 package worker
 
 import (
+	"github.com/cirruslabs/chacha/pkg/localnetworkhelper"
 	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
 	"go.uber.org/zap"
 )
@@ -29,6 +30,12 @@ func WithDefaultCPUAndMemory(defaultCPU uint64, defaultMemory uint64) Option {
 	return func(worker *Worker) {
 		worker.defaultCPU = defaultCPU
 		worker.defaultMemory = defaultMemory
+	}
+}
+
+func WithLocalNetworkHelper(localNetworkHelper *localnetworkhelper.LocalNetworkHelper) Option {
+	return func(worker *Worker) {
+		worker.localNetworkHelper = localNetworkHelper
 	}
 }
 

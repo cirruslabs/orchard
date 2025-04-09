@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/avast/retry-go/v4"
+	"github.com/cirruslabs/chacha/pkg/localnetworkhelper"
 	"github.com/cirruslabs/orchard/internal/opentelemetry"
 	"github.com/cirruslabs/orchard/internal/worker/dhcpleasetime"
 	"github.com/cirruslabs/orchard/internal/worker/iokitregistry"
@@ -39,6 +40,8 @@ type Worker struct {
 	defaultMemory uint64
 
 	vmPullTimeHistogram metric.Float64Histogram
+
+	localNetworkHelper *localnetworkhelper.LocalNetworkHelper
 
 	logger *zap.SugaredLogger
 }
@@ -409,7 +412,8 @@ func (worker *Worker) deleteVM(vm *vmmanager.VM) error {
 func (worker *Worker) createVM(odn ondiskname.OnDiskName, vmResource v1.VM) {
 	eventStreamer := worker.client.VMs().StreamEvents(vmResource.Name)
 
-	vm := vmmanager.NewVM(vmResource, eventStreamer, worker.vmPullTimeHistogram, worker.logger)
+	vm := vmmanager.NewVM(vmResource, eventStreamer, worker.vmPullTimeHistogram,
+		worker.localNetworkHelper, worker.logger)
 
 	worker.vmm.Put(odn, vm)
 }

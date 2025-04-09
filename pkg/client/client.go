@@ -40,6 +40,8 @@ type Client struct {
 
 	serviceAccountName  string
 	serviceAccountToken string
+
+	dialContext func(ctx context.Context, network, addr string) (net.Conn, error)
 }
 
 type Config struct {
@@ -77,15 +79,21 @@ func New(opts ...Option) (*Client, error) {
 	}
 
 	// Instantiate the HTTP client
+	transport := &http.Transport{
+		TLSClientConfig: client.tlsConfig,
+	}
+
+	if client.dialContext != nil {
+		transport.DialContext = client.dialContext
+	}
+
 	client.httpClient = &http.Client{
 		// The default is zero, which means no timeout, which means that
 		// the requests may hang indefinitely. See [1] for more details.
 		//
 		// [1]: https://github.com/cirruslabs/orchard/issues/152#issuecomment-1927091747
-		Timeout: 30 * time.Second,
-		Transport: &http.Transport{
-			TLSClientConfig: client.tlsConfig,
-		},
+		Timeout:   30 * time.Second,
+		Transport: transport,
 	}
 
 	url, err := url.Parse(client.address)
