@@ -109,7 +109,17 @@ func (worker *Worker) handlePortForward(
 	}
 
 	// Connect to the VM's port
-	vmConn, err := net.Dial("tcp", fmt.Sprintf("%s:%d", host, portForwardAction.Port))
+	var vmConn net.Conn
+
+	if worker.localNetworkHelper != nil {
+		vmConn, err = worker.localNetworkHelper.PrivilegedDialContext(ctx, "tcp",
+			fmt.Sprintf("%s:%d", host, portForwardAction.Port))
+	} else {
+		dialer := net.Dialer{}
+
+		vmConn, err = dialer.DialContext(ctx, "tcp",
+			fmt.Sprintf("%s:%d", host, portForwardAction.Port))
+	}
 	if err != nil {
 		worker.logger.Warnf("port forwarding failed: failed to connect to the VM: %v", err)
 
