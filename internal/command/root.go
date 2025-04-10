@@ -8,6 +8,7 @@ import (
 	"github.com/cirruslabs/orchard/internal/command/dev"
 	"github.com/cirruslabs/orchard/internal/command/get"
 	"github.com/cirruslabs/orchard/internal/command/list"
+	"github.com/cirruslabs/orchard/internal/command/localnetworkhelper"
 	"github.com/cirruslabs/orchard/internal/command/logs"
 	"github.com/cirruslabs/orchard/internal/command/pause"
 	"github.com/cirruslabs/orchard/internal/command/portforward"
@@ -37,6 +38,10 @@ func NewRootCmd() *cobra.Command {
 		},
 	}
 
+	if localNetworkHelperCommand := localnetworkhelper.NewCommand(); localNetworkHelperCommand != nil {
+		command.AddCommand(localNetworkHelperCommand)
+	}
+
 	addGroupedCommands(command, "Working With Resources:",
 		create.NewCommand(),
 		deletepkg.NewCommand(),
@@ -51,12 +56,20 @@ func NewRootCmd() *cobra.Command {
 		vnc.NewCommand(),
 	)
 
-	addGroupedCommands(command, "Administrative Tasks:",
+	administrativeCommands := []*cobra.Command{
 		context.NewCommand(),
 		controller.NewCommand(),
-		worker.NewCommand(),
-		dev.NewCommand(),
-	)
+	}
+
+	if devCommand := dev.NewCommand(); devCommand != nil {
+		administrativeCommands = append(administrativeCommands, devCommand)
+	}
+
+	if workerCommand := worker.NewCommand(); workerCommand != nil {
+		administrativeCommands = append(administrativeCommands, workerCommand)
+	}
+
+	addGroupedCommands(command, "Administrative Tasks:", administrativeCommands...)
 
 	return command
 }

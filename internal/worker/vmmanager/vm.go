@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/avast/retry-go"
+	"github.com/cirruslabs/chacha/pkg/localnetworkhelper"
 	"github.com/cirruslabs/orchard/internal/worker/ondiskname"
 	"github.com/cirruslabs/orchard/internal/worker/tart"
 	"github.com/cirruslabs/orchard/pkg/client"
@@ -51,12 +52,15 @@ type VM struct {
 	cancel context.CancelFunc
 
 	wg *sync.WaitGroup
+
+	localNetworkHelper *localnetworkhelper.LocalNetworkHelper
 }
 
 func NewVM(
 	vmResource v1.VM,
 	eventStreamer *client.EventStreamer,
 	vmPullTimeHistogram metric.Float64Histogram,
+	localNetworkHelper *localnetworkhelper.LocalNetworkHelper,
 	logger *zap.SugaredLogger,
 ) *VM {
 	vmContext, vmContextCancel := context.WithCancel(context.Background())
@@ -74,6 +78,8 @@ func NewVM(
 		cancel: vmContextCancel,
 
 		wg: &sync.WaitGroup{},
+
+		localNetworkHelper: localNetworkHelper,
 	}
 
 	vm.wg.Add(1)
@@ -429,11 +435,18 @@ func (vm *VM) shell(
 
 		addr := ip + ":22"
 
-		dialer := net.Dialer{
-			Timeout: 5 * time.Second,
-		}
+		dialCtx, dialCtxCancel := context.WithTimeout(ctx, 5*time.Second)
+		defer dialCtxCancel()
 
-		netConn, err := dialer.DialContext(ctx, "tcp", addr)
+		var netConn net.Conn
+
+		if vm.localNetworkHelper != nil {
+			netConn, err = vm.localNetworkHelper.PrivilegedDialContext(dialCtx, "tcp", addr)
+		} else {
+			dialer := net.Dialer{}
+
+			netConn, err = dialer.DialContext(dialCtx, "tcp", addr)
+		}
 		if err != nil {
 			return fmt.Errorf("failed to dial %s: %w", addr, err)
 		}
