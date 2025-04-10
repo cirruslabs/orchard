@@ -77,29 +77,7 @@ func newRunCommand() *cobra.Command {
 }
 
 func runWorker(cmd *cobra.Command, args []string) (err error) {
-	// Parse controller URL
-	controllerURL, err := netconstants.NormalizeAddress(args[0])
-	if err != nil {
-		return err
-	}
-
-	// Parse bootstrap token
-	bootstrapTokenRaw, err := readBootstrapToken()
-	if err != nil {
-		return err
-	}
-	if bootstrapTokenRaw == "" {
-		return ErrEmptyBootstrapTokenProvided
-	}
-	bootstrapToken, err := bootstraptoken.NewFromString(bootstrapTokenRaw)
-	if err != nil {
-		return err
-	}
-
-	clientOpts := []client.Option{
-		client.WithAddress(controllerURL.String()),
-		client.WithCredentials(bootstrapToken.ServiceAccountName(), bootstrapToken.ServiceAccountToken()),
-	}
+	var clientOpts []client.Option
 
 	workerOpts := []worker.Option{
 		worker.WithName(name),
@@ -115,13 +93,35 @@ func runWorker(cmd *cobra.Command, args []string) (err error) {
 			return err
 		}
 
-		workerOpts = append(workerOpts, worker.WithLocalNetworkHelper(localNetworkHelper))
 		clientOpts = append(clientOpts, client.WithDialContext(localNetworkHelper.PrivilegedDialContext))
+		workerOpts = append(workerOpts, worker.WithLocalNetworkHelper(localNetworkHelper))
 
 		if err := privdrop.Drop(username); err != nil {
 			return err
 		}
 	}
+
+	// Parse controller URL
+	controllerURL, err := netconstants.NormalizeAddress(args[0])
+	if err != nil {
+		return err
+	}
+	clientOpts = append(clientOpts, client.WithAddress(controllerURL.String()))
+
+	// Parse bootstrap token
+	bootstrapTokenRaw, err := readBootstrapToken()
+	if err != nil {
+		return err
+	}
+	if bootstrapTokenRaw == "" {
+		return ErrEmptyBootstrapTokenProvided
+	}
+	bootstrapToken, err := bootstraptoken.NewFromString(bootstrapTokenRaw)
+	if err != nil {
+		return err
+	}
+	clientOpts = append(clientOpts, client.WithCredentials(bootstrapToken.ServiceAccountName(),
+		bootstrapToken.ServiceAccountToken()))
 
 	// Convert resources
 	resources, err := v1.NewResourcesFromStringToString(stringToStringResources)
