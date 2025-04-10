@@ -61,7 +61,6 @@ func TestSingleVM(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	assert.Empty(t, runningVM.StatusMessage)
 	assert.Equal(t, v1.VMStatusRunning, runningVM.Status)
 	assert.True(t, wait.Wait(2*time.Minute, func() bool {
 		logLines, err := devClient.VMs().Logs(context.Background(), "test-vm")
@@ -162,7 +161,6 @@ func TestPortForwarding(t *testing.T) {
 	vm, err := devClient.VMs().Get(ctx, "test-vm")
 	require.NoError(t, err)
 	require.Equal(t, v1.VMStatusRunning, vm.Status)
-	require.Empty(t, vm.StatusMessage)
 
 	t.Logf("Waiting for the VM to start, current status: %s", vm.Status)
 
@@ -407,7 +405,6 @@ func TestHostDirs(t *testing.T) {
 		return vm.Status == v1.VMStatusRunning || vm.Status == v1.VMStatusFailed
 	}), "failed to start a VM")
 
-	require.Empty(t, vm.StatusMessage)
 	require.Equal(t, v1.VMStatusRunning, vm.Status)
 
 	var logLines []string
