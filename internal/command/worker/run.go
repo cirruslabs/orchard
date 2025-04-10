@@ -68,7 +68,9 @@ func newRunCommand() *cobra.Command {
 	cmd.PersistentFlags().Uint64Var(&defaultMemory, "default-memory", 8*1024, "megabytes of memory "+
 		"to use for VMs that do not explicitly specify a value")
 	cmd.Flags().StringVar(&username, "user", "", "username to drop privileges to "+
-		"(\"Local Network\" permission workaround on macOS Sequoia)")
+		"(\"Local Network\" permission workaround: requires starting \"orchard worker run\" as \"root\", "+
+		"the privileges will be then dropped to the specified user after starting the \"orchard localnetworkhelper\" "+
+		"helper process)")
 	cmd.PersistentFlags().BoolVar(&debug, "debug", false, "enable debug logging")
 
 	return cmd
