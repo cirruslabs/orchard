@@ -4,15 +4,15 @@
 >
 > **macOS 15 (Sequoia)**
 >
-> The  [newly introduced "Local Network" permission](https://developer.apple.com/documentation/technotes/tn3179-understanding-local-network-privacy) on macOS Sequoia requires accepting a GUI pop-up on each machine that runs the Orchard Worker.
+> The  [newly introduced "Local Network" permission](https://developer.apple.com/documentation/technotes/tn3179-understanding-local-network-privacy) in macOS Sequoia requires accepting a GUI pop-up on each host machine that runs the Orchard Worker.
 >
-> To work around this, upgrade to Orchard 0.32.0 or newer and invoke the `orchard worker run` as `root` with an additional `--user` command-line argument, which takes the username of your regular non-privileged user.
+> To work around this, upgrade your workers to Orchard 0.32.0 or newer and invoke the `orchard worker run` as `root` with an additional `--user` command-line argument, which takes a name of your regular, non-privileged user on the host machine.
 >
-> This will cause the Orchard Worker to start a small `orchard localnetworkhelper` process and then drop the privileges to the specified user.
+> This will cause the Orchard Worker to start a small `orchard localnetworkhelper` process in the background and then drop the privileges to the specified user.
 >
->The helper process runs privileged and establishes network connections for the `orchard worker run` without triggering a GUI pop-up.
+>The helper process is privileged and needed to establish network connections on behalf of the Orchard Worker without triggering a GUI pop-up.
 >
->This approach is more secure than simply running `orchard worker run` as `root`, because only a small part of Orchard Worker is privileged and the only thing it can do is establish new connections.
+>This approach is more secure than simply running `orchard worker run` as `root`, because only a small part of Orchard Worker runs privileged and the only functionality that this part has is establishing new connections.
 
 <img src="https://github.com/cirruslabs/orchard/raw/main/docs/OrchardSocial.png"/>
 
