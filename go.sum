@@ -50,8 +50,8 @@ github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e h1:fY5BOSpyZCqRo5O
 github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e/go.mod h1:nSuG5e5PlCu98SY8svDHJxuZscDgtXS6KTTbou5AhLI=
 github.com/chzyer/test v0.0.0-20180213035817-a1ea475d72b1 h1:q763qf9huN11kDQavWsoZXJNW3xEE4JJyHa5Q25/sd8=
 github.com/chzyer/test v0.0.0-20180213035817-a1ea475d72b1/go.mod h1:Q3SI9o4m/ZMnBNeIyt5eFwwo7qiLfzFZmjNmxjkiQlU=
-github.com/cirruslabs/chacha v0.10.0 h1:Ny/U7sVFkB3DAZM0PAvbkEX4/IN0bUI97XlQGx4kzzA=
-github.com/cirruslabs/chacha v0.10.0/go.mod h1:qbGp1psGAO8KfN4ZkXSHiTWkyZh9az5DUmLyP1ihe3g=
+github.com/cirruslabs/chacha v0.11.0 h1:vZVu03psgD2PvaC/aqiXUxGqt9/DKp0wvCupTl3nGq4=
+github.com/cirruslabs/chacha v0.11.0/go.mod h1:BFBdtT5GuEVlEehRjx0ojMCTKZfE7QybegiOeDaGbhw=
 github.com/client9/misspell v0.3.4/go.mod h1:qj6jICC3Q7zFZvVWo7KLAzC3yx5G7kyvSDkc90ppPyw=
 github.com/cloudwego/base64x v0.1.5 h1:XPciSp1xaq2VCSt6lF0phncD4koWyULpl5bUxbfCyP4=
 github.com/cloudwego/base64x v0.1.5/go.mod h1:0zlkT4Wn5C6NdauXdJRhSKRlJvmclQ1hhJgA0rcu/8w=

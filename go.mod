@@ -7,7 +7,7 @@ toolchain go1.24.2
 require (
 	github.com/avast/retry-go v3.0.0+incompatible
 	github.com/avast/retry-go/v4 v4.6.1
-	github.com/cirruslabs/chacha v0.10.0
+	github.com/cirruslabs/chacha v0.11.0
 	github.com/coder/websocket v1.8.13
 	github.com/deckarep/golang-set/v2 v2.8.0
 	github.com/dgraph-io/badger/v3 v3.2103.5
