@@ -20,11 +20,11 @@ func (worker *Worker) watchRPCV2(ctx context.Context) error {
 		select {
 		case watchInstruction := <-watchInstructionCh:
 			if portForwardAction := watchInstruction.PortForwardAction; portForwardAction != nil {
-				worker.handlePortForwardV2(ctx, portForwardAction)
+				go worker.handlePortForwardV2(ctx, portForwardAction)
 			} else if syncVMsAction := watchInstruction.SyncVMsAction; syncVMsAction != nil {
 				worker.requestVMSyncing()
 			} else if resolveIPAction := watchInstruction.ResolveIPAction; resolveIPAction != nil {
-				worker.handleGetIPV2(ctx, resolveIPAction)
+				go worker.handleGetIPV2(ctx, resolveIPAction)
 			}
 		case watchErr := <-watchErrCh:
 			return watchErr
