@@ -43,7 +43,7 @@ func NewBadgerStore(dbPath string, logger *zap.SugaredLogger) (store.Store, erro
 				logger.Errorf("garbage collection failed: %v", err)
 			}
 
-			<-time.After(10 * time.Minute)
+			<-time.After(1 * time.Hour)
 		}
 	}()
 
