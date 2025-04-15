@@ -7,6 +7,7 @@ import (
 	"github.com/cirruslabs/orchard/internal/controller/store"
 	"github.com/dgraph-io/badger/v3"
 	"go.uber.org/zap"
+	"time"
 )
 
 type Store struct {
@@ -29,9 +30,38 @@ func NewBadgerStore(dbPath string, logger *zap.SugaredLogger) (store.Store, erro
 		return nil, err
 	}
 
-	return &Store{
+	store := &Store{
 		db: db,
-	}, nil
+	}
+
+	// Perform garbage collection periodically, as recommended in the documentation[1]
+	//
+	// [1]: https://docs.hypermode.com/badger/quickstart#garbage-collection
+	go func() {
+		for {
+			if err := store.performGarbageCollection(); err != nil {
+				logger.Errorf("garbage collection failed: %v", err)
+			}
+
+			<-time.After(10 * time.Minute)
+		}
+	}()
+
+	return store, nil
+}
+
+func (store *Store) performGarbageCollection() error {
+	// RunValueLogGC() needs to be invoked multiple times
+	for {
+		if err := store.db.RunValueLogGC(0.5); err != nil {
+			// Nothing to rewrite, stop
+			if errors.Is(err, badger.ErrNoRewrite) {
+				return nil
+			}
+
+			return err
+		}
+	}
 }
 
 func (store *Store) View(cb func(txn store.Transaction) error) error {
