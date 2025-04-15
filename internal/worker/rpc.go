@@ -58,7 +58,7 @@ func (worker *Worker) watchRPC(ctx context.Context) error {
 		case *rpc.WatchInstruction_SyncVmsAction:
 			worker.requestVMSyncing()
 		case *rpc.WatchInstruction_ResolveIpAction:
-			worker.handleGetIP(ctxWithMetadata, client, action.ResolveIpAction)
+			go worker.handleGetIP(ctxWithMetadata, client, action.ResolveIpAction)
 		}
 	}
 }
