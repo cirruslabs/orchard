@@ -8,10 +8,12 @@ import (
 	configpkg "github.com/cirruslabs/orchard/internal/config"
 	"github.com/cirruslabs/orchard/internal/controller"
 	"github.com/cirruslabs/orchard/internal/netconstants"
+	"github.com/cirruslabs/orchard/internal/orchardhome"
 	"github.com/gin-gonic/gin"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 	"os"
+	"path/filepath"
 	"strconv"
 )
 
@@ -93,6 +95,15 @@ func runController(cmd *cobra.Command, args []string) (err error) {
 	}
 
 	// Instantiate a data directory and ensure it's initialized
+	if dataDirPath == "" {
+		orchardHome, err := orchardhome.Path()
+		if err != nil {
+			return err
+		}
+
+		dataDirPath = filepath.Join(orchardHome, "controller")
+	}
+
 	dataDir, err := controller.NewDataDir(dataDirPath)
 	if err != nil {
 		return err

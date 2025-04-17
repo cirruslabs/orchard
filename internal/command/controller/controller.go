@@ -1,10 +1,7 @@
 package controller
 
 import (
-	"github.com/cirruslabs/orchard/internal/orchardhome"
 	"github.com/spf13/cobra"
-	"log"
-	"path/filepath"
 )
 
 var dataDirPath string
@@ -17,13 +14,8 @@ func NewCommand() *cobra.Command {
 
 	command.AddCommand(newRunCommand())
 
-	orchardHome, err := orchardhome.Path()
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	command.PersistentFlags().StringVar(&dataDirPath, "data-dir", filepath.Join(orchardHome, "controller"),
-		"path to the data controller's directory")
+	command.PersistentFlags().StringVar(&dataDirPath, "data-dir", "",
+		"path to the data controller's directory (defaults to $HOME/.orchard/controller)")
 
 	return command
 }
