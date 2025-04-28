@@ -7,7 +7,7 @@ toolchain go1.24.2
 require (
 	github.com/avast/retry-go v3.0.0+incompatible
 	github.com/avast/retry-go/v4 v4.6.1
-	github.com/cirruslabs/chacha v0.14.0
+	github.com/cirruslabs/chacha v0.16.1
 	github.com/coder/websocket v1.8.13
 	github.com/deckarep/golang-set/v2 v2.8.0
 	github.com/dgraph-io/badger/v3 v3.2103.5
@@ -27,7 +27,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.22.0
 	github.com/pterm/pterm v0.12.80
-	github.com/samber/lo v1.49.1
+	github.com/samber/lo v1.50.0
 	github.com/sethvargo/go-password v0.3.1
 	github.com/skratchdot/open-golang v0.0.0-20200116055534-eef842397966
 	github.com/spf13/cobra v1.9.1
