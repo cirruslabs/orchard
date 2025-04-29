@@ -80,6 +80,16 @@ func runGetVM(cmd *cobra.Command, args []string) error {
 	}
 	table.AddRow("Memory", memory)
 
+	var diskSize string
+
+	if vm.DiskSize != 0 {
+		diskSize = fmt.Sprintf("%d GB", vm.DiskSize)
+	} else {
+		diskSize = "VM image's default"
+	}
+
+	table.AddRow("Disk size", diskSize)
+
 	table.AddRow("Softnet enabled", vm.NetSoftnet)
 	table.AddRow("Bridged networking interface", nonEmptyOrNone(vm.NetBridged))
 	table.AddRow("Headless mode", vm.Headless)
