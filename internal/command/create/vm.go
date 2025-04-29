@@ -16,6 +16,7 @@ var ErrVMFailed = errors.New("failed to create VM")
 var image string
 var cpu uint64
 var memory uint64
+var diskSize uint64
 var netSoftnet bool
 var netBridged string
 var headless bool
@@ -40,6 +41,8 @@ func newCreateVMCommand() *cobra.Command {
 	command.PersistentFlags().StringVar(&image, "image", "ghcr.io/cirruslabs/macos-sonoma-base:latest", "image to use")
 	command.PersistentFlags().Uint64Var(&cpu, "cpu", 4, "number of CPUs to use")
 	command.PersistentFlags().Uint64Var(&memory, "memory", 8*1024, "megabytes of memory to use")
+	command.PersistentFlags().Uint64Var(&diskSize, "disk-size", 0, "resize the VMs disk to the specified size in GB "+
+		"(no resizing is done by default and VM's image default size is used)")
 	command.PersistentFlags().BoolVar(&netSoftnet, "net-softnet", false, "whether to use Softnet network isolation")
 	command.PersistentFlags().StringVar(&netBridged, "net-bridged", "", "whether to use Bridged network mode")
 	command.PersistentFlags().BoolVar(&headless, "headless", true, "whether to run without graphics")
@@ -97,6 +100,7 @@ func runCreateVM(cmd *cobra.Command, args []string) error {
 		Image:        image,
 		CPU:          cpu,
 		Memory:       memory,
+		DiskSize:     diskSize,
 		NetSoftnet:   netSoftnet,
 		NetBridged:   netBridged,
 		Headless:     headless,

@@ -251,6 +251,14 @@ func (vm *VM) cloneAndConfigure(ctx context.Context) error {
 		}
 	}
 
+	if diskSize := vm.Resource.DiskSize; diskSize != 0 {
+		_, _, err = tart.Tart(ctx, vm.logger, "set", "--disk-size",
+			strconv.FormatUint(diskSize, 10), vm.id())
+		if err != nil {
+			return err
+		}
+	}
+
 	// Randomize VM's MAC-address, this is important when using shared (NAT) networking
 	// with full /var/db/dhcpd_leases file (e.g. 256 entries) having an expired entry
 	// for a MAC address used by some OCI image, for example:

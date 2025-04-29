@@ -23,6 +23,7 @@ type VM struct {
 	ImagePullPolicy ImagePullPolicy `json:"imagePullPolicy,omitempty"`
 	CPU             uint64          `json:"cpu,omitempty"`
 	Memory          uint64          `json:"memory,omitempty"`
+	DiskSize        uint64          `json:"diskSize,omitempty"`
 	NetSoftnet      bool            `json:"net-softnet,omitempty"`
 	NetBridged      string          `json:"net-bridged,omitempty"`
 	Headless        bool            `json:"headless,omitempty"`
