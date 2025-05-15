@@ -51,7 +51,7 @@ func (controller *Controller) portForwardVM(ctx *gin.Context) responder.Responde
 		return responderImpl
 	}
 
-	// Commence port-forwarding
+	// Commence port forwarding
 	return controller.portForward(ctx, waitContext, vm.Worker, vm.UID, uint32(port))
 }
 
@@ -71,7 +71,7 @@ func (controller *Controller) portForward(
 	boomerangConnCh, cancel := controller.connRendezvous.Request(rendezvousCtx, session)
 	defer cancel()
 
-	// send request to worker to initiate port-forwarding connection back to us
+	// Send request to worker to initiate port forwarding connection back to us
 	err := controller.workerNotifier.Notify(notifyContext, workerName, &rpc.WatchInstruction{
 		Action: &rpc.WatchInstruction_PortForwardAction{
 			PortForwardAction: &rpc.WatchInstruction_PortForward{
@@ -82,13 +82,13 @@ func (controller *Controller) portForward(
 		},
 	})
 	if err != nil {
-		controller.logger.Warnf("failed to request port-forwarding from the worker %s: %v",
+		controller.logger.Warnf("failed to request port forwarding from the worker %s: %v",
 			workerName, err)
 
 		return responder.Code(http.StatusServiceUnavailable)
 	}
 
-	// worker will asynchronously start port-forwarding so we wait
+	// Worker will asynchronously start port forwarding, so we wait
 	select {
 	case rendezvousResponse := <-boomerangConnCh:
 		if rendezvousResponse.ErrorMessage != "" {
@@ -111,29 +111,48 @@ func (controller *Controller) portForward(
 			expectedMsgType = websocket.MessageText
 		}
 
+		proxyConnectionsErrCh := make(chan error, 1)
 		wsConnAsNetConn := websocket.NetConn(ctx, wsConn, expectedMsgType)
 		fromWorkerConnectionWithCancel := netconncancel.New(rendezvousResponse.Result, rendezvousCtxCancel)
 
-		if err := proxy.Connections(wsConnAsNetConn, fromWorkerConnectionWithCancel); err != nil {
-			var websocketCloseError websocket.CloseError
+		go func() {
+			proxyConnectionsErrCh <- proxy.Connections(wsConnAsNetConn, fromWorkerConnectionWithCancel)
+		}()
 
-			// Normal closure from the user
-			if errors.As(err, &websocketCloseError) && websocketCloseError.Code == websocket.StatusNormalClosure {
+		for {
+			select {
+			case err := <-proxyConnectionsErrCh:
+				if err != nil {
+					var websocketCloseError websocket.CloseError
+
+					// Normal closure from the user
+					if errors.As(err, &websocketCloseError) && websocketCloseError.Code == websocket.StatusNormalClosure {
+						return responder.Empty()
+					}
+
+					if errors.Is(err, context.Canceled) {
+						return responder.Empty()
+					}
+
+					if status, ok := status.FromError(err); ok && status.Code() == codes.Canceled {
+						return responder.Empty()
+					}
+
+					controller.logger.Warnf("port forwarding: failed to proxy connections: %v", err)
+				}
+
 				return responder.Empty()
-			}
+			case <-time.After(30 * time.Second):
+				pingCtx, pingCtxCancel := context.WithTimeout(ctx, 5*time.Second)
 
-			if errors.Is(err, context.Canceled) {
-				return responder.Empty()
-			}
+				if err := wsConn.Ping(pingCtx); err != nil {
+					controller.logger.Warnf("port forwarding: failed to ping the client, "+
+						"connection might time out: %v", err)
+				}
 
-			if status, ok := status.FromError(err); ok && status.Code() == codes.Canceled {
-				return responder.Empty()
+				pingCtxCancel()
 			}
-
-			controller.logger.Warnf("failed to port-forward: %v", err)
 		}
-
-		return responder.Empty()
 	case <-ctx.Done():
 		return responder.Error(ctx.Err())
 	}
