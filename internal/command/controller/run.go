@@ -15,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"time"
 )
 
 var ErrRunFailed = errors.New("failed to run controller")
@@ -26,6 +27,7 @@ var noTLS bool
 var sshNoClientAuth bool
 var experimentalRPCV2 bool
 var noExperimentalRPCV2 bool
+var experimentalPingInterval time.Duration
 
 func newRunCommand() *cobra.Command {
 	cmd := &cobra.Command{
@@ -65,6 +67,10 @@ func newRunCommand() *cobra.Command {
 	_ = cmd.PersistentFlags().MarkHidden("experimental-rpc-v2")
 	cmd.PersistentFlags().BoolVar(&noExperimentalRPCV2, "no-experimental-rpc-v2", false,
 		"disable experimental RPC v2 (https://github.com/cirruslabs/orchard/issues/235)")
+	cmd.PersistentFlags().DurationVar(&experimentalPingInterval, "experimental-ping-interval", 0,
+		"interval between WebSocket PING's sent by the controller to workers and clients, "+
+			"useful when facing intermediate load balancers/proxies that have timeouts "+
+			"smaller than the controller's default 30 second interval")
 
 	return cmd
 }
@@ -154,6 +160,10 @@ func runController(cmd *cobra.Command, args []string) (err error) {
 
 	if !noExperimentalRPCV2 {
 		controllerOpts = append(controllerOpts, controller.WithExperimentalRPCV2())
+	}
+
+	if experimentalPingInterval != 0 {
+		controllerOpts = append(controllerOpts, controller.WithPingInterval(experimentalPingInterval))
 	}
 
 	controllerInstance, err := controller.New(controllerOpts...)

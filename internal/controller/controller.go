@@ -60,6 +60,7 @@ type Controller struct {
 	workerOfflineTimeout time.Duration
 	maxWorkersPerLicense uint
 	experimentalRPCV2    bool
+	pingInterval         time.Duration
 
 	sshListenAddr   string
 	sshSigner       ssh.Signer
@@ -75,6 +76,7 @@ func New(opts ...Option) (*Controller, error) {
 		ipRendezvous:         rendezvous.New[rendezvous.ResultWithErrorMessage[string]](),
 		workerOfflineTimeout: 3 * time.Minute,
 		maxWorkersPerLicense: maxWorkersPerDefaultLicense,
+		pingInterval:         30 * time.Second,
 	}
 
 	// Apply options

@@ -78,7 +78,7 @@ func (controller *Controller) rpcWatch(ctx *gin.Context) responder.Responder {
 				return controller.wsError(wsConn, websocket.StatusInternalError, "watch RPC",
 					"failure to write the watch instruction", err)
 			}
-		case <-time.After(30 * time.Second):
+		case <-time.After(controller.pingInterval):
 			pingCtx, pingCtxCancel := context.WithTimeout(ctx, 5*time.Second)
 
 			if err := wsConn.Ping(pingCtx); err != nil {
