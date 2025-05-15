@@ -59,6 +59,12 @@ func WithExperimentalRPCV2() Option {
 	}
 }
 
+func WithPingInterval(pingInterval time.Duration) Option {
+	return func(controller *Controller) {
+		controller.pingInterval = pingInterval
+	}
+}
+
 func WithLogger(logger *zap.Logger) Option {
 	return func(controller *Controller) {
 		controller.logger = logger.Sugar()

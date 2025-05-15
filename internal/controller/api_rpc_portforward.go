@@ -43,7 +43,7 @@ func (controller *Controller) rpcPortForward(ctx *gin.Context) responder.Respond
 		case <-proxyCtx.Done():
 			// Do not close the WebSocket connection as it should be already closed by our rendezvous party
 			return responder.Empty()
-		case <-time.After(30 * time.Second):
+		case <-time.After(controller.pingInterval):
 			pingCtx, pingCtxCancel := context.WithTimeout(ctx, 5*time.Second)
 
 			if err := wsConn.Ping(pingCtx); err != nil {

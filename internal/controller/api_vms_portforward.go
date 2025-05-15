@@ -142,7 +142,7 @@ func (controller *Controller) portForward(
 				}
 
 				return responder.Empty()
-			case <-time.After(30 * time.Second):
+			case <-time.After(controller.pingInterval):
 				pingCtx, pingCtxCancel := context.WithTimeout(ctx, 5*time.Second)
 
 				if err := wsConn.Ping(pingCtx); err != nil {
