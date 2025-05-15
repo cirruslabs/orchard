@@ -163,6 +163,10 @@ func runController(cmd *cobra.Command, args []string) (err error) {
 	}
 
 	if experimentalPingInterval != 0 {
+		if experimentalPingInterval < 5*time.Second {
+			return fmt.Errorf("--experimental-ping-interval's value cannot be less than 5 seconds")
+		}
+
 		controllerOpts = append(controllerOpts, controller.WithPingInterval(experimentalPingInterval))
 	}
 
