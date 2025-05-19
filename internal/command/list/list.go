@@ -14,7 +14,7 @@ func NewCommand() *cobra.Command {
 
 	command.AddCommand(newListWorkersCommand(), newListVMsCommand(), newListServiceAccountsCommand())
 
-	command.PersistentFlags().BoolVarP(&quiet, "", "q", false, "only show resource names")
+	command.Flags().BoolVarP(&quiet, "", "q", false, "only show resource names")
 
 	return command
 }

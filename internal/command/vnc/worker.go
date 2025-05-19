@@ -17,9 +17,9 @@ func newVNCWorkerCommand() *cobra.Command {
 		RunE:  runVNCWorker,
 	}
 
-	command.PersistentFlags().StringVarP(&username, "username", "u", "",
+	command.Flags().StringVarP(&username, "username", "u", "",
 		"VNC username")
-	command.PersistentFlags().StringVarP(&password, "password", "p", "",
+	command.Flags().StringVarP(&password, "password", "p", "",
 		"VNC password")
 	return command
 }

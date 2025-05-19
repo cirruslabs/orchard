@@ -42,17 +42,17 @@ func newCreateCommand() *cobra.Command {
 		RunE:  runCreate,
 	}
 
-	command.PersistentFlags().StringVar(&contextName, "name", "default",
+	command.Flags().StringVar(&contextName, "name", "default",
 		"context name to use")
-	command.PersistentFlags().StringVar(&bootstrapTokenRaw, "bootstrap-token", "",
+	command.Flags().StringVar(&bootstrapTokenRaw, "bootstrap-token", "",
 		"bootstrap token to use")
-	command.PersistentFlags().StringVar(&serviceAccountName, "service-account-name", "",
+	command.Flags().StringVar(&serviceAccountName, "service-account-name", "",
 		"service account name to use (alternative to --bootstrap-token)")
-	command.PersistentFlags().StringVar(&serviceAccountToken, "service-account-token", "",
+	command.Flags().StringVar(&serviceAccountToken, "service-account-token", "",
 		"service account token to use (alternative to --bootstrap-token)")
-	command.PersistentFlags().BoolVar(&force, "force", false,
+	command.Flags().BoolVar(&force, "force", false,
 		"create the context even if a context with the same name already exists")
-	command.PersistentFlags().BoolVar(&noPKI, "no-pki", false,
+	command.Flags().BoolVar(&noPKI, "no-pki", false,
 		"do not use the host's root CA set and instead validate the Controller's presented "+
 			"certificate using a bootstrap token (or manually via fingerprint, "+
 			"if no bootstrap token is provided)")

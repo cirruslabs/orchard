@@ -41,31 +41,31 @@ func newRunCommand() *cobra.Command {
 		port = strconv.FormatInt(netconstants.DefaultControllerPort, 10)
 	}
 
-	cmd.PersistentFlags().StringVarP(&address, "listen", "l", fmt.Sprintf(":%s", port),
+	cmd.Flags().StringVarP(&address, "listen", "l", fmt.Sprintf(":%s", port),
 		"address to listen on")
-	cmd.PersistentFlags().StringVar(&addressSSH, "listen-ssh", "",
+	cmd.Flags().StringVar(&addressSSH, "listen-ssh", "",
 		"address for the built-in SSH server to listen on (e.g. \":6122\")")
-	cmd.PersistentFlags().BoolVar(&debug, "debug", false, "enable debug logging")
+	cmd.Flags().BoolVar(&debug, "debug", false, "enable debug logging")
 
 	// flags for auto-init if necessary
 	// this simplifies the user experience to run the controller in serverless environments
-	cmd.PersistentFlags().StringVar(&controllerCertPath, "controller-cert", "",
+	cmd.Flags().StringVar(&controllerCertPath, "controller-cert", "",
 		"use the controller certificate from the specified path instead of the auto-generated one"+
 			" (requires --controller-key)")
-	cmd.PersistentFlags().StringVar(&controllerKeyPath, "controller-key", "",
+	cmd.Flags().StringVar(&controllerKeyPath, "controller-key", "",
 		"use the controller certificate key from the specified path instead of the auto-generated one"+
 			" (requires --controller-cert)")
-	cmd.PersistentFlags().StringVar(&sshHostKeyPath, "ssh-host-key", "",
+	cmd.Flags().StringVar(&sshHostKeyPath, "ssh-host-key", "",
 		"use the SSH private host key from the specified path instead of the auto-generated one")
-	cmd.PersistentFlags().BoolVar(&noTLS, "insecure-no-tls", false,
+	cmd.Flags().BoolVar(&noTLS, "insecure-no-tls", false,
 		"disable TLS, making all connections to the controller unencrypted")
-	cmd.PersistentFlags().BoolVar(&sshNoClientAuth, "insecure-ssh-no-client-auth", false,
+	cmd.Flags().BoolVar(&sshNoClientAuth, "insecure-ssh-no-client-auth", false,
 		"allow SSH clients to connect to the controller's SSH server without authentication, "+
 			"thus only authenticating on the target worker/VM's SSH server")
-	cmd.PersistentFlags().BoolVar(&experimentalRPCV2, "experimental-rpc-v2", false,
+	cmd.Flags().BoolVar(&experimentalRPCV2, "experimental-rpc-v2", false,
 		"enable experimental RPC v2 (https://github.com/cirruslabs/orchard/issues/235)")
-	_ = cmd.PersistentFlags().MarkHidden("experimental-rpc-v2")
-	cmd.PersistentFlags().BoolVar(&noExperimentalRPCV2, "no-experimental-rpc-v2", false,
+	_ = cmd.Flags().MarkHidden("experimental-rpc-v2")
+	cmd.Flags().BoolVar(&noExperimentalRPCV2, "no-experimental-rpc-v2", false,
 		"disable experimental RPC v2 (https://github.com/cirruslabs/orchard/issues/235)")
 	cmd.PersistentFlags().DurationVar(&experimentalPingInterval, "experimental-ping-interval", 0,
 		"interval between WebSocket PING's sent by the controller to workers and clients, "+
