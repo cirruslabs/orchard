@@ -24,11 +24,11 @@ func newVNCVMCommand() *cobra.Command {
 		RunE:  runVNCVM,
 	}
 
-	command.PersistentFlags().StringVarP(&username, "username", "u", "",
+	command.Flags().StringVarP(&username, "username", "u", "",
 		"VNC username")
-	command.PersistentFlags().StringVarP(&password, "password", "p", "",
+	command.Flags().StringVarP(&password, "password", "p", "",
 		"VNC password")
-	command.PersistentFlags().Uint16VarP(&wait, "wait", "w", 60,
+	command.Flags().Uint16VarP(&wait, "wait", "w", 60,
 		"Amount of seconds to wait for the VM to start running if it's not running already")
 
 	return command

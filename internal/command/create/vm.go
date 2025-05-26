@@ -38,34 +38,34 @@ func newCreateVMCommand() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 	}
 
-	command.PersistentFlags().StringVar(&image, "image", "ghcr.io/cirruslabs/macos-sonoma-base:latest", "image to use")
-	command.PersistentFlags().Uint64Var(&cpu, "cpu", 4, "number of CPUs to use")
-	command.PersistentFlags().Uint64Var(&memory, "memory", 8*1024, "megabytes of memory to use")
-	command.PersistentFlags().Uint64Var(&diskSize, "disk-size", 0, "resize the VMs disk to the specified size in GB "+
+	command.Flags().StringVar(&image, "image", "ghcr.io/cirruslabs/macos-sonoma-base:latest", "image to use")
+	command.Flags().Uint64Var(&cpu, "cpu", 4, "number of CPUs to use")
+	command.Flags().Uint64Var(&memory, "memory", 8*1024, "megabytes of memory to use")
+	command.Flags().Uint64Var(&diskSize, "disk-size", 0, "resize the VMs disk to the specified size in GB "+
 		"(no resizing is done by default and VM's image default size is used)")
-	command.PersistentFlags().BoolVar(&netSoftnet, "net-softnet", false, "whether to use Softnet network isolation")
-	command.PersistentFlags().StringVar(&netBridged, "net-bridged", "", "whether to use Bridged network mode")
-	command.PersistentFlags().BoolVar(&headless, "headless", true, "whether to run without graphics")
-	command.PersistentFlags().StringVar(&username, "username", "admin",
+	command.Flags().BoolVar(&netSoftnet, "net-softnet", false, "whether to use Softnet network isolation")
+	command.Flags().StringVar(&netBridged, "net-bridged", "", "whether to use Bridged network mode")
+	command.Flags().BoolVar(&headless, "headless", true, "whether to run without graphics")
+	command.Flags().StringVar(&username, "username", "admin",
 		"SSH username to use when executing a startup script on the VM")
-	command.PersistentFlags().StringVar(&password, "password", "admin",
+	command.Flags().StringVar(&password, "password", "admin",
 		"SSH password to use when executing a startup script on the VM")
-	command.PersistentFlags().StringToStringVar(&resources, "resources", map[string]string{},
+	command.Flags().StringToStringVar(&resources, "resources", map[string]string{},
 		"resources to request for this VM")
-	command.PersistentFlags().StringToStringVar(&labels, "labels", map[string]string{},
+	command.Flags().StringToStringVar(&labels, "labels", map[string]string{},
 		"labels required by this VM")
-	command.PersistentFlags().BoolVar(&randomSerial, "random-serial", false,
+	command.Flags().BoolVar(&randomSerial, "random-serial", false,
 		"generate a new random serial number if this is a macOS VM (no-op for Linux VMs)")
-	command.PersistentFlags().StringVar(&restartPolicy, "restart-policy", string(v1.RestartPolicyNever),
+	command.Flags().StringVar(&restartPolicy, "restart-policy", string(v1.RestartPolicyNever),
 		fmt.Sprintf("restart policy for this VM: specify %q to never restart or %q "+
 			"to only restart when the VM fails", v1.RestartPolicyNever, v1.RestartPolicyOnFailure))
-	command.PersistentFlags().StringVar(&startupScript, "startup-script", "",
+	command.Flags().StringVar(&startupScript, "startup-script", "",
 		"startup script (e.g. --startup-script=\"sync\") or a path to a script file prefixed with \"@\" "+
 			"(e.g. \"--startup-script=@script.sh\")")
-	command.PersistentFlags().StringSliceVar(&hostDirsRaw, "host-dirs", []string{},
+	command.Flags().StringSliceVar(&hostDirsRaw, "host-dirs", []string{},
 		"host directories to mount to the VM, can be specified multiple times and/or be comma-separated "+
 			"(see \"tart run\"'s --dir argument for syntax)")
-	command.PersistentFlags().StringVar(&imagePullPolicy, "image-pull-policy", string(v1.ImagePullPolicyIfNotPresent),
+	command.Flags().StringVar(&imagePullPolicy, "image-pull-policy", string(v1.ImagePullPolicyIfNotPresent),
 		fmt.Sprintf("image pull policy for this VM, by default the image is only pulled if it doesn't "+
 			"exist in the cache (%q), specify %q to always try to pull the image",
 			v1.ImagePullPolicyIfNotPresent, v1.ImagePullPolicyAlways))

@@ -47,31 +47,31 @@ func newRunCommand() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 	}
 
-	cmd.PersistentFlags().StringVar(&name, "name", "",
+	cmd.Flags().StringVar(&name, "name", "",
 		"name of the worker (defaults to the hostname)")
-	cmd.PersistentFlags().StringVar(&bootstrapTokenRaw, "bootstrap-token", "",
+	cmd.Flags().StringVar(&bootstrapTokenRaw, "bootstrap-token", "",
 		"a bootstrap token retrieved via \"orchard get bootstrap-token <service-account-name-for-workers>\"")
-	cmd.PersistentFlags().BoolVar(&bootstrapTokenStdin, "bootstrap-token-stdin", false,
+	cmd.Flags().BoolVar(&bootstrapTokenStdin, "bootstrap-token-stdin", false,
 		"use this flag to provide a bootstrap token via the standard input")
-	cmd.PersistentFlags().StringVar(&logFilePath, "log-file", "",
+	cmd.Flags().StringVar(&logFilePath, "log-file", "",
 		"optional path to a file where logs (up to 100 Mb) will be written.")
-	cmd.PersistentFlags().StringToStringVar(&stringToStringResources, "resources", map[string]string{},
+	cmd.Flags().StringToStringVar(&stringToStringResources, "resources", map[string]string{},
 		"resources that this worker provides")
-	cmd.PersistentFlags().StringToStringVar(&labels, "labels", map[string]string{},
+	cmd.Flags().StringToStringVar(&labels, "labels", map[string]string{},
 		"labels that this worker supports")
-	cmd.PersistentFlags().BoolVar(&noPKI, "no-pki", false,
+	cmd.Flags().BoolVar(&noPKI, "no-pki", false,
 		"do not use the host's root CA set and instead validate the Controller's presented "+
 			"certificate using a bootstrap token (or manually via fingerprint, "+
 			"if no bootstrap token is provided)")
-	cmd.PersistentFlags().Uint64Var(&defaultCPU, "default-cpu", 4, "number of CPUs to use for VMs "+
+	cmd.Flags().Uint64Var(&defaultCPU, "default-cpu", 4, "number of CPUs to use for VMs "+
 		"that do not explicitly specify a value")
-	cmd.PersistentFlags().Uint64Var(&defaultMemory, "default-memory", 8*1024, "megabytes of memory "+
+	cmd.Flags().Uint64Var(&defaultMemory, "default-memory", 8*1024, "megabytes of memory "+
 		"to use for VMs that do not explicitly specify a value")
 	cmd.Flags().StringVar(&username, "user", "", "username to drop privileges to "+
 		"(\"Local Network\" permission workaround: requires starting \"orchard worker run\" as \"root\", "+
 		"the privileges will be then dropped to the specified user after starting the \"orchard localnetworkhelper\" "+
 		"helper process)")
-	cmd.PersistentFlags().BoolVar(&debug, "debug", false, "enable debug logging")
+	cmd.Flags().BoolVar(&debug, "debug", false, "enable debug logging")
 
 	return cmd
 }

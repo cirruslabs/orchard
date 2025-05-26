@@ -18,7 +18,7 @@ func newPortForwardVMCommand() *cobra.Command {
 		RunE:  runPortForwardVMCommand,
 	}
 
-	command.PersistentFlags().Uint16VarP(&wait, "wait", "t", 60,
+	command.Flags().Uint16VarP(&wait, "wait", "t", 60,
 		"Amount of seconds to wait for the VM to start running if it's not running already")
 
 	return command

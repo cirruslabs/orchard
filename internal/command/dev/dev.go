@@ -31,11 +31,11 @@ func NewCommand() *cobra.Command {
 		RunE:  runDev,
 	}
 
-	command.PersistentFlags().StringVarP(&devDataDirPath, "data-dir", "d", ".dev-data",
+	command.Flags().StringVarP(&devDataDirPath, "data-dir", "d", ".dev-data",
 		"path to persist data between runs")
-	command.PersistentFlags().StringToStringVar(&stringToStringResources, "resources", map[string]string{},
+	command.Flags().StringToStringVar(&stringToStringResources, "resources", map[string]string{},
 		"resources that the development worker will provide")
-	command.PersistentFlags().BoolVar(&experimentalRPCV2, "experimental-rpc-v2", false,
+	command.Flags().BoolVar(&experimentalRPCV2, "experimental-rpc-v2", false,
 		"enable experimental RPC v2 (https://github.com/cirruslabs/orchard/issues/235)")
 
 	return command

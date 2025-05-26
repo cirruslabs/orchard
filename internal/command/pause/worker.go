@@ -19,7 +19,7 @@ func newPauseWorkerCommand() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 	}
 
-	command.PersistentFlags().Uint64Var(&wait, "wait", 0,
+	command.Flags().Uint64Var(&wait, "wait", 0,
 		"wait the specified amount of seconds for the worker to stop running any VMs")
 
 	return command
