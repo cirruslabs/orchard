@@ -360,6 +360,16 @@ func (vm *VM) run(ctx context.Context) error {
 }
 
 func (vm *VM) IP(ctx context.Context) (string, error) {
+	// Bridged networking is problematic, so try with
+	// the agent resolver first using a small timeout
+	if vm.Resource.NetBridged != "" {
+		stdout, _, err := tart.Tart(ctx, vm.logger, "ip", "--wait", "5",
+			"--resolver", "agent", vm.id())
+		if err == nil {
+			return strings.TrimSpace(stdout), nil
+		}
+	}
+
 	args := []string{"ip", "--wait", "60"}
 
 	if vm.Resource.NetBridged != "" {
