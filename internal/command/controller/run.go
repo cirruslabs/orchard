@@ -25,7 +25,7 @@ var ErrRunFailed = errors.New("failed to run controller")
 
 var address string
 var addressSSH string
-var pprof bool
+var addressPprof string
 var debug bool
 var noTLS bool
 var sshNoClientAuth bool
@@ -49,8 +49,8 @@ func newRunCommand() *cobra.Command {
 		"address to listen on")
 	cmd.Flags().StringVar(&addressSSH, "listen-ssh", "",
 		"address for the built-in SSH server to listen on (e.g. \":6122\")")
-	cmd.Flags().BoolVar(&pprof, "pprof", false,
-		"start pprof HTTP server on localhost:6060 for diagnostic purposes")
+	cmd.Flags().StringVar(&addressPprof, "listen-pprof", "",
+		"start pprof HTTP server on localhost:6060 for diagnostic purposes (e.g. \"localhost:6060\")")
 	cmd.Flags().BoolVar(&debug, "debug", false, "enable debug logging")
 	cmd.Flags().StringVar(&controllerCertPath, "controller-cert", "",
 		"use the controller certificate from the specified path instead of the auto-generated one"+
@@ -97,9 +97,9 @@ func runController(cmd *cobra.Command, args []string) (err error) {
 		}
 	}()
 
-	if pprof {
+	if addressPprof != "" {
 		go func() {
-			log.Println(http.ListenAndServe("localhost:6060", nil))
+			log.Println(http.ListenAndServe(addressPprof, nil))
 		}()
 	}
 
