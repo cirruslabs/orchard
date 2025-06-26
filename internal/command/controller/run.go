@@ -12,6 +12,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
+	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -22,6 +24,7 @@ var ErrRunFailed = errors.New("failed to run controller")
 
 var address string
 var addressSSH string
+var addressPprof string
 var debug bool
 var noTLS bool
 var sshNoClientAuth bool
@@ -45,10 +48,9 @@ func newRunCommand() *cobra.Command {
 		"address to listen on")
 	cmd.Flags().StringVar(&addressSSH, "listen-ssh", "",
 		"address for the built-in SSH server to listen on (e.g. \":6122\")")
+	cmd.Flags().StringVar(&addressPprof, "listen-pprof", "",
+		"start pprof HTTP server on localhost:6060 for diagnostic purposes (e.g. \"localhost:6060\")")
 	cmd.Flags().BoolVar(&debug, "debug", false, "enable debug logging")
-
-	// flags for auto-init if necessary
-	// this simplifies the user experience to run the controller in serverless environments
 	cmd.Flags().StringVar(&controllerCertPath, "controller-cert", "",
 		"use the controller certificate from the specified path instead of the auto-generated one"+
 			" (requires --controller-key)")
@@ -93,6 +95,14 @@ func runController(cmd *cobra.Command, args []string) (err error) {
 			err = syncErr
 		}
 	}()
+
+	if addressPprof != "" {
+		go func() {
+			if err := http.ListenAndServe(addressPprof, nil); err != nil {
+				logger.Sugar().Errorf("pprof server failed: %v", err)
+			}
+		}()
+	}
 
 	// Redirect standard's library package-global logger
 	// to our zap logger at debug level
