@@ -12,7 +12,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
-	"log"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
@@ -99,7 +98,9 @@ func runController(cmd *cobra.Command, args []string) (err error) {
 
 	if addressPprof != "" {
 		go func() {
-			log.Println(http.ListenAndServe(addressPprof, nil))
+			if err := http.ListenAndServe(addressPprof, nil); err != nil {
+				logger.Sugar().Errorf("pprof server failed: %v", err)
+			}
 		}()
 	}
 
