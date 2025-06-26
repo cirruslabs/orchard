@@ -21,9 +21,10 @@ type Transaction struct {
 }
 
 func NewBadgerStore(dbPath string, logger *zap.SugaredLogger) (store.Store, error) {
-	opts := badger.DefaultOptions(dbPath).WithLogger(newBadgerLogger(logger))
-
-	opts.SyncWrites = true
+	opts := badger.DefaultOptions(dbPath).
+		WithSyncWrites(true).
+		WithNumVersionsToKeep(0).
+		WithLogger(newBadgerLogger(logger))
 
 	db, err := badger.Open(opts)
 	if err != nil {
