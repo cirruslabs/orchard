@@ -27,6 +27,13 @@ func (controller *Controller) rpcPortForward(ctx *gin.Context) responder.Respond
 	if err != nil {
 		return responder.Error(err)
 	}
+	defer func() {
+		// Ensure that we always close the accepted WebSocket connection,
+		// otherwise resource leak is possible[1]
+		//
+		// [1]: https://github.com/coder/websocket/issues/445#issuecomment-2053792044
+		_ = wsConn.CloseNow()
+	}()
 
 	// Respond with the established connection
 	proxyCtx, err := controller.connRendezvous.Respond(session, rendezvous.ResultWithErrorMessage[net.Conn]{

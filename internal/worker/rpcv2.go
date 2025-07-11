@@ -55,6 +55,13 @@ func (worker *Worker) handlePortForwardV2(ctx context.Context, portForward *v1.P
 
 		return
 	}
+	defer func() {
+		// Ensure that we always close the accepted WebSocket connection,
+		// otherwise resource leak is possible[1]
+		//
+		// [1]: https://github.com/coder/websocket/issues/445#issuecomment-2053792044
+		_ = netConn.Close()
+	}()
 
 	// Proxy bytes if the connection was established without errors
 	if errorMessage == "" {

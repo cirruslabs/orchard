@@ -17,6 +17,8 @@ import (
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
 	"io"
+	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"strings"
 )
@@ -37,6 +39,7 @@ var noPKI bool
 var defaultCPU uint64
 var defaultMemory uint64
 var username string
+var addressPprof string
 var debug bool
 
 func newRunCommand() *cobra.Command {
@@ -71,6 +74,8 @@ func newRunCommand() *cobra.Command {
 		"(\"Local Network\" permission workaround: requires starting \"orchard worker run\" as \"root\", "+
 		"the privileges will be then dropped to the specified user after starting the \"orchard localnetworkhelper\" "+
 		"helper process)")
+	cmd.Flags().StringVar(&addressPprof, "listen-pprof", "",
+		"start pprof HTTP server on localhost:6060 for diagnostic purposes (e.g. \"localhost:6060\")")
 	cmd.Flags().BoolVar(&debug, "debug", false, "enable debug logging")
 
 	return cmd
@@ -153,6 +158,14 @@ func runWorker(cmd *cobra.Command, args []string) (err error) {
 		}
 	}()
 	workerOpts = append(workerOpts, worker.WithLogger(logger))
+
+	if addressPprof != "" {
+		go func() {
+			if err := http.ListenAndServe(addressPprof, nil); err != nil {
+				logger.Sugar().Errorf("pprof server failed: %v", err)
+			}
+		}()
+	}
 
 	workerInstance, err := worker.New(
 		controllerClient,
