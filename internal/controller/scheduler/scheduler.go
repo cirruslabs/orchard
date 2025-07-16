@@ -49,6 +49,7 @@ type Scheduler struct {
 	workerOfflineTimeout time.Duration
 	logger               *zap.SugaredLogger
 	schedulingRequested  chan bool
+	prometheusMetrics    bool
 
 	schedulingTimeHistogram metric.Float64Histogram
 }
@@ -57,6 +58,7 @@ func NewScheduler(
 	store storepkg.Store,
 	notifier *notifier.Notifier,
 	workerOfflineTimeout time.Duration,
+	prometheusMetrics bool,
 	logger *zap.SugaredLogger,
 ) (*Scheduler, error) {
 	scheduler := &Scheduler{
@@ -65,6 +67,7 @@ func NewScheduler(
 		workerOfflineTimeout: workerOfflineTimeout,
 		logger:               logger,
 		schedulingRequested:  make(chan bool, 1),
+		prometheusMetrics:    prometheusMetrics,
 	}
 
 	// Metrics
@@ -104,7 +107,9 @@ func (scheduler *Scheduler) Run() {
 
 		if err != nil {
 			scheduler.logger.Errorf("Failed to schedule VMs: %v", err)
-		} else {
+		}
+
+		if scheduler.prometheusMetrics {
 			schedulerLoopIterationStat.Inc()
 		}
 	}
@@ -395,12 +400,14 @@ func (scheduler *Scheduler) healthCheckingLoopIteration() error {
 		}
 
 		// Update metrics
-		workers, err := txn.ListWorkers()
-		if err != nil {
-			return err
-		}
+		if scheduler.prometheusMetrics {
+			workers, err := txn.ListWorkers()
+			if err != nil {
+				return err
+			}
 
-		scheduler.reportStats(workers, vms)
+			scheduler.reportStats(workers, vms)
+		}
 
 		return nil
 	}); err != nil {

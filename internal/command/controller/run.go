@@ -31,6 +31,7 @@ var sshNoClientAuth bool
 var experimentalRPCV2 bool
 var noExperimentalRPCV2 bool
 var experimentalPingInterval time.Duration
+var deprecatedPrometheusMetrics bool
 
 func newRunCommand() *cobra.Command {
 	cmd := &cobra.Command{
@@ -69,10 +70,12 @@ func newRunCommand() *cobra.Command {
 	_ = cmd.Flags().MarkHidden("experimental-rpc-v2")
 	cmd.Flags().BoolVar(&noExperimentalRPCV2, "no-experimental-rpc-v2", false,
 		"disable experimental RPC v2 (https://github.com/cirruslabs/orchard/issues/235)")
-	cmd.PersistentFlags().DurationVar(&experimentalPingInterval, "experimental-ping-interval", 0,
+	cmd.Flags().DurationVar(&experimentalPingInterval, "experimental-ping-interval", 0,
 		"interval between WebSocket PING's sent by the controller to workers and clients, "+
 			"useful when facing intermediate load balancers/proxies that have timeouts "+
 			"smaller than the controller's default 30 second interval")
+	cmd.Flags().BoolVar(&deprecatedPrometheusMetrics, "deprecated-prometheus-metrics", false,
+		"enable Prometheus metrics, which will soon be deprecated in favor of OpenTelemetry")
 
 	return cmd
 }
@@ -178,6 +181,10 @@ func runController(cmd *cobra.Command, args []string) (err error) {
 		}
 
 		controllerOpts = append(controllerOpts, controller.WithPingInterval(experimentalPingInterval))
+	}
+
+	if deprecatedPrometheusMetrics {
+		controllerOpts = append(controllerOpts, controller.WithPrometheusMetrics())
 	}
 
 	controllerInstance, err := controller.New(controllerOpts...)
