@@ -61,6 +61,7 @@ type Controller struct {
 	maxWorkersPerLicense uint
 	experimentalRPCV2    bool
 	pingInterval         time.Duration
+	prometheusMetrics    bool
 
 	sshListenAddr   string
 	sshSigner       ssh.Signer
@@ -122,7 +123,7 @@ func New(opts ...Option) (*Controller, error) {
 
 	// Instantiate the scheduler
 	controller.scheduler, err = scheduler.NewScheduler(store, controller.workerNotifier,
-		controller.workerOfflineTimeout, controller.logger)
+		controller.workerOfflineTimeout, controller.prometheusMetrics, controller.logger)
 	if err != nil {
 		return nil, err
 	}

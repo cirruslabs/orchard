@@ -65,6 +65,12 @@ func WithPingInterval(pingInterval time.Duration) Option {
 	}
 }
 
+func WithPrometheusMetrics() Option {
+	return func(controller *Controller) {
+		controller.prometheusMetrics = true
+	}
+}
+
 func WithLogger(logger *zap.Logger) Option {
 	return func(controller *Controller) {
 		controller.logger = logger.Sugar()
