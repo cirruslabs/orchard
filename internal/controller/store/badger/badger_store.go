@@ -3,11 +3,13 @@ package badger
 import (
 	"errors"
 	"fmt"
+	"time"
+
 	"github.com/avast/retry-go/v4"
 	"github.com/cirruslabs/orchard/internal/controller/store"
 	"github.com/dgraph-io/badger/v3"
+	"github.com/dgraph-io/badger/v3/options"
 	"go.uber.org/zap"
-	"time"
 )
 
 type Store struct {
@@ -20,10 +22,15 @@ type Transaction struct {
 	store.Transaction
 }
 
-func NewBadgerStore(dbPath string, logger *zap.SugaredLogger) (store.Store, error) {
+func NewBadgerStore(dbPath string, noCompression bool, logger *zap.SugaredLogger) (store.Store, error) {
 	opts := badger.DefaultOptions(dbPath).WithLogger(newBadgerLogger(logger))
 
 	opts.SyncWrites = true
+
+	if noCompression {
+		opts.Compression = options.None
+		opts.BlockCacheSize = 0
+	}
 
 	db, err := badger.Open(opts)
 	if err != nil {

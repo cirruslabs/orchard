@@ -2,9 +2,10 @@ package controller
 
 import (
 	"crypto/tls"
+	"time"
+
 	"go.uber.org/zap"
 	"golang.org/x/crypto/ssh"
-	"time"
 )
 
 type Option func(*Controller)
@@ -56,6 +57,12 @@ func WithWorkerOfflineTimeout(workerOfflineTimeout time.Duration) Option {
 func WithExperimentalRPCV2() Option {
 	return func(controller *Controller) {
 		controller.experimentalRPCV2 = true
+	}
+}
+
+func WithDisableDBCompression() Option {
+	return func(controller *Controller) {
+		controller.disableDBCompression = true
 	}
 }
 

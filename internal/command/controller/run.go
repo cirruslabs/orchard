@@ -5,6 +5,13 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"net/http"
+	_ "net/http/pprof"
+	"os"
+	"path/filepath"
+	"strconv"
+	"time"
+
 	configpkg "github.com/cirruslabs/orchard/internal/config"
 	"github.com/cirruslabs/orchard/internal/controller"
 	"github.com/cirruslabs/orchard/internal/netconstants"
@@ -12,12 +19,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
-	"net/http"
-	_ "net/http/pprof"
-	"os"
-	"path/filepath"
-	"strconv"
-	"time"
 )
 
 var ErrRunFailed = errors.New("failed to run controller")
@@ -32,6 +33,7 @@ var experimentalRPCV2 bool
 var noExperimentalRPCV2 bool
 var experimentalPingInterval time.Duration
 var deprecatedPrometheusMetrics bool
+var experimentalDisableDBCompression bool
 
 func newRunCommand() *cobra.Command {
 	cmd := &cobra.Command{
@@ -76,6 +78,8 @@ func newRunCommand() *cobra.Command {
 			"smaller than the controller's default 30 second interval")
 	cmd.Flags().BoolVar(&deprecatedPrometheusMetrics, "deprecated-prometheus-metrics", false,
 		"enable Prometheus metrics, which will soon be deprecated in favor of OpenTelemetry")
+	cmd.Flags().BoolVar(&experimentalDisableDBCompression, "experimental-disable-db-compression", false,
+		"disable database compression, which might reduce RAM usage in some scenarios")
 
 	return cmd
 }
@@ -185,6 +189,10 @@ func runController(cmd *cobra.Command, args []string) (err error) {
 
 	if deprecatedPrometheusMetrics {
 		controllerOpts = append(controllerOpts, controller.WithPrometheusMetrics())
+	}
+
+	if experimentalDisableDBCompression {
+		controllerOpts = append(controllerOpts, controller.WithDisableDBCompression())
 	}
 
 	controllerInstance, err := controller.New(controllerOpts...)

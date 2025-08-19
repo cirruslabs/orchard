@@ -4,6 +4,10 @@ import (
 	"cmp"
 	"context"
 	"errors"
+	"slices"
+	"sort"
+	"time"
+
 	"github.com/cirruslabs/orchard/internal/controller/lifecycle"
 	"github.com/cirruslabs/orchard/internal/controller/notifier"
 	storepkg "github.com/cirruslabs/orchard/internal/controller/store"
@@ -15,9 +19,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.opentelemetry.io/otel/metric"
 	"go.uber.org/zap"
-	"slices"
-	"sort"
-	"time"
 )
 
 const (
@@ -91,18 +92,21 @@ func (scheduler *Scheduler) Run() {
 		}
 
 		healthCheckingLoopIterationStart := time.Now()
-		if err := scheduler.healthCheckingLoopIteration(); err != nil {
+		numWorkersHealth, numVMsHealth, err := scheduler.healthCheckingLoopIteration()
+		healthCheckingLoopIterationEnd := time.Now()
+		if err != nil {
 			scheduler.logger.Errorf("Failed to health-check VMs: %v", err)
 		}
-		healthCheckingLoopIterationEnd := time.Now()
 
 		schedulingLoopIterationStart := time.Now()
-		err := scheduler.schedulingLoopIteration()
+		numWorkersScheduling, numVMsScheduling, err := scheduler.schedulingLoopIteration()
 		schedulingLoopIterationEnd := time.Now()
 
-		scheduler.logger.Debugf("Health checking loop iteration took %v, "+
-			"scheduling loop iteration took %v",
+		scheduler.logger.Debugf("Health checking loop iteration for %d workers and %d VMs took %v, "+
+			"scheduling loop iteration for %d workers and %d VMs took %v",
+			numWorkersHealth, numVMsHealth,
 			healthCheckingLoopIterationEnd.Sub(healthCheckingLoopIterationStart),
+			numWorkersScheduling, numVMsScheduling,
 			schedulingLoopIterationEnd.Sub(schedulingLoopIterationStart))
 
 		if err != nil {
@@ -140,7 +144,7 @@ func (scheduler *Scheduler) RequestScheduling() {
 }
 
 //nolint:gocognit,gocyclo // this logic could be seen as even more complex if split into multiple functions
-func (scheduler *Scheduler) schedulingLoopIteration() error {
+func (scheduler *Scheduler) schedulingLoopIteration() (int, int, error) {
 	affectedWorkers := mapset.NewSet[string]()
 
 	// Scheduler consistency model is based on the following:
@@ -206,7 +210,7 @@ func (scheduler *Scheduler) schedulingLoopIteration() error {
 
 		return nil
 	}); err != nil {
-		return err
+		return 0, 0, err
 	}
 
 	unscheduledVMs, workerInfos := ProcessVMs(vms)
@@ -334,7 +338,7 @@ NextVM:
 					continue NextWorker
 				}
 
-				return err
+				return 0, 0, err
 			}
 
 			// Update lagging resource usage
@@ -364,7 +368,7 @@ NextVM:
 		notifyContextCancel()
 	}
 
-	return nil
+	return len(workers), len(vms), nil
 }
 
 func ProcessVMs(vms []v1.VM) ([]v1.VM, WorkerInfos) {
@@ -387,7 +391,10 @@ func ProcessVMs(vms []v1.VM) ([]v1.VM, WorkerInfos) {
 	return unscheduledVMs, workerToResources
 }
 
-func (scheduler *Scheduler) healthCheckingLoopIteration() error {
+func (scheduler *Scheduler) healthCheckingLoopIteration() (int, int, error) {
+	// Stats for the caller
+	var numWorkers, numVMs int
+
 	// Get a lagging view of VMs
 	var vms []v1.VM
 
@@ -398,6 +405,7 @@ func (scheduler *Scheduler) healthCheckingLoopIteration() error {
 		if err != nil {
 			return err
 		}
+		numVMs = len(vms)
 
 		// Update metrics
 		if scheduler.prometheusMetrics {
@@ -405,13 +413,14 @@ func (scheduler *Scheduler) healthCheckingLoopIteration() error {
 			if err != nil {
 				return err
 			}
+			numWorkers = len(workers)
 
 			scheduler.reportStats(workers, vms)
 		}
 
 		return nil
 	}); err != nil {
-		return err
+		return 0, 0, err
 	}
 
 	// Process each VM in a lagging list of VMs in an individual
@@ -445,11 +454,11 @@ func (scheduler *Scheduler) healthCheckingLoopIteration() error {
 
 			return scheduler.healthCheckVM(txn, *currentVM)
 		}); err != nil {
-			return err
+			return 0, 0, err
 		}
 	}
 
-	return nil
+	return numWorkers, numVMs, nil
 }
 
 func (scheduler *Scheduler) healthCheckVM(txn storepkg.Transaction, vm v1.VM) error {
