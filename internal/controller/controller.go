@@ -5,6 +5,12 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"net"
+	"net/http"
+	"os"
+	"strings"
+	"time"
+
 	"github.com/cirruslabs/orchard/internal/controller/notifier"
 	"github.com/cirruslabs/orchard/internal/controller/rendezvous"
 	"github.com/cirruslabs/orchard/internal/controller/scheduler"
@@ -24,11 +30,6 @@ import (
 	"golang.org/x/net/http2/h2c"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/keepalive"
-	"net"
-	"net/http"
-	"os"
-	"strings"
-	"time"
 )
 
 var (
@@ -60,6 +61,7 @@ type Controller struct {
 	workerOfflineTimeout time.Duration
 	maxWorkersPerLicense uint
 	experimentalRPCV2    bool
+	disableDBCompression bool
 	pingInterval         time.Duration
 	prometheusMetrics    bool
 
@@ -112,7 +114,8 @@ func New(opts ...Option) (*Controller, error) {
 	}
 
 	// Instantiate the database
-	store, err := badger.NewBadgerStore(controller.dataDir.DBPath(), controller.logger)
+	store, err := badger.NewBadgerStore(controller.dataDir.DBPath(), controller.disableDBCompression,
+		controller.logger)
 	if err != nil {
 		return nil, err
 	}
