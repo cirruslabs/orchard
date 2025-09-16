@@ -2,14 +2,15 @@ package get
 
 import (
 	"fmt"
+	"strings"
+	"time"
+
 	"github.com/cirruslabs/orchard/internal/structpath"
 	"github.com/cirruslabs/orchard/pkg/client"
 	"github.com/dustin/go-humanize"
 	"github.com/gosuri/uitable"
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
-	"strings"
-	"time"
 )
 
 func newGetWorkerCommand() *cobra.Command {
@@ -58,6 +59,7 @@ func runGetWorker(cmd *cobra.Command, args []string) error {
 	}
 
 	table := uitable.New()
+	table.Wrap = true
 
 	table.AddRow("Name", worker.Name)
 

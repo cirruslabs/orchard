@@ -2,11 +2,12 @@ package list
 
 import (
 	"fmt"
+	"time"
+
 	"github.com/cirruslabs/orchard/pkg/client"
 	"github.com/dustin/go-humanize"
 	"github.com/gosuri/uitable"
 	"github.com/spf13/cobra"
-	"time"
 )
 
 func newListVMsCommand() *cobra.Command {
@@ -39,6 +40,7 @@ func runListVMs(cmd *cobra.Command, args []string) error {
 	}
 
 	table := uitable.New()
+	table.Wrap = true
 
 	table.AddRow("Name", "Created", "Image", "Status", "Restart policy", "Assigned worker")
 

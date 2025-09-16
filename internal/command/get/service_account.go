@@ -2,11 +2,12 @@ package get
 
 import (
 	"fmt"
+	"strings"
+
 	"github.com/cirruslabs/orchard/internal/structpath"
 	"github.com/cirruslabs/orchard/pkg/client"
 	"github.com/gosuri/uitable"
 	"github.com/spf13/cobra"
-	"strings"
 )
 
 func newGetServiceAccountCommand() *cobra.Command {
@@ -55,6 +56,7 @@ func runGetServiceAccount(cmd *cobra.Command, args []string) error {
 	}
 
 	table := uitable.New()
+	table.Wrap = true
 
 	table.AddRow("name", serviceAccount.Name)
 

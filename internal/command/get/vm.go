@@ -2,6 +2,9 @@ package get
 
 import (
 	"fmt"
+	"strings"
+	"time"
+
 	"github.com/cirruslabs/orchard/internal/structpath"
 	"github.com/cirruslabs/orchard/pkg/client"
 	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
@@ -9,8 +12,6 @@ import (
 	"github.com/gosuri/uitable"
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
-	"strings"
-	"time"
 )
 
 func newGetVMCommand() *cobra.Command {
@@ -59,6 +60,7 @@ func runGetVM(cmd *cobra.Command, args []string) error {
 	}
 
 	table := uitable.New()
+	table.Wrap = true
 
 	table.AddRow("Name", vm.Name)
 	createdAtInfo := humanize.RelTime(vm.CreatedAt, time.Now(), "ago", "in the future")

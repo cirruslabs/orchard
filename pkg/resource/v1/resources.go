@@ -10,7 +10,9 @@ import (
 var ErrInvalidResourceValue = errors.New("resource values should be 64-bit unsigned integers")
 
 const (
-	ResourceTartVMs = "org.cirruslabs.tart-vms"
+	ResourceTartVMs      = "org.cirruslabs.tart-vms"
+	ResourceLogicalCores = "org.cirruslabs.logical-cores"
+	ResourceMemoryMiB    = "org.cirruslabs.memory-mib"
 )
 
 type Resources map[string]uint64
