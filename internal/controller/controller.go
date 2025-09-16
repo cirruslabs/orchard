@@ -323,7 +323,7 @@ func (controller *Controller) initializeMetrics() error {
 				}
 
 				groups := lo.CountValuesBy(workers, func(worker v1.Worker) string {
-					if worker.Offline(time.Minute) {
+					if worker.Offline(controller.workerOfflineTimeout) {
 						return "offline"
 					}
 
