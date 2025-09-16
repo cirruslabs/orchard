@@ -34,6 +34,7 @@ var noExperimentalRPCV2 bool
 var experimentalPingInterval time.Duration
 var deprecatedPrometheusMetrics bool
 var experimentalDisableDBCompression bool
+var workerOfflineTimeout time.Duration
 
 func newRunCommand() *cobra.Command {
 	cmd := &cobra.Command{
@@ -80,6 +81,10 @@ func newRunCommand() *cobra.Command {
 		"enable Prometheus metrics, which will soon be deprecated in favor of OpenTelemetry")
 	cmd.Flags().BoolVar(&experimentalDisableDBCompression, "experimental-disable-db-compression", false,
 		"disable database compression, which might reduce RAM usage in some scenarios")
+	cmd.Flags().DurationVar(&workerOfflineTimeout, "worker-offline-timeout", 3*time.Minute,
+		"duration (e.g. 60s or 5m30s) after which a worker is considered offline for the purposes "+
+			"of scheduling (no new VMs will be scheduled on such worker and already assigned VMs will be "+
+			"marked as failed)")
 
 	return cmd
 }
@@ -135,6 +140,7 @@ func runController(cmd *cobra.Command, args []string) (err error) {
 	controllerOpts := []controller.Option{
 		controller.WithListenAddr(address),
 		controller.WithDataDir(dataDir),
+		controller.WithWorkerOfflineTimeout(workerOfflineTimeout),
 		controller.WithLogger(logger),
 	}
 
