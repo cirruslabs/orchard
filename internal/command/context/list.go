@@ -2,6 +2,7 @@ package context
 
 import (
 	"fmt"
+
 	"github.com/cirruslabs/orchard/internal/config"
 	"github.com/gosuri/uitable"
 	"github.com/spf13/cobra"
@@ -29,6 +30,7 @@ func runList(cmd *cobra.Command, args []string) error {
 	}
 
 	table := uitable.New()
+	table.Wrap = true
 
 	table.AddRow("Name", "URL", "Default")
 

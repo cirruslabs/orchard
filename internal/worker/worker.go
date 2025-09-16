@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"time"
+
 	"github.com/avast/retry-go/v4"
 	"github.com/cirruslabs/chacha/pkg/localnetworkhelper"
 	"github.com/cirruslabs/orchard/internal/opentelemetry"
@@ -15,12 +18,13 @@ import (
 	"github.com/cirruslabs/orchard/pkg/client"
 	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
 	"github.com/cirruslabs/orchard/rpc"
+	"github.com/dustin/go-humanize"
 	"github.com/hashicorp/go-multierror"
+	"github.com/shirou/gopsutil/v4/cpu"
+	"github.com/shirou/gopsutil/v4/mem"
 	"go.opentelemetry.io/otel/metric"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/metadata"
-	"os"
-	"time"
 )
 
 const pollInterval = 5 * time.Second
@@ -72,11 +76,28 @@ func New(client *client.Client, opts ...Option) (*Worker, error) {
 	defaultResources := v1.Resources{
 		v1.ResourceTartVMs: 2,
 	}
+
+	// Determine the number of the host's logical CPU cores
+	numLogicalCPUs, err := cpu.Counts(true)
+	if err != nil {
+		worker.logger.Warnf("cannot determine the number of host's logical CPU cores, "+
+			"%s resource will not be available: %v", v1.ResourceLogicalCores, err)
+	} else {
+		defaultResources[v1.ResourceLogicalCores] = uint64(numLogicalCPUs)
+	}
+
+	// Determine the size of the host's memory
+	virtualMemoryStat, err := mem.VirtualMemory()
+	if err != nil {
+		worker.logger.Warnf("cannot determine the size of the host's memory, "+
+			"%s resource will not be available: %v", v1.ResourceMemoryMiB, err)
+	} else {
+		defaultResources[v1.ResourceMemoryMiB] = virtualMemoryStat.Total / humanize.MiByte
+	}
+
 	worker.resources = defaultResources.Merged(worker.resources)
 
 	// Worker, VMs and images-related metrics
-	var err error
-
 	worker.vmPullTimeHistogram, err = opentelemetry.DefaultMeter.Float64Histogram(
 		"org.cirruslabs.orchard.worker.vm.pull_time",
 	)

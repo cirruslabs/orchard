@@ -2,12 +2,13 @@ package get
 
 import (
 	"fmt"
+	"strings"
+
 	"github.com/cirruslabs/orchard/pkg/client"
 	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
 	"github.com/gosuri/uitable"
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
-	"strings"
 )
 
 func newGetClusterSettingsCommand() *cobra.Command {
@@ -32,6 +33,7 @@ func runGetClusterSettings(cmd *cobra.Command, args []string) error {
 	}
 
 	table := uitable.New()
+	table.Wrap = true
 
 	table.AddRow("Key", "Value")
 

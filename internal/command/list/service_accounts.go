@@ -2,10 +2,11 @@ package list
 
 import (
 	"fmt"
+	"strings"
+
 	"github.com/cirruslabs/orchard/pkg/client"
 	"github.com/gosuri/uitable"
 	"github.com/spf13/cobra"
-	"strings"
 )
 
 func newListServiceAccountsCommand() *cobra.Command {
@@ -38,6 +39,7 @@ func runListServiceAccounts(cmd *cobra.Command, args []string) error {
 	}
 
 	table := uitable.New()
+	table.Wrap = true
 
 	table.AddRow("Name", "Roles")
 
