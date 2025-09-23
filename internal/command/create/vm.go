@@ -3,12 +3,14 @@ package create
 import (
 	"errors"
 	"fmt"
+	"os"
+	"strings"
+
+	"github.com/cirruslabs/orchard/internal/imageconstant"
 	"github.com/cirruslabs/orchard/internal/simplename"
 	"github.com/cirruslabs/orchard/pkg/client"
 	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
 	"github.com/spf13/cobra"
-	"os"
-	"strings"
 )
 
 var ErrVMFailed = errors.New("failed to create VM")
@@ -38,7 +40,7 @@ func newCreateVMCommand() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 	}
 
-	command.Flags().StringVar(&image, "image", "ghcr.io/cirruslabs/macos-sonoma-base:latest", "image to use")
+	command.Flags().StringVar(&image, "image", imageconstant.DefaultMacosImage, "image to use")
 	command.Flags().Uint64Var(&cpu, "cpu", 4, "number of CPUs to use")
 	command.Flags().Uint64Var(&memory, "memory", 8*1024, "megabytes of memory to use")
 	command.Flags().Uint64Var(&diskSize, "disk-size", 0, "resize the VMs disk to the specified size in GB "+

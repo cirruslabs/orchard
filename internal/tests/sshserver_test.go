@@ -4,7 +4,12 @@ import (
 	"context"
 	"crypto/subtle"
 	"fmt"
+	"net"
+	"testing"
+	"time"
+
 	"github.com/cirruslabs/orchard/internal/controller"
+	"github.com/cirruslabs/orchard/internal/imageconstant"
 	"github.com/cirruslabs/orchard/internal/tests/devcontroller"
 	"github.com/cirruslabs/orchard/internal/tests/wait"
 	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
@@ -12,9 +17,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ed25519"
 	"golang.org/x/crypto/ssh"
-	"net"
-	"testing"
-	"time"
 )
 
 func TestSSHServer(t *testing.T) {
@@ -41,7 +43,7 @@ func TestSSHServer(t *testing.T) {
 		Meta: v1.Meta{
 			Name: "test-vm",
 		},
-		Image:    "ghcr.io/cirruslabs/macos-sonoma-base:latest",
+		Image:    imageconstant.DefaultMacosImage,
 		CPU:      4,
 		Memory:   8 * 1024,
 		Headless: true,

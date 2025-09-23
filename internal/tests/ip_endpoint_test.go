@@ -2,14 +2,16 @@ package tests_test
 
 import (
 	"context"
+	"net"
+	"testing"
+	"time"
+
+	"github.com/cirruslabs/orchard/internal/imageconstant"
 	"github.com/cirruslabs/orchard/internal/tests/devcontroller"
 	"github.com/cirruslabs/orchard/internal/tests/wait"
 	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
-	"net"
-	"testing"
-	"time"
 )
 
 func TestIPEndpoint(t *testing.T) {
@@ -21,7 +23,7 @@ func TestIPEndpoint(t *testing.T) {
 		Meta: v1.Meta{
 			Name: "test-vm",
 		},
-		Image:    "ghcr.io/cirruslabs/macos-sonoma-base:latest",
+		Image:    imageconstant.DefaultMacosImage,
 		CPU:      4,
 		Memory:   8 * 1024,
 		Headless: true,

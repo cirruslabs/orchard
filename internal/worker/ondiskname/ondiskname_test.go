@@ -2,10 +2,12 @@ package ondiskname_test
 
 import (
 	"fmt"
+	"testing"
+
+	"github.com/cirruslabs/orchard/internal/imageconstant"
 	"github.com/cirruslabs/orchard/internal/worker/ondiskname"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 func TestOnDiskNameFromStaticString(t *testing.T) {
@@ -33,6 +35,6 @@ func TestOnDiskNameNonUUID(t *testing.T) {
 }
 
 func TestOnDiskNameNonOrchard(t *testing.T) {
-	_, err := ondiskname.Parse("ghcr.io/cirruslabs/macos-sonoma-base:latest")
+	_, err := ondiskname.Parse(imageconstant.DefaultMacosImage)
 	require.Error(t, err)
 }

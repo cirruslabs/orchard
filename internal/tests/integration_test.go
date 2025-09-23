@@ -3,7 +3,16 @@ package tests_test
 import (
 	"context"
 	"fmt"
+	"net"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"testing"
+	"time"
+
 	"github.com/cirruslabs/orchard/internal/controller"
+	"github.com/cirruslabs/orchard/internal/imageconstant"
 	"github.com/cirruslabs/orchard/internal/tests/devcontroller"
 	"github.com/cirruslabs/orchard/internal/tests/wait"
 	"github.com/cirruslabs/orchard/internal/worker/ondiskname"
@@ -15,13 +24,6 @@ import (
 	"go.uber.org/zap"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/exp/slices"
-	"net"
-	"os"
-	"path/filepath"
-	"strconv"
-	"strings"
-	"testing"
-	"time"
 )
 
 func TestSingleVM(t *testing.T) {
@@ -36,7 +38,7 @@ func TestSingleVM(t *testing.T) {
 		Meta: v1.Meta{
 			Name: "test-vm",
 		},
-		Image:    "ghcr.io/cirruslabs/macos-sonoma-base:latest",
+		Image:    imageconstant.DefaultMacosImage,
 		CPU:      4,
 		Memory:   8 * 1024,
 		Headless: true,
@@ -109,7 +111,7 @@ func TestFailedStartupScript(t *testing.T) {
 		Meta: v1.Meta{
 			Name: "test-vm",
 		},
-		Image:    "ghcr.io/cirruslabs/macos-sonoma-base:latest",
+		Image:    imageconstant.DefaultMacosImage,
 		CPU:      4,
 		Memory:   8 * 1024,
 		Headless: true,
@@ -147,7 +149,7 @@ func TestPortForwarding(t *testing.T) {
 		Meta: v1.Meta{
 			Name: "test-vm",
 		},
-		Image:    "ghcr.io/cirruslabs/macos-sonoma-base:latest",
+		Image:    imageconstant.DefaultMacosImage,
 		CPU:      4,
 		Memory:   8 * 1024,
 		Headless: true,
@@ -226,7 +228,7 @@ func TestSchedulerHealthCheckingNonExistentWorker(t *testing.T) {
 		Meta: v1.Meta{
 			Name: dummyVMName,
 		},
-		Image:    "ghcr.io/cirruslabs/macos-sonoma-base:latest",
+		Image:    imageconstant.DefaultMacosImage,
 		CPU:      4,
 		Memory:   8 * 1024,
 		Headless: true,
@@ -303,7 +305,7 @@ func TestSchedulerHealthCheckingOfflineWorker(t *testing.T) {
 		Meta: v1.Meta{
 			Name: dummyVMName,
 		},
-		Image:    "ghcr.io/cirruslabs/macos-sonoma-base:latest",
+		Image:    imageconstant.DefaultMacosImage,
 		CPU:      4,
 		Memory:   8 * 1024,
 		Headless: true,
@@ -343,7 +345,7 @@ func TestVMGarbageCollection(t *testing.T) {
 	// Create on-disk Tart VM that looks like it's managed by Orchard
 	vmName := ondiskname.New("test", uuid.New().String(), 0).String()
 	_, _, err = tart.Tart(ctx, logger.Sugar(), "clone",
-		"ghcr.io/cirruslabs/macos-sonoma-base:latest", vmName)
+		imageconstant.DefaultMacosImage, vmName)
 	require.NoError(t, err)
 
 	// Make sure that this VM exists
@@ -379,7 +381,7 @@ func TestHostDirs(t *testing.T) {
 		Meta: v1.Meta{
 			Name: vmName,
 		},
-		Image:    "ghcr.io/cirruslabs/macos-sonoma-base:latest",
+		Image:    imageconstant.DefaultMacosImage,
 		CPU:      4,
 		Memory:   8 * 1024,
 		Headless: true,
@@ -441,7 +443,7 @@ func TestHostDirsInvalidPolicy(t *testing.T) {
 		Meta: v1.Meta{
 			Name: vmName,
 		},
-		Image:    "ghcr.io/cirruslabs/macos-sonoma-base:latest",
+		Image:    imageconstant.DefaultMacosImage,
 		CPU:      4,
 		Memory:   8 * 1024,
 		Headless: true,
