@@ -439,6 +439,9 @@ components:
             for this VM to be scheduled
           additionalProperties:
             type: integer
+        nested:
+          type: boolean
+          description: Enable nested virtualization
         hostDirs:
           type: array
           items:
