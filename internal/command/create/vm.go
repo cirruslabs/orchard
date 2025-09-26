@@ -22,6 +22,7 @@ var diskSize uint64
 var netSoftnet bool
 var netBridged string
 var headless bool
+var nested bool
 var username string
 var password string
 var resources map[string]string
@@ -48,6 +49,7 @@ func newCreateVMCommand() *cobra.Command {
 	command.Flags().BoolVar(&netSoftnet, "net-softnet", false, "whether to use Softnet network isolation")
 	command.Flags().StringVar(&netBridged, "net-bridged", "", "whether to use Bridged network mode")
 	command.Flags().BoolVar(&headless, "headless", true, "whether to run without graphics")
+	command.Flags().BoolVar(&nested, "nested", true, "enable nested virtualization")
 	command.Flags().StringVar(&username, "username", "admin",
 		"SSH username to use when executing a startup script on the VM")
 	command.Flags().StringVar(&password, "password", "admin",
@@ -106,6 +108,7 @@ func runCreateVM(cmd *cobra.Command, args []string) error {
 		NetSoftnet:   netSoftnet,
 		NetBridged:   netBridged,
 		Headless:     headless,
+		Nested:       nested,
 		Username:     username,
 		Password:     password,
 		RandomSerial: randomSerial,

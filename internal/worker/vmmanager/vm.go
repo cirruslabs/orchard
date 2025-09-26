@@ -5,6 +5,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"net"
+	"strconv"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
+
 	"github.com/avast/retry-go"
 	"github.com/cirruslabs/chacha/pkg/localnetworkhelper"
 	"github.com/cirruslabs/orchard/internal/worker/ondiskname"
@@ -15,13 +23,6 @@ import (
 	"go.opentelemetry.io/otel/metric"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/ssh"
-	"io"
-	"net"
-	"strconv"
-	"strings"
-	"sync"
-	"sync/atomic"
-	"time"
 )
 
 var ErrVMFailed = errors.New("VM failed")
@@ -344,6 +345,10 @@ func (vm *VM) run(ctx context.Context) error {
 
 	if vm.Resource.Headless {
 		runArgs = append(runArgs, "--no-graphics")
+	}
+
+	if vm.Resource.Nested {
+		runArgs = append(runArgs, "--nested")
 	}
 
 	for _, hostDir := range vm.Resource.HostDirs {
