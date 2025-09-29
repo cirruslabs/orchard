@@ -49,7 +49,7 @@ func newCreateVMCommand() *cobra.Command {
 	command.Flags().BoolVar(&netSoftnet, "net-softnet", false, "whether to use Softnet network isolation")
 	command.Flags().StringVar(&netBridged, "net-bridged", "", "whether to use Bridged network mode")
 	command.Flags().BoolVar(&headless, "headless", true, "whether to run without graphics")
-	command.Flags().BoolVar(&nested, "nested", true, "enable nested virtualization")
+	command.Flags().BoolVar(&nested, "nested", false, "enable nested virtualization")
 	command.Flags().StringVar(&username, "username", "admin",
 		"SSH username to use when executing a startup script on the VM")
 	command.Flags().StringVar(&password, "password", "admin",
