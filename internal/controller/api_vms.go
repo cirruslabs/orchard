@@ -1,7 +1,11 @@
 package controller
 
 import (
+	"encoding/json"
 	"errors"
+	"net/http"
+	"time"
+
 	"github.com/cirruslabs/orchard/internal/controller/lifecycle"
 	storepkg "github.com/cirruslabs/orchard/internal/controller/store"
 	"github.com/cirruslabs/orchard/internal/responder"
@@ -10,8 +14,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/samber/lo"
-	"net/http"
-	"time"
 )
 
 func (controller *Controller) createVM(ctx *gin.Context) responder.Responder {
@@ -149,6 +151,40 @@ func (controller *Controller) getVM(ctx *gin.Context) responder.Responder {
 	}
 
 	name := ctx.Param("name")
+
+	if ctx.Query("watch") != "" {
+		watchCh, errCh, err := controller.store.WatchVM(ctx, name)
+		if err != nil {
+			return responder.Error(err)
+		}
+
+		for {
+			select {
+			case watchMessage := <-watchCh:
+				jsonBytes, err := json.Marshal(watchMessage)
+				if err != nil {
+					controller.logger.Errorf("failed to marshal watch message "+
+						"for VM %q to JSON: %v", name, err)
+
+					return responder.Empty()
+				}
+
+				if _, err = ctx.Writer.Write(jsonBytes); err != nil {
+					return responder.Empty()
+				}
+				if _, err := ctx.Writer.WriteString("\n"); err != nil {
+					return responder.Empty()
+				}
+				ctx.Writer.Flush()
+			case err := <-errCh:
+				controller.logger.Errorf("failed to watch VM %q in the DB: %v", name, err)
+
+				return responder.Empty()
+			case <-ctx.Done():
+				return responder.Empty()
+			}
+		}
+	}
 
 	return controller.storeView(func(txn storepkg.Transaction) responder.Responder {
 		vm, err := txn.GetVM(name)

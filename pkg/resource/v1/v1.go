@@ -16,6 +16,9 @@ type Meta struct {
 	// It is populated by the Controller with the current time
 	// when receiving a POST request.
 	CreatedAt time.Time `json:"createdAt,omitempty"`
+
+	// Version is a resource version used internally to implement WatchVM().
+	Version uint64 `json:"version,omitempty"`
 }
 
 type VM struct {

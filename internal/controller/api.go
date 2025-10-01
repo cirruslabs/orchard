@@ -4,6 +4,9 @@ import (
 	"context"
 	"crypto/subtle"
 	"errors"
+	"net/http"
+	"strings"
+
 	"github.com/cirruslabs/orchard/api"
 	storepkg "github.com/cirruslabs/orchard/internal/controller/store"
 	"github.com/cirruslabs/orchard/internal/responder"
@@ -16,8 +19,6 @@ import (
 	"github.com/penglongli/gin-metrics/ginmetrics"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/metadata"
-	"net/http"
-	"strings"
 )
 
 const ctxServiceAccountKey = "service-account"

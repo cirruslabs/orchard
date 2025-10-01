@@ -3,9 +3,10 @@ package badger
 
 import (
 	"encoding/json"
+	"path"
+
 	"github.com/cirruslabs/orchard/pkg/resource/v1"
 	"github.com/dgraph-io/badger/v3"
-	"path"
 )
 
 const SpaceVMs = "/vms"
@@ -37,6 +38,8 @@ func (txn *Transaction) GetVM(name string) (_ *v1.VM, err error) {
 	if err != nil {
 		return nil, err
 	}
+
+	vm.Version = item.Version()
 
 	return &vm, nil
 }
@@ -93,6 +96,8 @@ func (txn *Transaction) ListVMs() (_ []v1.VM, err error) {
 		if err := json.Unmarshal(vmBytes, &vm); err != nil {
 			return nil, err
 		}
+
+		vm.Version = item.Version()
 
 		result = append(result, vm)
 	}

@@ -1,10 +1,28 @@
 package store
 
-import v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
+import (
+	"context"
+
+	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
+)
+
+type WatchMessageType string
+
+const (
+	WatchMessageTypeAdded    WatchMessageType = "ADDED"
+	WatchMessageTypeModified WatchMessageType = "MODIFIED"
+	WatchMessageTypeDeleted  WatchMessageType = "DELETED"
+)
+
+type WatchMessage[T any] struct {
+	Type   WatchMessageType `json:"type,omitempty"`
+	Object T                `json:"object,omitempty"`
+}
 
 type Store interface {
 	View(cb func(txn Transaction) error) error
 	Update(cb func(txn Transaction) error) error
+	WatchVM(ctx context.Context, vmName string) (chan WatchMessage[v1.VM], chan error, error)
 }
 
 type Transaction interface {
