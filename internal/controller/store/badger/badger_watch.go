@@ -50,9 +50,15 @@ func (store *Store) WatchVM(ctx context.Context, vmName string) (chan storepkg.W
 					return err
 				}
 				if initialVM != nil {
-					watchCh <- storepkg.WatchMessage[v1.VM]{
+					notification := storepkg.WatchMessage[v1.VM]{
 						Type:   storepkg.WatchMessageTypeAdded,
 						Object: *initialVM,
+					}
+
+					select {
+					case watchCh <- notification:
+					case <-subCtx.Done():
+						return subCtx.Err()
 					}
 				}
 
@@ -73,8 +79,14 @@ func (store *Store) WatchVM(ctx context.Context, vmName string) (chan storepkg.W
 
 					if kv.GetValue() == nil {
 						// VM was deleted
-						watchCh <- storepkg.WatchMessage[v1.VM]{
+						notification := storepkg.WatchMessage[v1.VM]{
 							Type: storepkg.WatchMessageTypeDeleted,
+						}
+
+						select {
+						case watchCh <- notification:
+						case <-subCtx.Done():
+							return subCtx.Err()
 						}
 
 						initialVM = nil
@@ -98,9 +110,15 @@ func (store *Store) WatchVM(ctx context.Context, vmName string) (chan storepkg.W
 							watchMessageType = storepkg.WatchMessageTypeModified
 						}
 
-						watchCh <- storepkg.WatchMessage[v1.VM]{
+						notification := storepkg.WatchMessage[v1.VM]{
 							Type:   watchMessageType,
 							Object: vm,
+						}
+
+						select {
+						case watchCh <- notification:
+						case <-subCtx.Done():
+							return subCtx.Err()
 						}
 					}
 				default:
