@@ -18,12 +18,15 @@ func (store *Store) WatchVM(ctx context.Context, vmName string) (chan storepkg.W
 	readyCh := make(chan struct{}, 1)
 	watchCh := make(chan storepkg.WatchMessage[v1.VM], 1)
 	errCh := make(chan error, 1)
+	subCtx, subCtxCancel := context.WithCancel(ctx)
 
 	go func() {
+		defer subCtxCancel()
+
 		var initialVM *v1.VM
 		var checkedInitialVM bool
 
-		if err := store.db.Subscribe(ctx, func(kvList *badger.KVList) error {
+		if err := store.db.Subscribe(subCtx, func(kvList *badger.KVList) error {
 			if !checkedInitialVM {
 				// Notify the caller that we've subscribed, but don't block,
 				// because we may observe multiple watch barriers, yet
@@ -119,6 +122,8 @@ func (store *Store) WatchVM(ctx context.Context, vmName string) (chan storepkg.W
 
 	// Trigger the watch barrier so that Subscribe() callback gets invoked
 	if err := store.notifyWatchBarrier(); err != nil {
+		subCtxCancel()
+
 		return nil, nil, err
 	}
 
@@ -129,6 +134,8 @@ func (store *Store) WatchVM(ctx context.Context, vmName string) (chan storepkg.W
 	case <-time.After(time.Second):
 		// Possible race with late goroutine start, re-issue watch barrier
 		if err := store.notifyWatchBarrier(); err != nil {
+			subCtxCancel()
+
 			return nil, nil, err
 		}
 	case <-ctx.Done():
