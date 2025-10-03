@@ -78,6 +78,11 @@ func (store *Store) WatchVM(ctx context.Context, vmName string) (chan storepkg.W
 					}
 
 					if kv.GetValue() == nil {
+						if initialVM == nil {
+							// VM is already deleted
+							continue
+						}
+
 						// VM was deleted
 						notification := storepkg.WatchMessage[v1.VM]{
 							Type: storepkg.WatchMessageTypeDeleted,
