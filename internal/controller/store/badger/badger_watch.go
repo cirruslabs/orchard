@@ -130,18 +130,22 @@ func (store *Store) WatchVM(ctx context.Context, vmName string) (chan storepkg.W
 	}
 
 	// Wait for the Subscribe() callback to be invoked
-	select {
-	case <-readyCh:
-		// Subscription has started
-	case <-time.After(time.Second):
-		// Possible race with late goroutine start, re-issue watch barrier
-		if err := store.notifyWatchBarrier(); err != nil {
-			subCtxCancel()
+Outer:
+	for {
+		select {
+		case <-readyCh:
+			// Subscription has started
+			break Outer
+		case <-time.After(time.Second):
+			// Possible race with late goroutine start, re-issue watch barrier
+			if err := store.notifyWatchBarrier(); err != nil {
+				subCtxCancel()
 
-			return nil, nil, err
+				return nil, nil, err
+			}
+		case <-ctx.Done():
+			return nil, nil, ctx.Err()
 		}
-	case <-ctx.Done():
-		return nil, nil, ctx.Err()
 	}
 
 	return watchCh, errCh, nil
