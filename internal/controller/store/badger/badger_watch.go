@@ -23,6 +23,7 @@ func (store *Store) WatchVM(ctx context.Context, vmName string) (chan storepkg.W
 		defer subCtxCancel()
 		defer close(readyCh)
 		defer close(watchCh)
+		defer close(errCh)
 
 		var initialVM *v1.VM
 		var checkedInitialVM bool
