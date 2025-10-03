@@ -21,7 +21,6 @@ func (store *Store) WatchVM(ctx context.Context, vmName string) (chan storepkg.W
 
 	go func() {
 		defer subCtxCancel()
-		defer close(readyCh)
 		defer close(watchCh)
 		defer close(errCh)
 
