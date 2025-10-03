@@ -152,7 +152,9 @@ func (controller *Controller) getVM(ctx *gin.Context) responder.Responder {
 
 	name := ctx.Param("name")
 
-	if ctx.Query("watch") != "" {
+	if ctx.Query("watch") == "true" {
+		ctx.Header("Content-Type", "application/x-ndjson")
+
 		watchCh, errCh, err := controller.store.WatchVM(ctx, name)
 		if err != nil {
 			return responder.Error(err)
