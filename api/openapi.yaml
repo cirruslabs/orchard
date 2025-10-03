@@ -256,9 +256,15 @@ paths:
     parameters:
       - in: path
         name: name
+        description: VM name to retrieve
         required: true
         schema:
           type: string
+      - in: query
+        name: watch
+        description: Watch for changes a VM resource and return them a stream of ADDED, MODIFIED and DELETED notifications
+        schema:
+          type: boolean
     get:
       summary: "Retrieve a VM"
       tags:
@@ -270,6 +276,15 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/VM'
+            application/x-ndjson:
+              schema:
+                type: object
+                properties:
+                  type:
+                    type: string
+                    enum: [ADDED, MODIFIED, DELETED]
+                  object:
+                    $ref: '#/components/schemas/VM'
         '404':
           description: VM resource with the given name doesn't exist
     put:
