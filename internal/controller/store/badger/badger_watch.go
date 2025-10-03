@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"time"
 
 	storepkg "github.com/cirruslabs/orchard/internal/controller/store"
@@ -105,7 +104,8 @@ func (store *Store) WatchVM(ctx context.Context, vmName string) (chan storepkg.W
 						}
 					}
 				default:
-					return fmt.Errorf("watcher encountered an unexpected key %q", string(kv.GetKey()))
+					// Ignore unexpected keys
+					continue
 				}
 			}
 
