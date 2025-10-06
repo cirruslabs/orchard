@@ -446,17 +446,87 @@ components:
         name:
           type: string
           description: VM name
-        resources:
-          type: object
-          description: |
-            Dictionary that maps the resource name to the
-            amount of this resource required on the worker
-            for this VM to be scheduled
-          additionalProperties:
-            type: integer
+          example: macos-tahoe-base
+          readOnly: true
+        image:
+          type: string
+          description: VM image for this VM
+          example: ghcr.io/cirruslabs/macos-tahoe-base:latest
+        imagePullPolicy:
+          type: string
+          description: VM image pull policy
+          default: IfNotPresent
+          enum: [IfNotPresent, Always]
+        cpu:
+          type: number
+          description: Number of CPUs assigned to this VM
+          default: 4
+        memory:
+          type: number
+          description: Amount of RAM in megabytes assigned to this VM
+          default: 8192
+        diskSize:
+          type: number
+          description: Disk size for this VM
+          example: 100
+        net-softnet:
+          type: boolean
+          description: Whether to use Softnet network isolation
+          default: false
+        net-bridged:
+          type: string
+          description: Whether to use bridged network mode
+          example: en0
+        headless:
+          type: boolean
+          description: Whether to run without graphics
+          default: false
         nested:
           type: boolean
           description: Enable nested virtualization
+          default: false
+        status:
+          type: string
+          description: VM status
+          enum: [pending, running, failed]
+          readOnly: true
+        status_message:
+          type: string
+          description: VM status message
+          readOnly: true
+        worker:
+          type: string
+          description: Worker on which the VM was assigned to
+          readOnly: true
+        username:
+          type: string
+          description: SSH username to use when connecting to a VM
+          default: admin
+        password:
+          type: string
+          description: SSH password to use when connecting to a VM
+          default: admin
+        restart_policy:
+          type: string
+          description: |
+            VM restart policy: specify "Never" to never restart or "OnFailure" to only restart when the VM fails
+          default: Never
+          enum: [Never, OnFailure]
+        resources:
+          type: object
+          description: Resources required by this VM on the worker
+          additionalProperties:
+            type: integer
+          example:
+            org.cirruslabs.logical-cores: 4
+            org.cirruslabs.memory-mib: 8192
+        labels:
+          type: object
+          description: Labels required by this VM on the worker
+          additionalProperties:
+            type: string
+          example:
+            model: macstudio
         hostDirs:
           type: array
           items:
@@ -468,6 +538,10 @@ components:
                 type: string
               ro:
                 type: boolean
+          example:
+            - path: /path/on/host/to/sources
+              ro: true
+            - path: /path/on/host/to/builds
     Events:
       title: Events
       type: object
