@@ -5,7 +5,7 @@ import (
 	"crypto/subtle"
 	"errors"
 	"net/http"
-	"path"
+	"net/url"
 	"strings"
 
 	"github.com/cirruslabs/orchard/api"
@@ -57,9 +57,14 @@ func (controller *Controller) initAPI() *gin.Engine {
 	// to check that the API is working
 	v1.GET("/", func(c *gin.Context) {
 		if controller.enableSwaggerDocs {
+			apiURL := &url.URL{
+				Path: "/",
+			}
+			apiURL = apiURL.JoinPath(controller.apiPrefix, "v1")
+
 			middleware.SwaggerUI(middleware.SwaggerUIOpts{
-				Path:    "/" + path.Join(controller.apiPrefix, "v1"),
-				SpecURL: "/" + path.Join(controller.apiPrefix, "v1", "openapi.yaml"),
+				Path:    apiURL.Path,
+				SpecURL: apiURL.JoinPath("openapi.yaml").Path,
 			}, nil).ServeHTTP(c.Writer, c.Request)
 		} else {
 			c.Status(http.StatusOK)
