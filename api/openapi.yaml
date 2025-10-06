@@ -529,6 +529,7 @@ components:
             model: macstudio
         hostDirs:
           type: array
+          description: Directories on the Orchard Worker host to mount to a VM
           items:
             type: object
             properties:

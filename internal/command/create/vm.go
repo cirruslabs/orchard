@@ -67,8 +67,8 @@ func newCreateVMCommand() *cobra.Command {
 		"startup script (e.g. --startup-script=\"sync\") or a path to a script file prefixed with \"@\" "+
 			"(e.g. \"--startup-script=@script.sh\")")
 	command.Flags().StringSliceVar(&hostDirsRaw, "host-dirs", []string{},
-		"host directories to mount to the VM, can be specified multiple times and/or be comma-separated "+
-			"(see \"tart run\"'s --dir argument for syntax)")
+		"directories on the Orchard Worker host to mount to a VM, can be specified multiple times "+
+			"and/or be comma-separated (see \"tart run\"'s --dir argument for syntax)")
 	command.Flags().StringVar(&imagePullPolicy, "image-pull-policy", string(v1.ImagePullPolicyIfNotPresent),
 		fmt.Sprintf("image pull policy for this VM, by default the image is only pulled if it doesn't "+
 			"exist in the cache (%q), specify %q to always try to pull the image",
