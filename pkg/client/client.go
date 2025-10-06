@@ -9,6 +9,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net"
+	"net/http"
+	"net/url"
+	"time"
+
 	"github.com/cirruslabs/orchard/internal/config"
 	"github.com/cirruslabs/orchard/internal/version"
 	"github.com/cirruslabs/orchard/rpc"
@@ -16,11 +22,6 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
-	"io"
-	"net"
-	"net/http"
-	"net/url"
-	"time"
 )
 
 var (
@@ -298,6 +299,7 @@ func (client *Client) formatPath(path string) *url.URL {
 		Scheme: client.baseURL.Scheme,
 		User:   client.baseURL.User,
 		Host:   client.baseURL.Host,
+		Path:   client.baseURL.Path,
 	}
 
 	return endpointURL.JoinPath("v1", path)

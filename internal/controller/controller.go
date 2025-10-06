@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -46,6 +47,7 @@ const (
 type Controller struct {
 	dataDir              *DataDir
 	listenAddr           string
+	apiPrefix            string
 	tlsConfig            *tls.Config
 	listener             net.Listener
 	httpServer           *http.Server
@@ -262,11 +264,17 @@ func (controller *Controller) Run(ctx context.Context) error {
 func (controller *Controller) Address() string {
 	hostPort := strings.ReplaceAll(controller.listener.Addr().String(), "[::]", "127.0.0.1")
 
-	if controller.tlsConfig != nil {
-		return fmt.Sprintf("https://%s", hostPort)
+	url := url.URL{
+		Scheme: "http",
+		Host:   hostPort,
+		Path:   controller.apiPrefix,
 	}
 
-	return fmt.Sprintf("http://%s", hostPort)
+	if controller.tlsConfig != nil {
+		url.Scheme = "https"
+	}
+
+	return url.String()
 }
 
 func (controller *Controller) SSHAddress() (string, bool) {

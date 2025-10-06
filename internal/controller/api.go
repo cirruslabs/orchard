@@ -5,6 +5,7 @@ import (
 	"crypto/subtle"
 	"errors"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/cirruslabs/orchard/api"
@@ -28,7 +29,15 @@ var ErrUnauthorized = errors.New("unauthorized")
 func (controller *Controller) initAPI() *gin.Engine {
 	ginEngine := gin.New()
 
-	ginEngine.Use(
+	var group *gin.RouterGroup
+
+	if controller.apiPrefix != "" {
+		group = ginEngine.Group(controller.apiPrefix)
+	} else {
+		group = ginEngine.Group("/")
+	}
+
+	group.Use(
 		ginzap.Ginzap(controller.logger.Desugar(), "", true),
 		ginzap.RecoveryWithZap(controller.logger.Desugar(), true),
 	)
@@ -36,10 +45,10 @@ func (controller *Controller) initAPI() *gin.Engine {
 	// expose metrics
 	monitor := ginmetrics.GetMonitor()
 	monitor.SetMetricPath("/metrics")
-	monitor.Use(ginEngine)
+	monitor.Use(group)
 
 	// v1 API
-	v1 := ginEngine.Group("/v1")
+	v1 := group.Group("/v1")
 
 	// Auth
 	v1.Use(controller.authenticateMiddleware)
@@ -48,9 +57,14 @@ func (controller *Controller) initAPI() *gin.Engine {
 	// to check that the API is working
 	v1.GET("/", func(c *gin.Context) {
 		if controller.enableSwaggerDocs {
+			apiURL := &url.URL{
+				Path: "/",
+			}
+			apiURL = apiURL.JoinPath(controller.apiPrefix, "v1")
+
 			middleware.SwaggerUI(middleware.SwaggerUIOpts{
-				Path:    "/v1",
-				SpecURL: "/v1/openapi.yaml",
+				Path:    apiURL.Path,
+				SpecURL: apiURL.JoinPath("openapi.yaml").Path,
 			}, nil).ServeHTTP(c.Writer, c.Request)
 		} else {
 			c.Status(http.StatusOK)
