@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"path"
 	"strings"
 
 	"github.com/cirruslabs/orchard/api"
@@ -29,11 +30,12 @@ var ErrUnauthorized = errors.New("unauthorized")
 func (controller *Controller) initAPI() *gin.Engine {
 	ginEngine := gin.New()
 
-	group := ginEngine.Group("/")
+	var group *gin.RouterGroup
 
 	if controller.apiPrefix != "" {
-		fmt.Println("[+] registering api prefix", controller.apiPrefix)
 		group = ginEngine.Group(controller.apiPrefix)
+	} else {
+		group = ginEngine.Group("/")
 	}
 
 	group.Use(
@@ -57,8 +59,8 @@ func (controller *Controller) initAPI() *gin.Engine {
 	v1.GET("/", func(c *gin.Context) {
 		if controller.enableSwaggerDocs {
 			middleware.SwaggerUI(middleware.SwaggerUIOpts{
-				Path:    "/v1",
-				SpecURL: "/v1/openapi.yaml",
+				Path:    "/" + path.Join(controller.apiPrefix, "v1"),
+				SpecURL: "/" + path.Join(controller.apiPrefix, "v1", "openapi.yaml"),
 			}, nil).ServeHTTP(c.Writer, c.Request)
 		} else {
 			c.Status(http.StatusOK)
