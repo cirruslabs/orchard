@@ -5,6 +5,10 @@ package dev
 import (
 	"errors"
 	"fmt"
+	"os"
+	"path"
+	"path/filepath"
+
 	"github.com/cirruslabs/orchard/internal/config"
 	"github.com/cirruslabs/orchard/internal/controller"
 	"github.com/cirruslabs/orchard/internal/netconstants"
@@ -13,14 +17,12 @@ import (
 	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
-	"os"
-	"path"
-	"path/filepath"
 )
 
 var ErrFailed = errors.New("failed to run development controller and worker")
 
 var devDataDirPath string
+var apiPrefix string
 var stringToStringResources map[string]string
 var experimentalRPCV2 bool
 
@@ -33,6 +35,9 @@ func NewCommand() *cobra.Command {
 
 	command.Flags().StringVarP(&devDataDirPath, "data-dir", "d", ".dev-data",
 		"path to persist data between runs")
+	command.Flags().StringVar(&apiPrefix, "api-prefix", "",
+		"prefix to prepend to all Orchard Controller API endpoints; useful when exposing Orchard Controller "+
+			"behind an HTTP proxy together with other services")
 	command.Flags().StringToStringVar(&stringToStringResources, "resources", map[string]string{},
 		"resources that the development worker will provide")
 	command.Flags().BoolVar(&experimentalRPCV2, "experimental-rpc-v2", false,
@@ -57,6 +62,10 @@ func runDev(cmd *cobra.Command, args []string) error {
 	}
 
 	var additionalControllerOpts []controller.Option
+
+	if apiPrefix != "" {
+		additionalControllerOpts = append(additionalControllerOpts, controller.WithAPIPrefix(apiPrefix))
+	}
 
 	if experimentalRPCV2 {
 		additionalControllerOpts = append(additionalControllerOpts, controller.WithExperimentalRPCV2())

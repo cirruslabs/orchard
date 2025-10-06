@@ -22,6 +22,12 @@ func WithListenAddr(listenAddr string) Option {
 	}
 }
 
+func WithAPIPrefix(apiPrefix string) Option {
+	return func(c *Controller) {
+		c.apiPrefix = apiPrefix
+	}
+}
+
 func WithTLSConfig(tlsConfig *tls.Config) Option {
 	return func(controller *Controller) {
 		controller.tlsConfig = tlsConfig

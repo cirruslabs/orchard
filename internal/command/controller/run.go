@@ -24,6 +24,7 @@ import (
 var ErrRunFailed = errors.New("failed to run controller")
 
 var address string
+var apiPrefix string
 var addressSSH string
 var addressPprof string
 var debug bool
@@ -50,6 +51,9 @@ func newRunCommand() *cobra.Command {
 
 	cmd.Flags().StringVarP(&address, "listen", "l", fmt.Sprintf(":%s", port),
 		"address to listen on")
+	cmd.Flags().StringVar(&apiPrefix, "api-prefix", "",
+		"prefix to prepend to all Orchard Controller API endpoints; useful when exposing Orchard Controller "+
+			"behind an HTTP proxy together with other services")
 	cmd.Flags().StringVar(&addressSSH, "listen-ssh", "",
 		"address for the built-in SSH server to listen on (e.g. \":6122\")")
 	cmd.Flags().StringVar(&addressPprof, "listen-pprof", "",
@@ -142,6 +146,10 @@ func runController(cmd *cobra.Command, args []string) (err error) {
 		controller.WithDataDir(dataDir),
 		controller.WithWorkerOfflineTimeout(workerOfflineTimeout),
 		controller.WithLogger(logger),
+	}
+
+	if apiPrefix != "" {
+		controllerOpts = append(controllerOpts, controller.WithAPIPrefix(apiPrefix))
 	}
 
 	var controllerCert tls.Certificate

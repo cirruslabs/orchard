@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/subtle"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -28,7 +29,14 @@ var ErrUnauthorized = errors.New("unauthorized")
 func (controller *Controller) initAPI() *gin.Engine {
 	ginEngine := gin.New()
 
-	ginEngine.Use(
+	group := ginEngine.Group("/")
+
+	if controller.apiPrefix != "" {
+		fmt.Println("[+] registering api prefix", controller.apiPrefix)
+		group = ginEngine.Group(controller.apiPrefix)
+	}
+
+	group.Use(
 		ginzap.Ginzap(controller.logger.Desugar(), "", true),
 		ginzap.RecoveryWithZap(controller.logger.Desugar(), true),
 	)
@@ -36,10 +44,10 @@ func (controller *Controller) initAPI() *gin.Engine {
 	// expose metrics
 	monitor := ginmetrics.GetMonitor()
 	monitor.SetMetricPath("/metrics")
-	monitor.Use(ginEngine)
+	monitor.Use(group)
 
 	// v1 API
-	v1 := ginEngine.Group("/v1")
+	v1 := group.Group("/v1")
 
 	// Auth
 	v1.Use(controller.authenticateMiddleware)
