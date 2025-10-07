@@ -506,6 +506,23 @@ components:
           type: string
           description: SSH password to use when connecting to a VM
           default: admin
+        startup_script:
+          type: object
+          description: Startup script to run after the VM boots and becomes accessible via SSH
+          properties:
+            script_content:
+              type: string
+            env:
+              type: object
+              additionalProperties:
+                type: string
+          example:
+            script_content: |
+              #!/bin/zsh
+              
+              echo $GREETING
+            env:
+              GREETING: "Hello, World!"
         restart_policy:
           type: string
           description: |
