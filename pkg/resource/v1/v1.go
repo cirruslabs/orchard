@@ -130,6 +130,7 @@ type ControllerCapability string
 const (
 	ControllerCapabilityRPCV1 ControllerCapability = "rpc-v1"
 	ControllerCapabilityRPCV2 ControllerCapability = "rpc-v2"
+	ControllerCapabilityExec  ControllerCapability = "exec"
 )
 
 type ControllerCapabilities []ControllerCapability

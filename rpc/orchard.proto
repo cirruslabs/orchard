@@ -12,6 +12,9 @@ service Controller {
   // session information is passed in the requests metadata
   rpc PortForward(stream PortForwardData) returns (stream PortForwardData);
 
+  // session information is passed in the requests metadata
+  rpc Exec(stream ExecData) returns (stream ExecData);
+
   // worker calls this method when it has successfully resolved the VM's IP
   rpc ResolveIP(ResolveIPResult) returns (google.protobuf.Empty);
 }
@@ -34,15 +37,36 @@ message WatchInstruction {
     string session = 1;
     string vm_uid = 2;
   }
+  message Exec {
+    message TerminalSize {
+      uint32 rows = 1;
+      uint32 cols = 2;
+    }
+
+    // we can have multiple exec requests for the same vm
+    // so use a session identifier
+    string session = 1;
+    string vm_uid = 2;
+    string command = 3;
+    repeated string args = 4;
+    bool interactive = 5;
+    bool tty = 6;
+    TerminalSize terminal_size = 7;
+  }
 
   oneof action {
     PortForward port_forward_action = 1;
     SyncVMs sync_vms_action = 2;
     ResolveIP resolve_ip_action = 3;
+    Exec exec_action = 4;
   }
 }
 
 message PortForwardData {
+  bytes data = 1;
+}
+
+message ExecData {
   bytes data = 1;
 }
 

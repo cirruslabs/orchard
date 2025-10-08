@@ -24,9 +24,29 @@ type Worker struct {
 	// when it doesn't explicitly request a specific amount.
 	DefaultMemory uint64 `json:"defaultMemory,omitempty"`
 
+	Capabilities WorkerCapabilities `json:"capabilities,omitempty"`
+
 	Meta
 }
 
 func (worker Worker) Offline(workerOfflineTimeout time.Duration) bool {
 	return time.Since(worker.LastSeen) > workerOfflineTimeout
+}
+
+type WorkerCapability string
+
+const (
+	WorkerCapabilityExec WorkerCapability = "exec"
+)
+
+type WorkerCapabilities []WorkerCapability
+
+func (workerCapabilities WorkerCapabilities) Has(capability WorkerCapability) bool {
+	for _, workerCapability := range workerCapabilities {
+		if workerCapability == capability {
+			return true
+		}
+	}
+
+	return false
 }
