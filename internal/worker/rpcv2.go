@@ -25,6 +25,8 @@ func (worker *Worker) watchRPCV2(ctx context.Context) error {
 				worker.requestVMSyncing()
 			} else if resolveIPAction := watchInstruction.ResolveIPAction; resolveIPAction != nil {
 				go worker.handleGetIPV2(ctx, resolveIPAction)
+			} else if execAction := watchInstruction.ExecAction; execAction != nil {
+				go worker.handleExecV2(ctx, execAction)
 			}
 		case watchErr := <-watchErrCh:
 			return watchErr
@@ -156,4 +158,32 @@ func (worker *Worker) handleGetIPV2Inner(
 	}
 
 	return ip, nil
+}
+
+func (worker *Worker) handleExecV2(ctx context.Context, execAction *v1.ExecAction) {
+	var errorMessage string
+
+	vm, err := worker.findVMByUID(execAction.VMUID)
+	if err != nil {
+		errorMessage = err.Error()
+	}
+
+	if errorMessage != "" {
+		if _, err := worker.client.RPC().RespondExec(ctx, execAction.Session, errorMessage); err != nil {
+			worker.logger.Warnf("exec failed: failed to call API: %v", err)
+		}
+
+		return
+	}
+
+	conn, err := worker.client.RPC().RespondExec(ctx, execAction.Session, "")
+	if err != nil {
+		worker.logger.Warnf("exec failed: failed to call API: %v", err)
+
+		return
+	}
+
+	if err := worker.runExecSession(ctx, execOptionsFromV1(execAction), conn, vm); err != nil {
+		worker.logger.Warnf("exec session failed: %v", err)
+	}
 }

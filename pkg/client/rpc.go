@@ -60,6 +60,17 @@ func (service *RPCService) RespondPortForward(
 	})
 }
 
+func (service *RPCService) RespondExec(
+	ctx context.Context,
+	session string,
+	errorMessage string,
+) (net.Conn, error) {
+	return service.client.wsRequest(ctx, "rpc/exec", map[string]string{
+		"session":      session,
+		"errorMessage": errorMessage,
+	})
+}
+
 func (service *RPCService) RespondIP(
 	ctx context.Context,
 	session string,

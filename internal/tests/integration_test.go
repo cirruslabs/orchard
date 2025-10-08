@@ -1,6 +1,7 @@
 package tests_test
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"net"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	"github.com/cirruslabs/orchard/internal/controller"
+	"github.com/cirruslabs/orchard/internal/execstream"
 	"github.com/cirruslabs/orchard/internal/imageconstant"
 	"github.com/cirruslabs/orchard/internal/tests/devcontroller"
 	"github.com/cirruslabs/orchard/internal/tests/wait"
@@ -26,6 +28,14 @@ import (
 	"golang.org/x/exp/slices"
 )
 
+func integrationTestImage() string {
+	if image := os.Getenv("ORCHARD_TEST_IMAGE"); image != "" {
+		return image
+	}
+
+	return imageconstant.DefaultMacosImage
+}
+
 func TestSingleVM(t *testing.T) {
 	devClient, _, _ := devcontroller.StartIntegrationTestEnvironment(t)
 
@@ -38,7 +48,7 @@ func TestSingleVM(t *testing.T) {
 		Meta: v1.Meta{
 			Name: "test-vm",
 		},
-		Image:    imageconstant.DefaultMacosImage,
+		Image:    integrationTestImage(),
 		CPU:      4,
 		Memory:   8 * 1024,
 		Headless: true,
@@ -111,7 +121,7 @@ func TestFailedStartupScript(t *testing.T) {
 		Meta: v1.Meta{
 			Name: "test-vm",
 		},
-		Image:    imageconstant.DefaultMacosImage,
+		Image:    integrationTestImage(),
 		CPU:      4,
 		Memory:   8 * 1024,
 		Headless: true,
@@ -149,7 +159,7 @@ func TestPortForwarding(t *testing.T) {
 		Meta: v1.Meta{
 			Name: "test-vm",
 		},
-		Image:    imageconstant.DefaultMacosImage,
+		Image:    integrationTestImage(),
 		CPU:      4,
 		Memory:   8 * 1024,
 		Headless: true,
@@ -188,6 +198,81 @@ func TestPortForwarding(t *testing.T) {
 	unameOutput, err := sshSession.Output("uname -mo")
 	require.NoError(t, err)
 	require.Contains(t, string(unameOutput), "Darwin arm64")
+}
+
+func TestExec(t *testing.T) {
+	ctx := context.Background()
+
+	devClient, _, _ := devcontroller.StartIntegrationTestEnvironment(t)
+
+	workers, err := devClient.Workers().List(ctx)
+	require.NoError(t, err)
+	require.NotEmpty(t, workers)
+	require.True(t, workers[0].Capabilities.Has(v1.WorkerCapabilityExec))
+
+	vmName := "exec-vm"
+
+	err = devClient.VMs().Create(ctx, &v1.VM{
+		Meta: v1.Meta{
+			Name: vmName,
+		},
+		Image:    integrationTestImage(),
+		CPU:      4,
+		Memory:   8 * 1024,
+		Headless: true,
+	})
+	require.NoError(t, err)
+
+	require.True(t, wait.Wait(10*time.Minute, func() bool {
+		vm, err := devClient.VMs().Get(ctx, vmName)
+		require.NoError(t, err)
+		t.Logf("Waiting for the VM to start. Current status: %s", vm.Status)
+
+		return vm.Status == v1.VMStatusRunning || vm.Status == v1.VMStatusFailed
+	}), "failed to start VM for exec test")
+
+	vm, err := devClient.VMs().Get(ctx, vmName)
+	require.NoError(t, err)
+	require.Equal(t, v1.VMStatusRunning, vm.Status, "VM failed to reach running state: %s", vm.StatusMessage)
+
+	conn, err := devClient.VMs().Exec(ctx, vmName, []string{"/bin/echo", "orchard"},
+		false, false, 0, 0, 180)
+	require.NoError(t, err)
+	defer func() {
+		_ = conn.Close()
+	}()
+
+	require.NoError(t, conn.SetDeadline(time.Now().Add(2*time.Minute)))
+
+	decoder := execstream.NewDecoder(conn)
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	var exitCode int32
+	exitReceived := false
+
+	for !exitReceived {
+		var frame execstream.Frame
+
+		require.NoError(t, execstream.ReadFrame(decoder, &frame))
+
+		switch frame.Type {
+		case execstream.FrameTypeStdout:
+			stdout.Write(frame.Data)
+		case execstream.FrameTypeStderr:
+			stderr.Write(frame.Data)
+		case execstream.FrameTypeExit:
+			require.NotNil(t, frame.Exit, "exit frame missing payload")
+			exitCode = frame.Exit.Code
+			exitReceived = true
+		case execstream.FrameTypeError:
+			t.Fatalf("exec error: %s", frame.Error)
+		}
+	}
+
+	require.Equal(t, int32(0), exitCode)
+	require.Contains(t, stdout.String(), "orchard")
+	require.Zero(t, stderr.Len())
 }
 
 // TestSchedulerHealthCheckingNonExistentWorker ensures that scheduler

@@ -255,6 +255,21 @@ func (client *Client) wsRequest(
 	path string,
 	params map[string]string,
 ) (net.Conn, error) {
+	values := url.Values{}
+
+	for key, value := range params {
+		values.Set(key, value)
+	}
+
+	return client.wsRequestValues(ctx, path, values, websocket.MessageBinary)
+}
+
+func (client *Client) wsRequestValues(
+	ctx context.Context,
+	path string,
+	params url.Values,
+	messageType websocket.MessageType,
+) (net.Conn, error) {
 	endpointURL := client.formatPath(path)
 
 	// Adapt HTTP scheme to WebSocket scheme
@@ -265,8 +280,10 @@ func (client *Client) wsRequest(
 	}
 
 	values := endpointURL.Query()
-	for key, value := range params {
-		values.Set(key, value)
+	for key, valuesSlice := range params {
+		for _, value := range valuesSlice {
+			values.Add(key, value)
+		}
 	}
 	endpointURL.RawQuery = values.Encode()
 
@@ -290,7 +307,7 @@ func (client *Client) wsRequest(
 		return nil, err
 	}
 
-	return websocket.NetConn(ctx, conn, websocket.MessageBinary), nil
+	return websocket.NetConn(ctx, conn, messageType), nil
 }
 
 func (client *Client) formatPath(path string) *url.URL {
