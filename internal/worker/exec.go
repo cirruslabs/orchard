@@ -283,7 +283,7 @@ outer:
 
 			case err := <-agentErrCh:
 				if err != nil {
-					if !controllerStarted && status.Code(err) == codes.Unimplemented && idx+1 < len(methods) {
+					if status.Code(err) == codes.Unimplemented && idx+1 < len(methods) {
 						lastErr = err
 						streamCancel()
 						_ = agentStream.CloseSend()
@@ -293,6 +293,16 @@ outer:
 							default:
 							}
 						}
+						if controllerStarted {
+							select {
+							case ctrlErr := <-controllerErrCh:
+								if ctrlErr != nil && !errors.Is(ctrlErr, context.Canceled) && !errors.Is(ctrlErr, io.EOF) {
+									worker.logger.Debugf("exec session: controller stream closed during fallback: %v", ctrlErr)
+								}
+							default:
+							}
+						}
+						worker.logger.Debugf("exec session: guest agent rejected method %s mid-stream, falling back", method)
 
 						continue outer
 					}
