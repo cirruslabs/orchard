@@ -82,6 +82,45 @@ func (controller *Controller) PortForward(stream rpc.Controller_PortForwardServe
 	}
 }
 
+func (controller *Controller) Exec(stream rpc.Controller_ExecServer) error {
+	if !controller.authorizeGRPC(stream.Context(), v1pkg.ServiceAccountRoleComputeWrite) {
+		return status.Errorf(codes.Unauthenticated, "auth failed")
+	}
+
+	sessionMetadataValue := metadata.ValueFromIncomingContext(stream.Context(), rpc.MetadataWorkerExecSessionKey)
+	if len(sessionMetadataValue) == 0 {
+		return status.Errorf(codes.InvalidArgument, "no session in metadata")
+	}
+
+	conn := &grpc_net_conn.Conn{
+		Stream:   stream,
+		Request:  &rpc.ExecData{},
+		Response: &rpc.ExecData{},
+		Encode: grpc_net_conn.SimpleEncoder(func(message proto.Message) *[]byte {
+			return &message.(*rpc.ExecData).Data
+		}),
+		Decode: grpc_net_conn.SimpleDecoder(func(message proto.Message) *[]byte {
+			return &message.(*rpc.ExecData).Data
+		}),
+	}
+
+	proxyCtx, err := controller.connRendezvous.Respond(sessionMetadataValue[0],
+		rendezvous.ResultWithErrorMessage[net.Conn]{
+			Result: conn,
+		},
+	)
+	if err != nil {
+		return err
+	}
+
+	select {
+	case <-proxyCtx.Done():
+		return proxyCtx.Err()
+	case <-stream.Context().Done():
+		return stream.Context().Err()
+	}
+}
+
 func (controller *Controller) ResolveIP(ctx context.Context, request *rpc.ResolveIPResult) (*emptypb.Empty, error) {
 	if !controller.authorizeGRPC(ctx, v1pkg.ServiceAccountRoleComputeWrite) {
 		return nil, status.Errorf(codes.Unauthenticated, "auth failed")

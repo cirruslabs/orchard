@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/cirruslabs/orchard/pkg/resource/v1"
+	"github.com/coder/websocket"
 	"net"
 	"net/http"
 	"net/url"
@@ -119,6 +120,44 @@ func (service *VMsService) IP(ctx context.Context, name string, waitSeconds uint
 
 func (service *VMsService) StreamEvents(name string) *EventStreamer {
 	return NewEventStreamer(service.client, fmt.Sprintf("vms/%s/events", url.PathEscape(name)))
+}
+
+func (service *VMsService) Exec(
+	ctx context.Context,
+	name string,
+	command []string,
+	interactive bool,
+	tty bool,
+	rows uint32,
+	cols uint32,
+	waitSeconds uint16,
+) (net.Conn, error) {
+	if len(command) == 0 {
+		return nil, fmt.Errorf("command must contain at least one element")
+	}
+
+	params := url.Values{}
+	params.Set("command", command[0])
+
+	for _, arg := range command[1:] {
+		params.Add("arg", arg)
+	}
+
+	params.Set("interactive", strconv.FormatBool(interactive))
+	params.Set("tty", strconv.FormatBool(tty))
+
+	if rows > 0 {
+		params.Set("rows", strconv.FormatUint(uint64(rows), 10))
+	}
+	if cols > 0 {
+		params.Set("cols", strconv.FormatUint(uint64(cols), 10))
+	}
+	if waitSeconds > 0 {
+		params.Set("wait", strconv.FormatUint(uint64(waitSeconds), 10))
+	}
+
+	return service.client.wsRequestValues(ctx, fmt.Sprintf("vms/%s/exec", url.PathEscape(name)),
+		params, websocket.MessageText)
 }
 
 func (service *VMsService) Logs(ctx context.Context, name string) (lines []string, err error) {

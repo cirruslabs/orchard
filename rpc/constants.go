@@ -8,3 +8,5 @@ const MetadataServiceAccountTokenKey = "x-orchard-service-account-token"
 const MetadataWorkerNameKey = "x-orchard-worker-name"
 
 const MetadataWorkerPortForwardingSessionKey = "x-orchard-port-forwarding-session"
+
+const MetadataWorkerExecSessionKey = "x-orchard-exec-session"
