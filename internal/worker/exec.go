@@ -500,6 +500,38 @@ func (worker *Worker) findVMByUID(uid string) (*vmmanager.VM, error) {
 	return vm, nil
 }
 
+func (worker *Worker) waitForVMByUID(
+	ctx context.Context,
+	uid string,
+	initialErr error,
+) (*vmmanager.VM, error) {
+	worker.requestVMSyncing()
+
+	waitCtx, waitCtxCancel := context.WithTimeout(ctx, 15*time.Second)
+	defer waitCtxCancel()
+
+	ticker := time.NewTicker(200 * time.Millisecond)
+	defer ticker.Stop()
+
+	lastErr := initialErr
+
+	for {
+		vm, err := worker.findVMByUID(uid)
+		if err == nil {
+			return vm, nil
+		}
+
+		lastErr = err
+
+		select {
+		case <-waitCtx.Done():
+			return nil, lastErr
+		case <-ticker.C:
+			continue
+		}
+	}
+}
+
 func vmControlSocketPath(vm *vmmanager.VM) (string, error) {
 	if vm == nil {
 		return "", errors.New("nil VM provided")

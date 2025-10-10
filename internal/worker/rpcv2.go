@@ -165,7 +165,13 @@ func (worker *Worker) handleExecV2(ctx context.Context, execAction *v1.ExecActio
 
 	vm, err := worker.findVMByUID(execAction.VMUID)
 	if err != nil {
-		errorMessage = err.Error()
+		worker.logger.Infof("exec session: VM %s not immediately available, retrying after syncing: %v",
+			execAction.VMUID, err)
+
+		vm, err = worker.waitForVMByUID(ctx, execAction.VMUID, err)
+		if err != nil {
+			errorMessage = err.Error()
+		}
 	}
 
 	if errorMessage != "" {
