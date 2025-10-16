@@ -1,0 +1,55 @@
+syntax = "proto3";
+
+package guestagent;
+
+option go_package = "github.com/cirruslabs/orchard/rpc/guestagent";
+
+service Agent {
+  rpc Exec(stream ExecRequest) returns (stream ExecResponse);
+  rpc ResolveIP(ResolveIPRequest) returns (ResolveIPResponse);
+}
+
+message ExecRequest {
+  message Command {
+    string name = 1;
+    repeated string args = 2;
+    bool interactive = 3;
+    bool tty = 4;
+    TerminalSize terminal_size = 5;
+  }
+
+  oneof type {
+    Command command = 1;
+    IOChunk standard_input = 2;
+    TerminalSize terminal_resize = 3;
+  }
+}
+
+message ExecResponse {
+  message Exit {
+    int32 code = 1;
+  }
+
+  oneof type {
+    Exit exit = 1;
+    IOChunk standard_output = 2;
+    IOChunk standard_error = 3;
+  }
+}
+
+message TerminalSize {
+  uint32 rows = 1;
+  uint32 cols = 2;
+}
+
+message IOChunk {
+  bytes data = 1;
+}
+
+message ResolveIPRequest {
+  // nothing for now
+}
+
+message ResolveIPResponse {
+  string ip = 1;
+}
