@@ -582,7 +582,6 @@ func (worker *Worker) connectToGuestAgent(ctx context.Context, socketPath string
 				return dialer.DialContext(ctx, "unix", socketPath)
 			}),
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
-			grpc.WithReturnConnectionError(),
 		)
 		if err == nil {
 			if readyErr := waitForClientConnReady(attemptCtx, conn); readyErr == nil {
