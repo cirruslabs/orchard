@@ -13,6 +13,7 @@ import (
 	"github.com/samber/lo"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 	"io"
@@ -389,8 +390,14 @@ func (worker *Worker) forwardControllerToAgent(
 				data = []byte{0x04}
 			}
 
-			if len(data) == 0 && !tty {
-				continue
+			if !tty && len(data) == 0 {
+				if err := agentStream.CloseSend(); err != nil {
+					errCh <- err
+				} else {
+					errCh <- io.EOF
+				}
+
+				return
 			}
 
 			if err := agentStream.Send(&guestagentrpc.ExecRequest{
@@ -521,7 +528,9 @@ func (worker *Worker) waitForVMByUID(
 			return vm, nil
 		}
 
-		lastErr = err
+		if err != nil {
+			lastErr = err
+		}
 
 		select {
 		case <-waitCtx.Done():
@@ -565,8 +574,7 @@ func (worker *Worker) connectToGuestAgent(ctx context.Context, socketPath string
 
 		attemptCtx, attemptCancel := context.WithTimeout(waitCtx, 5*time.Second)
 
-		conn, err := grpc.DialContext(
-			attemptCtx,
+		conn, err := grpc.NewClient(
 			"unix://"+socketPath,
 			grpc.WithContextDialer(func(ctx context.Context, address string) (net.Conn, error) {
 				var dialer net.Dialer
@@ -574,14 +582,20 @@ func (worker *Worker) connectToGuestAgent(ctx context.Context, socketPath string
 				return dialer.DialContext(ctx, "unix", socketPath)
 			}),
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
-			grpc.WithBlock(),
+			grpc.WithReturnConnectionError(),
 		)
+		if err == nil {
+			if readyErr := waitForClientConnReady(attemptCtx, conn); readyErr == nil {
+				attemptCancel()
+
+				return conn, nil
+			} else {
+				_ = conn.Close()
+				err = readyErr
+			}
+		}
 
 		attemptCancel()
-
-		if err == nil {
-			return conn, nil
-		}
 
 		if waitCtx.Err() != nil {
 			return nil, err
@@ -638,4 +652,23 @@ func (worker *Worker) establishAgentExecStream(
 	return &grpc.GenericClientStream[guestagentrpc.ExecRequest, guestagentrpc.ExecResponse]{
 		ClientStream: stream,
 	}, nil
+}
+
+func waitForClientConnReady(ctx context.Context, conn *grpc.ClientConn) error {
+	for {
+		state := conn.GetState()
+		if state == connectivity.Ready {
+			return nil
+		}
+
+		conn.Connect()
+
+		if !conn.WaitForStateChange(ctx, state) {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+
+			return fmt.Errorf("gRPC connection state change timed out while waiting for readiness")
+		}
+	}
 }
