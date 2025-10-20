@@ -71,6 +71,24 @@ func (controller *Controller) rpcWatch(ctx *gin.Context) responder.Responder {
 					Session: typedAction.ResolveIpAction.Session,
 					VMUID:   typedAction.ResolveIpAction.VmUid,
 				}
+			case *rpc.WatchInstruction_ExecAction:
+				execAction := typedAction.ExecAction
+
+				watchInstruction.ExecAction = &v1.ExecAction{
+					Session:     execAction.Session,
+					VMUID:       execAction.VmUid,
+					Command:     execAction.Command,
+					Args:        execAction.Args,
+					Interactive: execAction.Interactive,
+					TTY:         execAction.Tty,
+				}
+
+				if execAction.TerminalSize != nil {
+					watchInstruction.ExecAction.Terminal = &v1.TerminalSize{
+						Rows: execAction.TerminalSize.Rows,
+						Cols: execAction.TerminalSize.Cols,
+					}
+				}
 			default:
 				continue
 			}
