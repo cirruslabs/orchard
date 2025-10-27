@@ -336,8 +336,14 @@ func (vm *VM) cloneAndConfigure(ctx context.Context) error {
 func (vm *VM) run(ctx context.Context) error {
 	var runArgs = []string{"run"}
 
-	if vm.Resource.NetSoftnet {
+	if vm.Resource.NetSoftnetDeprecated || vm.Resource.NetSoftnet {
 		runArgs = append(runArgs, "--net-softnet")
+	}
+	if len(vm.Resource.NetSoftnetAllow) != 0 {
+		runArgs = append(runArgs, "--net-softnet-allow", strings.Join(vm.Resource.NetSoftnetAllow, ","))
+	}
+	if len(vm.Resource.NetSoftnetBlock) != 0 {
+		runArgs = append(runArgs, "--net-softnet-block", strings.Join(vm.Resource.NetSoftnetBlock, ","))
 	}
 	if vm.Resource.NetBridged != "" {
 		runArgs = append(runArgs, fmt.Sprintf("--net-bridged=%s", vm.Resource.NetBridged))

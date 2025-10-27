@@ -471,8 +471,40 @@ components:
           example: 100
         net-softnet:
           type: boolean
-          description: Whether to use Softnet network isolation
+          description: Please use `netSoftnet` instead
           default: false
+          deprecated: true
+        netSoftnet:
+          type: boolean
+          description: |
+            Whether to use Softnet network isolation.
+            
+            See `tart run`'s help for `--net-softnet` for more details.
+          default: false
+        netSoftnetAllow:
+          type: array
+          description: |
+            List of CIDRs to allow the traffic to when using Softnet isolation.
+            
+            See `tart run`'s help for `--net-softnet-allow` for more details.
+            
+            Enables `netSoftnet`.
+          example:
+            - "192.168.0.0/24"
+          items:
+            type: string
+        netSoftnetBlock:
+          type: array
+          description: |
+            List of CIDRs to block the traffic to when using Softnet isolation.
+            
+            See `tart run`'s help for `--net-softnet-block` for more details.
+            
+            Enables `netSoftnet`.
+          example:
+            - "66.66.0.0/16"
+          items:
+            type: string
         net-bridged:
           type: string
           description: Whether to use bridged network mode

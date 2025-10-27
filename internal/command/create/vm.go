@@ -20,6 +20,8 @@ var cpu uint64
 var memory uint64
 var diskSize uint64
 var netSoftnet bool
+var netSoftnetAllow []string
+var netSoftnetBlock []string
 var netBridged string
 var headless bool
 var nested bool
@@ -47,6 +49,12 @@ func newCreateVMCommand() *cobra.Command {
 	command.Flags().Uint64Var(&diskSize, "disk-size", 0, "resize the VMs disk to the specified size in GB "+
 		"(no resizing is done by default and VM's image default size is used)")
 	command.Flags().BoolVar(&netSoftnet, "net-softnet", false, "whether to use Softnet network isolation")
+	command.Flags().StringSliceVar(&netSoftnetAllow, "net-softnet-allow", []string{},
+		"comma-separated list of CIDRs to allow the traffic to when using Softnet isolation, see "+
+			"\"tart run\"'s help for \"--net-softnet-block\" for more details; automatically enables --net-softnet")
+	command.Flags().StringSliceVar(&netSoftnetBlock, "net-softnet-block", []string{},
+		"comma-separated list of CIDRs to block the traffic to when using Softnet isolation, see "+
+			"\"tart run\"'s help for \"--net-softnet-block\" for more details; automatically enables --net-softnet")
 	command.Flags().StringVar(&netBridged, "net-bridged", "", "whether to use Bridged network mode")
 	command.Flags().BoolVar(&headless, "headless", true, "whether to run without graphics")
 	command.Flags().BoolVar(&nested, "nested", false, "enable nested virtualization")
@@ -101,19 +109,22 @@ func runCreateVM(cmd *cobra.Command, args []string) error {
 		Meta: v1.Meta{
 			Name: name,
 		},
-		Image:        image,
-		CPU:          cpu,
-		Memory:       memory,
-		DiskSize:     diskSize,
-		NetSoftnet:   netSoftnet,
-		NetBridged:   netBridged,
-		Headless:     headless,
-		Nested:       nested,
-		Username:     username,
-		Password:     password,
-		RandomSerial: randomSerial,
-		Labels:       labels,
-		HostDirs:     hostDirs,
+		Image:                image,
+		CPU:                  cpu,
+		Memory:               memory,
+		DiskSize:             diskSize,
+		NetSoftnetDeprecated: netSoftnet,
+		NetSoftnet:           netSoftnet,
+		NetSoftnetAllow:      netSoftnetAllow,
+		NetSoftnetBlock:      netSoftnetBlock,
+		NetBridged:           netBridged,
+		Headless:             headless,
+		Nested:               nested,
+		Username:             username,
+		Password:             password,
+		RandomSerial:         randomSerial,
+		Labels:               labels,
+		HostDirs:             hostDirs,
 	}
 
 	// Convert resources
