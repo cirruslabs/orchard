@@ -22,15 +22,18 @@ type Meta struct {
 }
 
 type VM struct {
-	Image           string          `json:"image,omitempty"`
-	ImagePullPolicy ImagePullPolicy `json:"imagePullPolicy,omitempty"`
-	CPU             uint64          `json:"cpu,omitempty"`
-	Memory          uint64          `json:"memory,omitempty"`
-	DiskSize        uint64          `json:"diskSize,omitempty"`
-	NetSoftnet      bool            `json:"net-softnet,omitempty"`
-	NetBridged      string          `json:"net-bridged,omitempty"`
-	Headless        bool            `json:"headless,omitempty"`
-	Nested          bool            `json:"nested,omitempty"`
+	Image                string          `json:"image,omitempty"`
+	ImagePullPolicy      ImagePullPolicy `json:"imagePullPolicy,omitempty"`
+	CPU                  uint64          `json:"cpu,omitempty"`
+	Memory               uint64          `json:"memory,omitempty"`
+	DiskSize             uint64          `json:"diskSize,omitempty"`
+	NetSoftnetDeprecated bool            `json:"net-softnet,omitempty"`
+	NetSoftnet           bool            `json:"netSoftnet,omitempty"`
+	NetSoftnetAllow      []string        `json:"netSoftnetAllow,omitempty"`
+	NetSoftnetBlock      []string        `json:"netSoftnetBlock,omitempty"`
+	NetBridged           string          `json:"net-bridged,omitempty"`
+	Headless             bool            `json:"headless,omitempty"`
+	Nested               bool            `json:"nested,omitempty"`
 
 	// Status field is used to track the lifecycle of the VM associated with this resource.
 	Status        VMStatus `json:"status,omitempty"`

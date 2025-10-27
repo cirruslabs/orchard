@@ -43,6 +43,13 @@ func (controller *Controller) createVM(ctx *gin.Context) responder.Responder {
 	vm.RestartCount = 0
 	vm.UID = uuid.New().String()
 
+	// Softnet-specific logic: automatically enable Softnet when NetSoftnetAllow or NetSoftnetBlock are set
+	// and propagate deprecated and non-deprecated boolean fields into each other
+	if vm.NetSoftnetDeprecated || vm.NetSoftnet || len(vm.NetSoftnetAllow) != 0 || len(vm.NetSoftnetBlock) != 0 {
+		vm.NetSoftnetDeprecated = true
+		vm.NetSoftnet = true
+	}
+
 	// Provide resource defaults
 	if vm.Resources == nil {
 		vm.Resources = make(v1.Resources)
