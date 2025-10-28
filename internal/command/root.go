@@ -6,6 +6,7 @@ import (
 	"github.com/cirruslabs/orchard/internal/command/create"
 	deletepkg "github.com/cirruslabs/orchard/internal/command/deletecmd"
 	"github.com/cirruslabs/orchard/internal/command/dev"
+	"github.com/cirruslabs/orchard/internal/command/exec"
 	"github.com/cirruslabs/orchard/internal/command/get"
 	"github.com/cirruslabs/orchard/internal/command/list"
 	"github.com/cirruslabs/orchard/internal/command/localnetworkhelper"
@@ -51,6 +52,7 @@ func NewRootCmd() *cobra.Command {
 		pause.NewCommand(),
 		portforward.NewCommand(),
 		resume.NewCommand(),
+		exec.NewCommand(),
 		set.NewCommand(),
 		ssh.NewCommand(),
 		vnc.NewCommand(),

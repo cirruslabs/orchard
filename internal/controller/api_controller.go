@@ -23,6 +23,8 @@ func (controller *Controller) controllerInfo(ctx *gin.Context) responder.Respond
 		capabilities = append(capabilities, v1pkg.ControllerCapabilityRPCV2)
 	}
 
+	capabilities = append(capabilities, v1pkg.ControllerCapabilityExec)
+
 	return responder.JSON(http.StatusOK, &v1pkg.ControllerInfo{
 		Version:      version.Version,
 		Commit:       version.Commit,

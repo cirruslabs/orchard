@@ -59,6 +59,8 @@ func (worker *Worker) watchRPC(ctx context.Context) error {
 			worker.requestVMSyncing()
 		case *rpc.WatchInstruction_ResolveIpAction:
 			go worker.handleGetIP(ctxWithMetadata, client, action.ResolveIpAction)
+		case *rpc.WatchInstruction_ExecAction:
+			go worker.handleExec(ctxWithMetadata, client, action.ExecAction)
 		}
 	}
 }
@@ -182,5 +184,43 @@ func (worker *Worker) handleGetIP(
 			"failed to call back to the controller: %v", resolveIP.VmUid, err)
 
 		return
+	}
+}
+
+func (worker *Worker) handleExec(
+	ctx context.Context,
+	client rpc.ControllerClient,
+	execAction *rpc.WatchInstruction_Exec,
+) {
+	subCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	grpcMetadata := metadata.Join(
+		worker.grpcMetadata(),
+		metadata.Pairs(rpc.MetadataWorkerExecSessionKey, execAction.Session),
+	)
+	ctxWithMetadata := metadata.NewOutgoingContext(subCtx, grpcMetadata)
+
+	stream, err := client.Exec(ctxWithMetadata)
+	if err != nil {
+		worker.logger.Warnf("exec failed: failed to call Exec() RPC method: %v", err)
+
+		return
+	}
+
+	conn := &grpc_net_conn.Conn{
+		Stream:   stream,
+		Request:  &rpc.ExecData{},
+		Response: &rpc.ExecData{},
+		Encode: grpc_net_conn.SimpleEncoder(func(message proto.Message) *[]byte {
+			return &message.(*rpc.ExecData).Data
+		}),
+		Decode: grpc_net_conn.SimpleDecoder(func(message proto.Message) *[]byte {
+			return &message.(*rpc.ExecData).Data
+		}),
+	}
+
+	if err := worker.runExecSession(subCtx, execOptionsFromProto(execAction), conn, nil); err != nil {
+		worker.logger.Warnf("exec session failed: %v", err)
 	}
 }
