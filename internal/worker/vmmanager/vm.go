@@ -455,7 +455,7 @@ func (vm *VM) Restart() {
 }
 
 func (vm *VM) Delete() error {
-	if !vm.cloned.Load() {
+	if !vm.cloned.Load() || vm.Resource.RestartRequested {
 		return nil
 	}
 
