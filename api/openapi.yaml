@@ -517,6 +517,10 @@ components:
           type: boolean
           description: Enable nested virtualization
           default: false
+        suspendable:
+          type: boolean
+          description: Whether to allow suspending the VM via `tart run --suspendable`
+          default: false
         status:
           type: string
           description: VM status

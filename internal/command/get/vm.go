@@ -98,6 +98,7 @@ func runGetVM(cmd *cobra.Command, args []string) error {
 	table.AddRow("Bridged networking interface", nonEmptyOrNone(vm.NetBridged))
 	table.AddRow("Headless mode", vm.Headless)
 	table.AddRow("Nested virtualization", vm.Nested)
+	table.AddRow("Suspendable", vm.Suspendable)
 	table.AddRow("Status", vm.Status)
 	table.AddRow("Status message", vm.StatusMessage)
 	table.AddRow("Assigned worker", nonEmptyOrNone(vm.Worker))

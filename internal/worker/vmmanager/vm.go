@@ -356,6 +356,9 @@ func (vm *VM) run(ctx context.Context) error {
 	if vm.Resource.Nested {
 		runArgs = append(runArgs, "--nested")
 	}
+	if vm.Resource.Suspendable {
+		runArgs = append(runArgs, "--suspendable")
+	}
 
 	for _, hostDir := range vm.Resource.HostDirs {
 		runArgs = append(runArgs, fmt.Sprintf("--dir=%s", hostDir.String()))

@@ -34,6 +34,7 @@ type VM struct {
 	NetBridged           string          `json:"net-bridged,omitempty"`
 	Headless             bool            `json:"headless,omitempty"`
 	Nested               bool            `json:"nested,omitempty"`
+	Suspendable          bool            `json:"suspendable,omitempty"`
 
 	// Status field is used to track the lifecycle of the VM associated with this resource.
 	Status        VMStatus `json:"status,omitempty"`
