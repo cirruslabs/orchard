@@ -422,6 +422,28 @@ paths:
           description: VM resource with the given name doesn't exist
         '503':
           description: Failed to resolve the IP address on the worker responsible for the specified VM
+  /vms/{name}/restart:
+    parameters:
+      - in: path
+        name: name
+        required: true
+        schema:
+          type: string
+    post:
+      summary: "Restart a VM"
+      tags:
+        - vms
+      responses:
+        '202':
+          description: VM restart was requested
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VM'
+        '404':
+          description: VM resource with the given name doesn't exist
+        '412':
+          description: VM is not assigned to a worker and cannot be restarted
 components:
   schemas:
     Worker:
@@ -565,6 +587,10 @@ components:
             VM restart policy: specify "Never" to never restart or "OnFailure" to only restart when the VM fails
           default: Never
           enum: [Never, OnFailure]
+        restart_requested:
+          type: boolean
+          description: Indicates that the worker should restart this VM in-place
+          readOnly: true
         resources:
           type: object
           description: Resources required by this VM on the worker

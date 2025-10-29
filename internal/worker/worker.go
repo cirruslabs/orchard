@@ -288,7 +288,15 @@ func (worker *Worker) syncVMs(ctx context.Context) error {
 				return err
 			}
 		} else {
-			if remoteVM.Status == v1.VMStatusFailed {
+			if remoteVM.RestartRequested {
+				vm.Restart()
+
+				remoteVM.RestartRequested = false
+				remoteVM.StatusMessage = vm.Status()
+				if _, err := worker.client.VMs().Update(ctx, remoteVM); err != nil {
+					return err
+				}
+			} else if remoteVM.Status == v1.VMStatusFailed {
 				// VM has failed on the remote side, stop it locally to prevent incorrect
 				// worker's resources calculation in the Controller's scheduler
 				vm.Stop()

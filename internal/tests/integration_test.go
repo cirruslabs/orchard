@@ -99,6 +99,45 @@ func TestSingleVM(t *testing.T) {
 	}), "VM was not garbage collected in a timely manner")
 }
 
+func TestVMRestart(t *testing.T) {
+	devClient, _, _ := devcontroller.StartIntegrationTestEnvironment(t)
+
+	err := devClient.VMs().Create(context.Background(), &v1.VM{
+		Meta: v1.Meta{
+			Name: "restart-vm",
+		},
+		Image:    imageconstant.DefaultMacosImage,
+		CPU:      2,
+		Memory:   4 * 1024,
+		Headless: true,
+		Status:   v1.VMStatusPending,
+	})
+	require.NoError(t, err)
+
+	require.True(t, wait.Wait(2*time.Minute, func() bool {
+		vm, getErr := devClient.VMs().Get(context.Background(), "restart-vm")
+		require.NoError(t, getErr)
+
+		return vm.Status == v1.VMStatusRunning
+	}), "failed to wait for the VM to start")
+
+	vmAfterRestartRequest, err := devClient.VMs().Restart(context.Background(), "restart-vm")
+	require.NoError(t, err)
+	require.True(t, vmAfterRestartRequest.RestartRequested, "restart flag should be set")
+	require.EqualValues(t, 1, vmAfterRestartRequest.RestartCount, "restart count should increment")
+	require.False(t, vmAfterRestartRequest.RestartedAt.IsZero(), "restart timestamp should be set")
+
+	require.True(t, wait.Wait(2*time.Minute, func() bool {
+		vm, getErr := devClient.VMs().Get(context.Background(), "restart-vm")
+		require.NoError(t, getErr)
+
+		return !vm.RestartRequested &&
+			vm.RestartCount == 1 &&
+			vm.Status == v1.VMStatusRunning &&
+			vm.StatusMessage == "VM restarted"
+	}), "VM wasn't restarted in-place by the worker")
+}
+
 func TestFailedStartupScript(t *testing.T) {
 	devClient, _, _ := devcontroller.StartIntegrationTestEnvironment(t)
 

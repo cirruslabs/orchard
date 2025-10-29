@@ -159,6 +159,9 @@ func (controller *Controller) initAPI() *gin.Engine {
 	v1.DELETE("/vms/:name", func(c *gin.Context) {
 		controller.deleteVM(c).Respond(c)
 	})
+	v1.POST("/vms/:name/restart", func(c *gin.Context) {
+		controller.restartVM(c).Respond(c)
+	})
 	v1.GET("/vms/:name/events", func(c *gin.Context) {
 		controller.listVMEvents(c).Respond(c)
 	})

@@ -415,6 +415,45 @@ func (vm *VM) Stop() {
 	vm.logger.Debugf("VM stopped")
 }
 
+func (vm *VM) Restart() {
+	vm.logger.Debugf("restarting VM")
+
+	vm.Stop()
+
+	vm.stopping.Store(false)
+	vm.err.Store(nil)
+
+	vm.ctx, vm.cancel = context.WithCancel(context.Background())
+
+	vm.wg.Add(1)
+
+	go func() {
+		defer vm.wg.Done()
+
+		vm.setStatus("VM restarted")
+
+		if err := vm.run(vm.ctx); err != nil {
+			select {
+			case <-vm.ctx.Done():
+				// Do not report error if restart was interrupted via context cancellation
+			default:
+				vm.setErr(fmt.Errorf("%w: %v", ErrVMFailed, err))
+			}
+
+			return
+		}
+
+		select {
+		case <-vm.ctx.Done():
+			// Do not report error if restart was interrupted via context cancellation
+		default:
+			if !vm.stopping.Load() {
+				vm.setErr(fmt.Errorf("%w: VM exited unexpectedly", ErrVMFailed))
+			}
+		}
+	}()
+}
+
 func (vm *VM) Delete() error {
 	if !vm.cloned.Load() {
 		return nil

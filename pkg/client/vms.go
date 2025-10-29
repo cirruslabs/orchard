@@ -88,6 +88,18 @@ func (service *VMsService) Delete(ctx context.Context, name string) error {
 	return nil
 }
 
+func (service *VMsService) Restart(ctx context.Context, name string) (*v1.VM, error) {
+	var vm v1.VM
+
+	err := service.client.request(ctx, http.MethodPost, fmt.Sprintf("vms/%s/restart", url.PathEscape(name)),
+		nil, &vm, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return &vm, nil
+}
+
 func (service *VMsService) PortForward(
 	ctx context.Context,
 	name string,

@@ -63,6 +63,8 @@ type VM struct {
 	RestartPolicy RestartPolicy `json:"restart_policy,omitempty"`
 	RestartedAt   time.Time     `json:"restarted_at,omitempty"`
 	RestartCount  uint64        `json:"restart_count,omitempty"`
+	// RestartRequested indicates that the worker should restart the VM in-place.
+	RestartRequested bool `json:"restart_requested,omitempty"`
 
 	// RandomSerial controls whether the worker will run the
 	// "tart set --random-serial" when instantiating this VM.
