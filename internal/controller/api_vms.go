@@ -190,6 +190,7 @@ func (controller *Controller) updateVMState(ctx *gin.Context) responder.Responde
 		dbVM.Status = userVM.Status
 		dbVM.StatusMessage = userVM.StatusMessage
 		dbVM.ImageFQN = userVM.ImageFQN
+		dbVM.VMState = userVM.VMState
 
 		if err := txn.SetVM(*dbVM); err != nil {
 			controller.logger.Errorf("failed to update VM in the DB: %v", err)
