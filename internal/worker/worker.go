@@ -188,18 +188,18 @@ func (worker *Worker) runNewSession(ctx context.Context) error {
 		}()
 	}
 
+	// Sync on-disk VMs
+	if err := worker.syncOnDiskVMs(ctx); err != nil {
+		worker.logger.Errorf("failed to sync on-disk VMs: %v", err)
+
+		return nil
+	}
+
 	// Backward compatibility with for older Orchard Controllers
 	updateFunc := worker.client.VMs().UpdateState
 
 	if !info.Capabilities.Has(v1.ControllerCapabilityVMStateEndpoint) {
 		updateFunc = worker.client.VMs().Update
-	}
-
-	// Sync on-disk VMs
-	if err := worker.syncOnDiskVMs(ctx, updateFunc); err != nil {
-		worker.logger.Errorf("failed to sync on-disk VMs: %v", err)
-
-		return nil
 	}
 
 	for {
@@ -421,7 +421,7 @@ func (worker *Worker) syncVMs(ctx context.Context, updateVM func(context.Context
 }
 
 //nolint:nestif,gocognit // complexity is tolerable for now
-func (worker *Worker) syncOnDiskVMs(ctx context.Context, updateVM func(context.Context, v1.VM) (*v1.VM, error)) error {
+func (worker *Worker) syncOnDiskVMs(ctx context.Context) error {
 	remoteVMs, err := worker.client.VMs().FindForWorker(ctx, worker.name)
 	if err != nil {
 		return err
