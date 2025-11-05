@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestExplicitStateTransitions ensure that all state transitions
+// TestExplicitStateTransitions ensures that all state transitions
 // yield a defined action (something other than ActionUndefined).
 func TestExplicitStateTransitions(t *testing.T) {
 	possibleStates := []mo.Option[v1.VMStatus]{
