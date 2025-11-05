@@ -3,11 +3,12 @@ package client
 import (
 	"context"
 	"fmt"
-	"github.com/cirruslabs/orchard/pkg/resource/v1"
 	"net"
 	"net/http"
 	"net/url"
 	"strconv"
+
+	"github.com/cirruslabs/orchard/pkg/resource/v1"
 )
 
 type VMsService struct {
@@ -70,6 +71,17 @@ func (service *VMsService) Get(ctx context.Context, name string) (*v1.VM, error)
 func (service *VMsService) Update(ctx context.Context, vm v1.VM) (*v1.VM, error) {
 	var updatedVM v1.VM
 	err := service.client.request(ctx, http.MethodPut, fmt.Sprintf("vms/%s", url.PathEscape(vm.Name)),
+		vm, &updatedVM, nil)
+	if err != nil {
+		return &updatedVM, err
+	}
+
+	return &updatedVM, nil
+}
+
+func (service *VMsService) UpdateState(ctx context.Context, vm v1.VM) (*v1.VM, error) {
+	var updatedVM v1.VM
+	err := service.client.request(ctx, http.MethodPut, fmt.Sprintf("vms/%s/state", url.PathEscape(vm.Name)),
 		vm, &updatedVM, nil)
 	if err != nil {
 		return &updatedVM, err

@@ -142,7 +142,24 @@ func (controller *Controller) initAPI() *gin.Engine {
 		controller.createVM(c).Respond(c)
 	})
 	v1.PUT("/vms/:name", func(c *gin.Context) {
-		controller.updateVM(c).Respond(c)
+		if strings.HasPrefix(c.GetHeader("User-Agent"), "Orchard/0") {
+			// Backward compatibility for older Orchard Workers that still
+			// use the PUT /vms/{name} API endpoint to update a VM status
+			//
+			// Note that we include the "0" here to avoid targeting users
+			// of the github.com/cirruslabs/orchard/pkg/client package. For
+			// them, the UA string should normally be "Orchard/unknown-unknown".
+			//
+			// After some months/years we can remove this workaround and at
+			// the very worst the workers simply won't progress with the VMs
+			// assigned to them. An upgrade to a newer version will fix that.
+			controller.updateVMState(c).Respond(c)
+		} else {
+			controller.updateVMSpec(c).Respond(c)
+		}
+	})
+	v1.PUT("/vms/:name/state", func(c *gin.Context) {
+		controller.updateVMState(c).Respond(c)
 	})
 	v1.GET("/vms/:name", func(c *gin.Context) {
 		controller.getVM(c).Respond(c)

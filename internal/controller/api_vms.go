@@ -12,6 +12,7 @@ import (
 	"github.com/cirruslabs/orchard/internal/simplename"
 	"github.com/cirruslabs/orchard/pkg/resource/v1"
 	"github.com/gin-gonic/gin"
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/samber/lo"
 )
@@ -108,7 +109,7 @@ func (controller *Controller) createVM(ctx *gin.Context) responder.Responder {
 	return response
 }
 
-func (controller *Controller) updateVM(ctx *gin.Context) responder.Responder {
+func (controller *Controller) updateVMSpec(ctx *gin.Context) responder.Responder {
 	if responder := controller.authorize(ctx, v1.ServiceAccountRoleComputeWrite); responder != nil {
 		return responder
 	}
@@ -119,12 +120,60 @@ func (controller *Controller) updateVM(ctx *gin.Context) responder.Responder {
 		return responder.JSON(http.StatusBadRequest, NewErrorResponse("invalid JSON was provided"))
 	}
 
-	if userVM.Name == "" {
-		return responder.JSON(http.StatusPreconditionFailed, NewErrorResponse("VM name is empty"))
-	}
+	name := ctx.Param("name")
 
 	return controller.storeUpdate(func(txn storepkg.Transaction) responder.Responder {
-		dbVM, err := txn.GetVM(userVM.Name)
+		dbVM, err := txn.GetVM(name)
+		if err != nil {
+			return responder.Error(err)
+		}
+
+		if dbVM.TerminalState() {
+			return responder.JSON(http.StatusPreconditionFailed,
+				NewErrorResponse("cannot update VM in a terminal state"))
+		}
+
+		// Softnet-specific logic: automatically enable Softnet when NetSoftnetAllow or NetSoftnetBlock are set
+		// and propagate deprecated and non-deprecated boolean fields into each other
+		if userVM.NetSoftnetDeprecated || userVM.NetSoftnet || len(userVM.NetSoftnetAllow) != 0 || len(userVM.NetSoftnetBlock) != 0 {
+			userVM.NetSoftnetDeprecated = true
+			userVM.NetSoftnet = true
+		}
+
+		if cmp.Equal(dbVM.VMSpec, userVM.VMSpec) {
+			// Nothing was changed
+			return responder.JSON(http.StatusOK, dbVM)
+		}
+
+		// VM specification was changed
+		dbVM.VMSpec = userVM.VMSpec
+		dbVM.Generation++
+
+		if err := txn.SetVM(*dbVM); err != nil {
+			controller.logger.Errorf("failed to update VM in the DB: %v", err)
+
+			return responder.Code(http.StatusInternalServerError)
+		}
+
+		return responder.JSON(http.StatusOK, dbVM)
+	})
+}
+
+func (controller *Controller) updateVMState(ctx *gin.Context) responder.Responder {
+	if responder := controller.authorize(ctx, v1.ServiceAccountRoleComputeWrite); responder != nil {
+		return responder
+	}
+
+	var userVM v1.VM
+
+	if err := ctx.ShouldBindJSON(&userVM); err != nil {
+		return responder.JSON(http.StatusBadRequest, NewErrorResponse("invalid JSON was provided"))
+	}
+
+	name := ctx.Param("name")
+
+	return controller.storeUpdate(func(txn storepkg.Transaction) responder.Responder {
+		dbVM, err := txn.GetVM(name)
 		if err != nil {
 			return responder.Error(err)
 		}
