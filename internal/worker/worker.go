@@ -282,7 +282,9 @@ func (worker *Worker) syncVMs(ctx context.Context, updateVM func(context.Context
 	for _, remoteVM := range remoteVMs {
 		onDiskName := ondiskname.NewFromResource(remoteVM)
 		allKeys.Add(onDiskName)
-		remoteVMsIndex[onDiskName] = &remoteVM
+		// Can't take an address of a loop variable
+		remoteVMCopy := remoteVM
+		remoteVMsIndex[onDiskName] = &remoteVMCopy
 	}
 
 	localVMsIndex := map[ondiskname.OnDiskName]*vmmanager.VM{}
