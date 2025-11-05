@@ -442,12 +442,27 @@ components:
     VM:
       title: Virtual Machine
       type: object
+      allOf:
+        - $ref: '#/components/schemas/VMMeta'
+        - $ref: '#/components/schemas/VMSpec'
+        - $ref: '#/components/schemas/VMState'
+    VMMeta:
+      title: Virtual Machine Metadata
+      type: object
       properties:
         name:
           type: string
           description: VM name
           example: macos-tahoe-base
           readOnly: true
+        generation:
+          type: number
+          description: Incremented by the controller each time a VM's specification changes
+          readOnly: true
+    VMSpec:
+      title: Virtual Machine Specification
+      type: object
+      properties:
         image:
           type: string
           description: VM image for this VM
@@ -517,19 +532,6 @@ components:
           type: boolean
           description: Enable nested virtualization
           default: false
-        status:
-          type: string
-          description: VM status
-          enum: [pending, running, failed]
-          readOnly: true
-        status_message:
-          type: string
-          description: VM status message
-          readOnly: true
-        worker:
-          type: string
-          description: Worker on which the VM was assigned to
-          readOnly: true
         username:
           type: string
           description: SSH username to use when connecting to a VM
@@ -592,6 +594,23 @@ components:
             - path: /path/on/host/to/sources
               ro: true
             - path: /path/on/host/to/builds
+    VMState:
+      title: Virtual Machine State
+      type: object
+      properties:
+        status:
+          type: string
+          description: VM status
+          enum: [ pending, running, failed ]
+        status_message:
+          type: string
+          description: VM status message
+        worker:
+          type: string
+          description: Worker on which the VM was assigned to
+        observedGeneration:
+          type: number
+          description: Corresponds to the `Generation` value on which the worker had acted upon
     Events:
       title: Events
       type: object
