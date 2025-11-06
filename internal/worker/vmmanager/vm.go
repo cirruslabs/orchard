@@ -46,8 +46,8 @@ type VM struct {
 	// Image FQN feature, see https://github.com/cirruslabs/orchard/issues/164
 	imageFQN atomic.Pointer[string]
 
-	status atomic.Pointer[string]
-	err    atomic.Pointer[error]
+	statusMessage atomic.Pointer[string]
+	err           atomic.Pointer[error]
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -89,7 +89,7 @@ func NewVM(
 		defer vm.wg.Done()
 
 		if vmResource.ImagePullPolicy == v1.ImagePullPolicyAlways {
-			vm.setStatus("pulling VM image...")
+			vm.setStatusMessage("pulling VM image...")
 
 			pullStartedAt := time.Now()
 
@@ -123,38 +123,9 @@ func NewVM(
 		}
 
 		vm.cloned.Store(true)
-
-		// Launch the startup script goroutine as close as possible
-		// to the VM startup (below) to avoid "tart ip" timing out
-		if vm.Resource.StartupScript != nil {
-			vm.setStatus("VM started, running startup script...")
-
-			go vm.runScript(vm.Resource.StartupScript, eventStreamer)
-		} else {
-			vm.setStatus("VM started")
-		}
-
 		vm.started.Store(true)
 
-		if err := vm.run(vm.ctx); err != nil {
-			select {
-			case <-vm.ctx.Done():
-				// Do not return an error because it's the user's intent to cancel this VM
-			default:
-				vm.setErr(fmt.Errorf("%w: %v", ErrVMFailed, err))
-			}
-
-			return
-		}
-
-		select {
-		case <-vm.ctx.Done():
-			// Do not return an error because it's the user's intent to cancel this VM
-		default:
-			if !vm.stopping.Load() {
-				vm.setErr(fmt.Errorf("%w: VM exited unexpectedly", ErrVMFailed))
-			}
-		}
+		vm.run(vm.ctx, eventStreamer)
 	}()
 
 	return vm
@@ -176,8 +147,20 @@ func (vm *VM) id() string {
 	return vm.onDiskName.String()
 }
 
-func (vm *VM) Status() string {
-	status := vm.status.Load()
+func (vm *VM) Status() v1.VMStatus {
+	if vm.Err() != nil {
+		return v1.VMStatusFailed
+	}
+
+	if vm.Started() {
+		return v1.VMStatusRunning
+	}
+
+	return v1.VMStatusPending
+}
+
+func (vm *VM) StatusMessage() string {
+	status := vm.statusMessage.Load()
 
 	if status != nil {
 		return *status
@@ -186,9 +169,9 @@ func (vm *VM) Status() string {
 	return ""
 }
 
-func (vm *VM) setStatus(status string) {
+func (vm *VM) setStatusMessage(status string) {
 	vm.logger.Debugf(status)
-	vm.status.Store(&status)
+	vm.statusMessage.Store(&status)
 }
 
 func (vm *VM) Err() error {
@@ -206,7 +189,7 @@ func (vm *VM) setErr(err error) {
 }
 
 func (vm *VM) cloneAndConfigure(ctx context.Context) error {
-	vm.setStatus("cloning VM...")
+	vm.setStatusMessage("cloning VM...")
 
 	_, _, err := tart.Tart(ctx, vm.logger, "clone", vm.Resource.Image, vm.id())
 	if err != nil {
@@ -221,7 +204,7 @@ func (vm *VM) cloneAndConfigure(ctx context.Context) error {
 	}
 
 	// Set memory
-	vm.setStatus("configuring VM...")
+	vm.setStatusMessage("configuring VM...")
 
 	memory := vm.Resource.AssignedMemory
 
@@ -333,7 +316,17 @@ func (vm *VM) cloneAndConfigure(ctx context.Context) error {
 	return nil
 }
 
-func (vm *VM) run(ctx context.Context) error {
+func (vm *VM) run(ctx context.Context, eventStreamer *client.EventStreamer) {
+	// Launch the startup script goroutine as close as possible
+	// to the VM startup (below) to avoid "tart ip" timing out
+	if vm.Resource.StartupScript != nil {
+		vm.setStatusMessage("VM started, running startup script...")
+
+		go vm.runScript(vm.Resource.StartupScript, eventStreamer)
+	} else {
+		vm.setStatusMessage("VM started")
+	}
+
 	var runArgs = []string{"run"}
 
 	if vm.Resource.NetSoftnetDeprecated || vm.Resource.NetSoftnet {
@@ -364,10 +357,24 @@ func (vm *VM) run(ctx context.Context) error {
 	runArgs = append(runArgs, vm.id())
 	_, _, err := tart.Tart(ctx, vm.logger, runArgs...)
 	if err != nil {
-		return err
+		select {
+		case <-vm.ctx.Done():
+			// Do not return an error because it's the user's intent to cancel this VM
+		default:
+			vm.setErr(fmt.Errorf("%w: %v", ErrVMFailed, err))
+		}
+
+		return
 	}
 
-	return nil
+	select {
+	case <-vm.ctx.Done():
+		// Do not return an error because it's the user's intent to cancel this VM
+	default:
+		if !vm.stopping.Load() {
+			vm.setErr(fmt.Errorf("%w: VM exited unexpectedly", ErrVMFailed))
+		}
+	}
 }
 
 func (vm *VM) IP(ctx context.Context) (string, error) {
@@ -401,6 +408,7 @@ func (vm *VM) Stop() {
 	vm.logger.Debugf("stopping VM")
 
 	vm.stopping.Store(true)
+	defer vm.stopping.Store(false)
 
 	// Try to gracefully terminate the VM
 	_, _, _ = tart.Tart(context.Background(), zap.NewNop().Sugar(), "stop", "--timeout", "5", vm.id())
@@ -410,6 +418,19 @@ func (vm *VM) Stop() {
 	vm.wg.Wait()
 
 	vm.logger.Debugf("VM stopped")
+}
+
+func (vm *VM) Reboot(eventStreamer *client.EventStreamer) {
+	vm.Stop()
+
+	vm.ctx, vm.cancel = context.WithCancel(context.Background())
+	vm.wg.Add(1)
+
+	go func() {
+		defer vm.wg.Done()
+
+		vm.run(vm.ctx, eventStreamer)
+	}()
 }
 
 func (vm *VM) Delete() error {

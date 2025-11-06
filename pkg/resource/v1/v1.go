@@ -22,18 +22,17 @@ type Meta struct {
 }
 
 type VM struct {
-	Image                string          `json:"image,omitempty"`
-	ImagePullPolicy      ImagePullPolicy `json:"imagePullPolicy,omitempty"`
-	CPU                  uint64          `json:"cpu,omitempty"`
-	Memory               uint64          `json:"memory,omitempty"`
-	DiskSize             uint64          `json:"diskSize,omitempty"`
-	NetSoftnetDeprecated bool            `json:"net-softnet,omitempty"`
-	NetSoftnet           bool            `json:"netSoftnet,omitempty"`
-	NetSoftnetAllow      []string        `json:"netSoftnetAllow,omitempty"`
-	NetSoftnetBlock      []string        `json:"netSoftnetBlock,omitempty"`
-	NetBridged           string          `json:"net-bridged,omitempty"`
-	Headless             bool            `json:"headless,omitempty"`
-	Nested               bool            `json:"nested,omitempty"`
+	Image           string          `json:"image,omitempty"`
+	ImagePullPolicy ImagePullPolicy `json:"imagePullPolicy,omitempty"`
+	CPU             uint64          `json:"cpu,omitempty"`
+	Memory          uint64          `json:"memory,omitempty"`
+	DiskSize        uint64          `json:"diskSize,omitempty"`
+	NetBridged      string          `json:"net-bridged,omitempty"`
+	Headless        bool            `json:"headless,omitempty"`
+	Nested          bool            `json:"nested,omitempty"`
+
+	VMSpec
+	VMState
 
 	// Status field is used to track the lifecycle of the VM associated with this resource.
 	Status        VMStatus `json:"status,omitempty"`
@@ -88,7 +87,27 @@ type VM struct {
 	ScheduledAt time.Time `json:"scheduled_at,omitempty"`
 	StartedAt   time.Time `json:"started_at,omitempty"`
 
+	// Generation is incremented by the controller each time
+	// the resource's specification is changed.
+	//
+	// At some point we'll move Generation field to the Metadata
+	// structure as it can be useful for other resources too.
+	Generation uint64 `json:"generation"`
+
 	Meta
+}
+
+type VMSpec struct {
+	NetSoftnetDeprecated bool     `json:"net-softnet,omitempty"`
+	NetSoftnet           bool     `json:"netSoftnet,omitempty"`
+	NetSoftnetAllow      []string `json:"netSoftnetAllow,omitempty"`
+	NetSoftnetBlock      []string `json:"netSoftnetBlock,omitempty"`
+}
+
+type VMState struct {
+	// ObservedGeneration corresponds to the Generation of VM specification
+	// on which the worker had acted upon.
+	ObservedGeneration uint64 `json:"observedGeneration"`
 }
 
 type Event struct {
@@ -134,8 +153,9 @@ const (
 type ControllerCapability string
 
 const (
-	ControllerCapabilityRPCV1 ControllerCapability = "rpc-v1"
-	ControllerCapabilityRPCV2 ControllerCapability = "rpc-v2"
+	ControllerCapabilityRPCV1           ControllerCapability = "rpc-v1"
+	ControllerCapabilityRPCV2           ControllerCapability = "rpc-v2"
+	ControllerCapabilityVMStateEndpoint ControllerCapability = "vm-state-endpoint"
 )
 
 type ControllerCapabilities []ControllerCapability

@@ -15,6 +15,7 @@ require (
 	github.com/go-openapi/runtime v0.29.0
 	github.com/gofrs/flock v0.13.0
 	github.com/golang/protobuf v1.5.4
+	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
 	github.com/gosuri/uitable v0.0.4
 	github.com/hashicorp/go-multierror v1.1.1
@@ -26,6 +27,7 @@ require (
 	github.com/prometheus/client_golang v1.23.2
 	github.com/pterm/pterm v0.12.82
 	github.com/samber/lo v1.52.0
+	github.com/samber/mo v1.16.0
 	github.com/sethvargo/go-password v0.3.1
 	github.com/shirou/gopsutil/v4 v4.25.9
 	github.com/skratchdot/open-golang v0.0.0-20200116055534-eef842397966

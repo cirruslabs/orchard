@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
 	"time"
 
 	"github.com/avast/retry-go/v4"
@@ -18,8 +19,11 @@ import (
 	"github.com/cirruslabs/orchard/pkg/client"
 	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
 	"github.com/cirruslabs/orchard/rpc"
+	mapset "github.com/deckarep/golang-set/v2"
 	"github.com/dustin/go-humanize"
 	"github.com/hashicorp/go-multierror"
+	"github.com/samber/lo"
+	"github.com/samber/mo"
 	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/shirou/gopsutil/v4/mem"
 	"go.opentelemetry.io/otel/metric"
@@ -191,6 +195,13 @@ func (worker *Worker) runNewSession(ctx context.Context) error {
 		return nil
 	}
 
+	// Backward compatibility with for older Orchard Controllers
+	updateFunc := worker.client.VMs().UpdateState
+
+	if !info.Capabilities.Has(v1.ControllerCapabilityVMStateEndpoint) {
+		updateFunc = worker.client.VMs().Update
+	}
+
 	for {
 		if err := worker.updateWorker(ctx); err != nil {
 			worker.logger.Errorf("failed to update worker resource: %v", err)
@@ -198,7 +209,7 @@ func (worker *Worker) runNewSession(ctx context.Context) error {
 			return nil
 		}
 
-		if err := worker.syncVMs(subCtx); err != nil {
+		if err := worker.syncVMs(subCtx, updateFunc); err != nil {
 			worker.logger.Warnf("failed to sync VMs: %v", err)
 
 			return nil
@@ -260,26 +271,144 @@ func (worker *Worker) updateWorker(ctx context.Context) error {
 }
 
 //nolint:nestif,gocognit // nested "if" and cognitive complexity is tolerable for now
-func (worker *Worker) syncVMs(ctx context.Context) error {
+func (worker *Worker) syncVMs(ctx context.Context, updateVM func(context.Context, v1.VM) (*v1.VM, error)) error {
+	allKeys := mapset.NewSet[ondiskname.OnDiskName]()
+
 	remoteVMs, err := worker.client.VMs().FindForWorker(ctx, worker.name)
 	if err != nil {
 		return err
 	}
-	remoteVMsIndex := map[ondiskname.OnDiskName]v1.VM{}
+	remoteVMsIndex := map[ondiskname.OnDiskName]*v1.VM{}
 	for _, remoteVM := range remoteVMs {
-		remoteVMsIndex[ondiskname.NewFromResource(remoteVM)] = remoteVM
+		onDiskName := ondiskname.NewFromResource(remoteVM)
+		allKeys.Add(onDiskName)
+		// Can't take an address of a loop variable
+		remoteVMCopy := remoteVM
+		remoteVMsIndex[onDiskName] = &remoteVMCopy
+	}
+
+	localVMsIndex := map[ondiskname.OnDiskName]*vmmanager.VM{}
+	for _, vm := range worker.vmm.List() {
+		onDiskName := vm.OnDiskName()
+		allKeys.Add(onDiskName)
+		localVMsIndex[onDiskName] = vm
 	}
 
 	worker.logger.Infof("syncing %d local VMs against %d remote VMs...",
-		worker.vmm.Len(), len(remoteVMsIndex))
+		len(localVMsIndex), len(remoteVMsIndex))
 
-	// It's important to check the remote VMs against local ones first
-	// to stop the failed VMs before we start the new VMs, otherwise we
-	// risk violating the resource constraints (e.g. a maximum of 2 VMs
-	// per host)
-	for _, vm := range worker.vmm.List() {
-		remoteVM, ok := remoteVMsIndex[vm.OnDiskName()]
-		if !ok {
+	var pairs []lo.Tuple3[ondiskname.OnDiskName, *v1.VM, *vmmanager.VM]
+
+	for onDiskName := range allKeys.Iter() {
+		vmResource := remoteVMsIndex[onDiskName]
+		vm := localVMsIndex[onDiskName]
+
+		pairs = append(pairs, lo.T3(onDiskName, vmResource, vm))
+	}
+
+	// It's important to process the remote VMs in failed state
+	// and local VMs that ceased to exist remotely first, otherwise
+	// we risk violating the scheduler resource assumptions
+	sortNonExistentAndFailedFirst(pairs)
+
+	for _, tuple := range pairs {
+		onDiskName, vmResource, vm := lo.Unpack3(tuple)
+
+		remoteState := mo.None[v1.VMStatus]()
+		if vmResource != nil {
+			remoteState = mo.Some(vmResource.Status)
+		}
+
+		localState := mo.None[v1.VMStatus]()
+		if vm != nil {
+			localState = mo.Some(vm.Status())
+		}
+
+		action := transitions[remoteState][localState]
+
+		worker.logger.Debugf("processing VM: %s, remote: %v, local: %v, action: %v\n", onDiskName,
+			optionToString(remoteState), optionToString(localState), action)
+
+		switch action {
+		case ActionCreate:
+			// Remote VM was created, but not the local VM
+			worker.createVM(onDiskName, *vmResource)
+		case ActionMonitorPending:
+			if vmResource.StatusMessage != vm.StatusMessage() {
+				vmResource.StatusMessage = vm.StatusMessage()
+
+				if _, err := updateVM(ctx, *vmResource); err != nil {
+					return err
+				}
+			}
+		case ActionReportRunning:
+			// Remote VM was created, and the local VM too,
+			// check if the local VM had already started
+			// and update the remote VM as accordingly
+
+			// Image FQN feature, see https://github.com/cirruslabs/orchard/issues/164
+			if imageFQN := vm.ImageFQN(); imageFQN != nil {
+				vmResource.ImageFQN = *imageFQN
+			}
+
+			// Mark the remote VM as started
+			vmResource.Status = v1.VMStatusRunning
+			vmResource.StatusMessage = vm.StatusMessage()
+
+			if _, err := updateVM(ctx, *vmResource); err != nil {
+				return err
+			}
+		case ActionMonitorRunning:
+			if vmResource.StatusMessage != vm.StatusMessage() {
+				vmResource.StatusMessage = vm.StatusMessage()
+
+				if _, err := updateVM(ctx, *vmResource); err != nil {
+					return err
+				}
+			}
+
+			if vmResource.Generation != vm.Resource.Generation {
+				// Something changed, reboot the VM for the changes to take effect
+				vm.Resource = *vmResource
+
+				eventStreamer := worker.client.VMs().StreamEvents(vmResource.Name)
+
+				vm.Reboot(eventStreamer)
+
+				vmResource.ObservedGeneration = vm.Resource.Generation
+
+				if _, err := updateVM(ctx, *vmResource); err != nil {
+					return err
+				}
+			}
+		case ActionStop:
+			// VM has failed on the remote side, stop it locally to prevent incorrect
+			// worker's resources calculation in the Controller's scheduler
+			vm.Stop()
+		case ActionFail, ActionLostTrack, ActionImpossible:
+			// VM has failed on the local side, stop it before reporting as failed to prevent incorrect
+			// worker's resources calculation in the Controller's scheduler
+			if vm != nil {
+				vm.Stop()
+			}
+
+			var statusMessage string
+
+			switch action {
+			case ActionFail:
+				statusMessage = vm.Err().Error()
+			case ActionLostTrack:
+				statusMessage = "Worker lost track of VM"
+			case ActionImpossible:
+				statusMessage = "Encountered an impossible transition"
+			}
+
+			vmResource.Status = v1.VMStatusFailed
+			vmResource.StatusMessage = statusMessage
+			if _, err := updateVM(ctx, *vmResource); err != nil {
+				return err
+			}
+		case ActionDelete:
 			// Remote VM was deleted, delete local VM
 			//
 			// Note: this check needs to run for each VM
@@ -287,58 +416,6 @@ func (worker *Worker) syncVMs(ctx context.Context) error {
 			if err := worker.deleteVM(vm); err != nil {
 				return err
 			}
-		} else {
-			if remoteVM.Status == v1.VMStatusFailed {
-				// VM has failed on the remote side, stop it locally to prevent incorrect
-				// worker's resources calculation in the Controller's scheduler
-				vm.Stop()
-			} else if vm.Err() != nil {
-				// VM has failed on the local side, stop it before reporting as failed to prevent incorrect
-				// worker's resources calculation in the Controller's scheduler
-				vm.Stop()
-
-				// Report the VM as failed
-				remoteVM.Status = v1.VMStatusFailed
-				remoteVM.StatusMessage = vm.Err().Error()
-				if _, err := worker.client.VMs().Update(ctx, remoteVM); err != nil {
-					return err
-				}
-			} else if vm.Status() != remoteVM.StatusMessage {
-				// Report the new VM status message
-				remoteVM.StatusMessage = vm.Status()
-				if _, err := worker.client.VMs().Update(ctx, remoteVM); err != nil {
-					return err
-				}
-			}
-		}
-	}
-
-	for _, vmResource := range remoteVMsIndex {
-		odn := ondiskname.NewFromResource(vmResource)
-
-		if vmResource.Status != v1.VMStatusPending {
-			continue
-		}
-
-		if vm, ok := worker.vmm.Get(odn); ok {
-			// Remote VM was created, and the local VM too,
-			// check if the local VM had already started
-			// and update the remote VM as accordingly
-			if vm.Started() {
-				// Image FQN feature, see https://github.com/cirruslabs/orchard/issues/164
-				if imageFQN := vm.ImageFQN(); imageFQN != nil {
-					vmResource.ImageFQN = *imageFQN
-				}
-
-				// Mark the remote VM as started
-				vmResource.Status = v1.VMStatusRunning
-				if _, err := worker.client.VMs().Update(ctx, vmResource); err != nil {
-					return err
-				}
-			}
-		} else {
-			// Remote VM was created, but not the local VM
-			worker.createVM(odn, vmResource)
 		}
 	}
 
@@ -403,15 +480,6 @@ func (worker *Worker) syncOnDiskVMs(ctx context.Context) error {
 					worker.logger.Warnf("failed to stop")
 				}
 			}
-
-			if remoteVM.Status != v1.VMStatusFailed {
-				remoteVM.Status = v1.VMStatusFailed
-				remoteVM.StatusMessage = "Worker lost track of VM"
-				_, err := worker.client.VMs().Update(ctx, remoteVM)
-				if err != nil {
-					return err
-				}
-			}
 		}
 	}
 
@@ -453,4 +521,37 @@ func (worker *Worker) requestVMSyncing() {
 	default:
 		worker.logger.Debugf("There's already a syncing request in the queue, skipping")
 	}
+}
+
+func sortNonExistentAndFailedFirst(input []lo.Tuple3[ondiskname.OnDiskName, *v1.VM, *vmmanager.VM]) {
+	slices.SortStableFunc(input, func(left, right lo.Tuple3[ondiskname.OnDiskName, *v1.VM, *vmmanager.VM]) int {
+		_, leftVM, _ := lo.Unpack3(left)
+		_, rightVM, _ := lo.Unpack3(right)
+
+		leftNonExistent := leftVM == nil
+		rightNonExistent := rightVM == nil
+
+		switch {
+		case leftNonExistent && rightNonExistent:
+			return 0
+		case leftNonExistent:
+			return -1
+		case rightNonExistent:
+			return 1
+		}
+
+		leftFailed := leftVM != nil && leftVM.Status == v1.VMStatusFailed
+		rightFailed := rightVM != nil && rightVM.Status == v1.VMStatusFailed
+
+		switch {
+		case leftFailed && rightFailed:
+			return 0
+		case leftFailed:
+			return -1
+		case rightFailed:
+			return 1
+		default:
+			return 0
+		}
+	})
 }

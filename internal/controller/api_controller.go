@@ -1,11 +1,12 @@
 package controller
 
 import (
+	"net/http"
+
 	"github.com/cirruslabs/orchard/internal/responder"
 	"github.com/cirruslabs/orchard/internal/version"
 	v1pkg "github.com/cirruslabs/orchard/pkg/resource/v1"
 	"github.com/gin-gonic/gin"
-	"net/http"
 )
 
 func (controller *Controller) controllerInfo(ctx *gin.Context) responder.Responder {
@@ -17,6 +18,7 @@ func (controller *Controller) controllerInfo(ctx *gin.Context) responder.Respond
 
 	capabilities := []v1pkg.ControllerCapability{
 		v1pkg.ControllerCapabilityRPCV1,
+		v1pkg.ControllerCapabilityVMStateEndpoint,
 	}
 
 	if controller.experimentalRPCV2 {
