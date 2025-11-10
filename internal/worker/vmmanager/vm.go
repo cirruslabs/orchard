@@ -19,6 +19,7 @@ import (
 	"github.com/cirruslabs/orchard/internal/worker/tart"
 	"github.com/cirruslabs/orchard/pkg/client"
 	"github.com/cirruslabs/orchard/pkg/resource/v1"
+	mapset "github.com/deckarep/golang-set/v2"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 	"go.uber.org/zap"
@@ -32,16 +33,21 @@ type VM struct {
 	Resource   v1.VM
 	logger     *zap.SugaredLogger
 
-	// cloned state allows us to prevent a superfluous "tart delete" of a non-existent VM
-	cloned atomic.Bool
-
-	// started state allows us to only set VM's "status" field in the API
-	// to "running" when we're indeed about to start the VM
+	// Backward compatibility with v1.VM specification's "Status" field
+	//
+	// "started" is always true after the first "tart run",
+	// whereas ConditionReady can be used to tell if a VM
+	// is really running or not.
 	started atomic.Bool
 
-	// stopping state allows us to catch unexpected
-	// "tart run" terminations more correctly
-	stopping atomic.Bool
+	// A more orthogonal alternative to v1.VM specification's "Status" field,
+	// which allows a VM to have more than one state.
+	//
+	// For example, a VM can be both in ConditionReady and ConditionSuspending/
+	// ConditionStopping states for a short time. This way in run() we know
+	// that we're in a process of rebooting a VM, so we can avoid throwing
+	// an error about unexpected VM termination.
+	conditions mapset.Set[Condition]
 
 	// Image FQN feature, see https://github.com/cirruslabs/orchard/issues/164
 	imageFQN atomic.Pointer[string]
@@ -74,6 +80,8 @@ func NewVM(
 			"vm_name", vmResource.Name,
 			"vm_restart_count", vmResource.RestartCount,
 		),
+
+		conditions: mapset.NewSet(ConditionCloning),
 
 		ctx:    vmContext,
 		cancel: vmContextCancel,
@@ -122,8 +130,10 @@ func NewVM(
 			return
 		}
 
-		vm.cloned.Store(true)
+		// Backward compatibility with v1.VM specification's "Status" field
 		vm.started.Store(true)
+
+		vm.conditions.Add(ConditionReady)
 
 		vm.run(vm.ctx, eventStreamer)
 	}()
@@ -133,10 +143,6 @@ func NewVM(
 
 func (vm *VM) OnDiskName() ondiskname.OnDiskName {
 	return vm.onDiskName
-}
-
-func (vm *VM) Started() bool {
-	return vm.started.Load()
 }
 
 func (vm *VM) ImageFQN() *string {
@@ -152,7 +158,7 @@ func (vm *VM) Status() v1.VMStatus {
 		return v1.VMStatusFailed
 	}
 
-	if vm.Started() {
+	if vm.started.Load() {
 		return v1.VMStatusRunning
 	}
 
@@ -188,6 +194,10 @@ func (vm *VM) setErr(err error) {
 	}
 }
 
+func (vm *VM) Conditions() mapset.Set[Condition] {
+	return vm.conditions.Clone()
+}
+
 func (vm *VM) cloneAndConfigure(ctx context.Context) error {
 	vm.setStatusMessage("cloning VM...")
 
@@ -195,6 +205,8 @@ func (vm *VM) cloneAndConfigure(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+
+	vm.conditions.Remove(ConditionCloning)
 
 	// Image FQN feature, see https://github.com/cirruslabs/orchard/issues/164
 	fqnRaw, _, err := tart.Tart(ctx, vm.logger, "fqn", vm.Resource.Image)
@@ -317,6 +329,8 @@ func (vm *VM) cloneAndConfigure(ctx context.Context) error {
 }
 
 func (vm *VM) run(ctx context.Context, eventStreamer *client.EventStreamer) {
+	defer vm.conditions.RemoveAll(ConditionReady, ConditionSuspending, ConditionStopping)
+
 	// Launch the startup script goroutine as close as possible
 	// to the VM startup (below) to avoid "tart ip" timing out
 	if vm.Resource.StartupScript != nil {
@@ -350,6 +364,10 @@ func (vm *VM) run(ctx context.Context, eventStreamer *client.EventStreamer) {
 		runArgs = append(runArgs, "--nested")
 	}
 
+	if vm.Resource.Suspendable {
+		runArgs = append(runArgs, "--suspendable")
+	}
+
 	for _, hostDir := range vm.Resource.HostDirs {
 		runArgs = append(runArgs, fmt.Sprintf("--dir=%s", hostDir.String()))
 	}
@@ -371,7 +389,7 @@ func (vm *VM) run(ctx context.Context, eventStreamer *client.EventStreamer) {
 	case <-vm.ctx.Done():
 		// Do not return an error because it's the user's intent to cancel this VM
 	default:
-		if !vm.stopping.Load() {
+		if !vm.conditions.ContainsAny(ConditionSuspending, ConditionStopping) {
 			vm.setErr(fmt.Errorf("%w: VM exited unexpectedly", ErrVMFailed))
 		}
 	}
@@ -404,24 +422,57 @@ func (vm *VM) IP(ctx context.Context) (string, error) {
 	return strings.TrimSpace(stdout), nil
 }
 
-func (vm *VM) Stop() {
-	vm.logger.Debugf("stopping VM")
+func (vm *VM) Suspend() <-chan error {
+	vm.setStatusMessage("Suspending VM")
+	vm.conditions.Add(ConditionSuspending)
 
-	vm.stopping.Store(true)
-	defer vm.stopping.Store(false)
+	errCh := make(chan error, 1)
 
-	// Try to gracefully terminate the VM
-	_, _, _ = tart.Tart(context.Background(), zap.NewNop().Sugar(), "stop", "--timeout", "5", vm.id())
+	go func() {
+		_, _, err := tart.Tart(context.Background(), zap.NewNop().Sugar(), "suspend", vm.id())
+		if err != nil {
+			err := fmt.Errorf("failed to suspend VM: %w", err)
+			vm.setErr(err)
+			errCh <- err
 
-	// Terminate the VM goroutine ("tart pull", "tart clone", "tart run", etc.) via the context
-	vm.cancel()
-	vm.wg.Wait()
+			return
+		}
 
-	vm.logger.Debugf("VM stopped")
+		errCh <- nil
+	}()
+
+	return errCh
 }
 
-func (vm *VM) Reboot(eventStreamer *client.EventStreamer) {
-	vm.Stop()
+func (vm *VM) Stop() <-chan error {
+	vm.setStatusMessage("Stopping VM")
+	vm.conditions.Add(ConditionStopping)
+
+	errCh := make(chan error, 1)
+
+	go func() {
+		// Try to gracefully terminate the VM
+		_, _, _ = tart.Tart(context.Background(), zap.NewNop().Sugar(), "stop", "--timeout", "5", vm.id())
+
+		// Terminate the VM goroutine ("tart pull", "tart clone", "tart run", etc.) via the context
+		vm.cancel()
+		vm.wg.Wait()
+
+		// We don't return an error because we always terminate a VM
+		errCh <- nil
+	}()
+
+	return errCh
+}
+
+func (vm *VM) Start(vmResource v1.VM, eventStreamer *client.EventStreamer) {
+	vm.Resource = vmResource
+	vm.Resource.ObservedGeneration = vmResource.Generation
+
+	vm.setStatusMessage("Starting VM")
+	vm.conditions.Add(ConditionReady)
+
+	vm.cancel()
 
 	vm.ctx, vm.cancel = context.WithCancel(context.Background())
 	vm.wg.Add(1)
@@ -434,18 +485,19 @@ func (vm *VM) Reboot(eventStreamer *client.EventStreamer) {
 }
 
 func (vm *VM) Delete() error {
-	if !vm.cloned.Load() {
+	// Cancel all currently running Tart invocations
+	// (e.g. "tart clone", "tart run", etc.)
+	vm.cancel()
+
+	if vm.conditions.Contains(ConditionCloning) {
+		// Not cloned yet, nothing to delete
 		return nil
 	}
-
-	vm.logger.Debugf("deleting VM")
 
 	_, _, err := tart.Tart(context.Background(), vm.logger, "delete", vm.id())
 	if err != nil {
 		return fmt.Errorf("%w: failed to delete VM: %v", ErrVMFailed, err)
 	}
-
-	vm.logger.Debugf("deleted VM")
 
 	return nil
 }

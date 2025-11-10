@@ -140,6 +140,16 @@ func (controller *Controller) updateVMSpec(ctx *gin.Context) responder.Responder
 			userVM.NetSoftnet = true
 		}
 
+		// Suspendable-specific sanity checks
+		if dbVM.Suspendable && !userVM.Suspendable {
+			return responder.JSON(http.StatusPreconditionFailed, NewErrorResponse("\"suspendable\" cannot be "+
+				"toggled for suspendable VMs"))
+		}
+		if dbVM.Suspendable && dbVM.NetSoftnet != userVM.NetSoftnet {
+			return responder.JSON(http.StatusPreconditionFailed, NewErrorResponse("\"netSoftnet\" cannot be "+
+				"toggled for suspendable VMs"))
+		}
+
 		if cmp.Equal(dbVM.VMSpec, userVM.VMSpec) {
 			// Nothing was changed
 			return responder.JSON(http.StatusOK, dbVM)

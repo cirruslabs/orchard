@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/avast/retry-go/v4"
@@ -138,7 +139,7 @@ func (worker *Worker) Run(ctx context.Context) error {
 func (worker *Worker) Close() error {
 	var result error
 	for _, vm := range worker.vmm.List() {
-		vm.Stop()
+		<-vm.Stop()
 	}
 	for _, vm := range worker.vmm.List() {
 		err := vm.Delete()
@@ -320,14 +321,20 @@ func (worker *Worker) syncVMs(ctx context.Context, updateVM func(context.Context
 		}
 
 		localState := mo.None[v1.VMStatus]()
+		var localConditions []string
 		if vm != nil {
 			localState = mo.Some(vm.Status())
+
+			for condition := range vm.Conditions().Iter() {
+				localConditions = append(localConditions, string(condition))
+			}
 		}
 
 		action := transitions[remoteState][localState]
 
-		worker.logger.Debugf("processing VM: %s, remote: %v, local: %v, action: %v\n", onDiskName,
-			optionToString(remoteState), optionToString(localState), action)
+		worker.logger.Debugf("processing VM: %s, remote state: %s, local state: %s, "+
+			"local conditions: [%s], action: %v\n", onDiskName, optionToString(remoteState),
+			optionToString(localState), strings.Join(localConditions, ", "), action)
 
 		switch action {
 		case ActionCreate:
@@ -359,24 +366,37 @@ func (worker *Worker) syncVMs(ctx context.Context, updateVM func(context.Context
 				return err
 			}
 		case ActionMonitorRunning:
-			if vmResource.StatusMessage != vm.StatusMessage() {
-				vmResource.StatusMessage = vm.StatusMessage()
-
-				if _, err := updateVM(ctx, *vmResource); err != nil {
-					return err
+			if vmResource.Generation != vm.Resource.Generation {
+				// VM specification changed, reboot the VM for the changes to take effect
+				if vm.Conditions().Contains(vmmanager.ConditionReady) {
+					// VM is running, suspend or stop it first
+					if vm.Resource.Suspendable {
+						vm.Suspend()
+					} else {
+						vm.Stop()
+					}
+				} else {
+					// VM stopped, start it with the new specification
+					eventStreamer := worker.client.VMs().StreamEvents(vmResource.Name)
+					vm.Start(*vmResource, eventStreamer)
 				}
 			}
 
-			if vmResource.Generation != vm.Resource.Generation {
-				// Something changed, reboot the VM for the changes to take effect
-				vm.Resource = *vmResource
+			var updateNeeded bool
 
-				eventStreamer := worker.client.VMs().StreamEvents(vmResource.Name)
+			if vmResource.StatusMessage != vm.StatusMessage() {
+				vmResource.StatusMessage = vm.StatusMessage()
 
-				vm.Reboot(eventStreamer)
+				updateNeeded = true
+			}
 
-				vmResource.ObservedGeneration = vm.Resource.Generation
+			if vmResource.ObservedGeneration != vm.Resource.ObservedGeneration {
+				vmResource.ObservedGeneration = vm.Resource.ObservedGeneration
 
+				updateNeeded = true
+			}
+
+			if updateNeeded {
 				if _, err := updateVM(ctx, *vmResource); err != nil {
 					return err
 				}
@@ -487,7 +507,7 @@ func (worker *Worker) syncOnDiskVMs(ctx context.Context) error {
 }
 
 func (worker *Worker) deleteVM(vm *vmmanager.VM) error {
-	vm.Stop()
+	<-vm.Stop()
 
 	if err := vm.Delete(); err != nil {
 		return err
