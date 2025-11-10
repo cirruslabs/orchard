@@ -423,10 +423,20 @@ func (vm *VM) IP(ctx context.Context) (string, error) {
 }
 
 func (vm *VM) Suspend() <-chan error {
+	errCh := make(chan error, 1)
+
+	select {
+	case <-vm.ctx.Done():
+		// VM is already suspended/stopped
+		errCh <- nil
+
+		return errCh
+	default:
+		// VM is still running
+	}
+
 	vm.setStatusMessage("Suspending VM")
 	vm.conditions.Add(ConditionSuspending)
-
-	errCh := make(chan error, 1)
 
 	go func() {
 		_, _, err := tart.Tart(context.Background(), zap.NewNop().Sugar(), "suspend", vm.id())
@@ -445,10 +455,20 @@ func (vm *VM) Suspend() <-chan error {
 }
 
 func (vm *VM) Stop() <-chan error {
+	errCh := make(chan error, 1)
+
+	select {
+	case <-vm.ctx.Done():
+		// VM is already suspended/stopped
+		errCh <- nil
+
+		return errCh
+	default:
+		// VM is still running
+	}
+
 	vm.setStatusMessage("Stopping VM")
 	vm.conditions.Add(ConditionStopping)
-
-	errCh := make(chan error, 1)
 
 	go func() {
 		// Try to gracefully terminate the VM
