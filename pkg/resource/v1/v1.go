@@ -102,6 +102,7 @@ type VMSpec struct {
 	NetSoftnet           bool     `json:"netSoftnet,omitempty"`
 	NetSoftnetAllow      []string `json:"netSoftnetAllow,omitempty"`
 	NetSoftnetBlock      []string `json:"netSoftnetBlock,omitempty"`
+	Suspendable          bool     `json:"suspendable,omitempty"`
 }
 
 type VMState struct {

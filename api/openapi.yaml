@@ -520,6 +520,19 @@ components:
             - "66.66.0.0/16"
           items:
             type: string
+        suspendable:
+          type: boolean
+          description: |
+            When set, a VM will be started with an additional
+            `--suspendable` command-line argument to `tart run`,
+            which allows suspending it.
+            
+            Further generations of the VM will be `tart suspend`'ed instead of
+            `tart stopped`.
+            
+            For example, this allows you to prepare a VM with loose Softnet settings and then
+            move to the next generation by tightening the settings while preserving the VM's state.
+          default: false
         net-bridged:
           type: string
           description: Whether to use bridged network mode

@@ -25,6 +25,7 @@ var netSoftnetBlock []string
 var netBridged string
 var headless bool
 var nested bool
+var suspendable bool
 var username string
 var password string
 var resources map[string]string
@@ -58,6 +59,9 @@ func newCreateVMCommand() *cobra.Command {
 	command.Flags().StringVar(&netBridged, "net-bridged", "", "whether to use Bridged network mode")
 	command.Flags().BoolVar(&headless, "headless", true, "whether to run without graphics")
 	command.Flags().BoolVar(&nested, "nested", false, "enable nested virtualization")
+	command.Flags().BoolVar(&suspendable, "suspendable", false, "treat the VM as suspendable, "+
+		"disabling certain devices for suspendability support and issuing \"tart suspend\" instead of \"tart stop\" "+
+		"when VM's specification is updated, thus preserving the VM's state between specification generations")
 	command.Flags().StringVar(&username, "username", "admin",
 		"SSH username to use when executing a startup script on the VM")
 	command.Flags().StringVar(&password, "password", "admin",
@@ -118,6 +122,7 @@ func runCreateVM(cmd *cobra.Command, args []string) error {
 			NetSoftnet:           netSoftnet,
 			NetSoftnetAllow:      netSoftnetAllow,
 			NetSoftnetBlock:      netSoftnetBlock,
+			Suspendable:          suspendable,
 		},
 		NetBridged:   netBridged,
 		Headless:     headless,
