@@ -30,7 +30,6 @@ func TestSpecUpdateSoftnet(t *testing.T) {
 		CPU:      4,
 		Memory:   8 * 1024,
 		Headless: true,
-		Status:   v1.VMStatusPending,
 	})
 	require.NoError(t, err)
 
@@ -71,10 +70,78 @@ func TestSpecUpdateSoftnet(t *testing.T) {
 		t.Logf("Waiting for the VM's observed generation to be updated...")
 
 		return vm.ObservedGeneration == 1
-	}), "failed to update a VM")
+	}), "failed to wait for the VM's observed generation to be updated")
 
 	tartRunCmdline, err = tartRunProcessCmdline(tartVMName)
 	require.NoError(t, err)
+	require.Contains(t, tartRunCmdline, "--net-softnet")
+	require.True(t, sliceContainsAnotherSlice(tartRunCmdline, []string{"--net-softnet-allow", "10.0.0.0/16"}))
+	require.True(t, sliceContainsAnotherSlice(tartRunCmdline, []string{"--net-softnet-block", "0.0.0.0/0"}))
+}
+
+func TestSpecUpdateSoftnetSuspendable(t *testing.T) {
+	devClient, _, _ := devcontroller.StartIntegrationTestEnvironment(t)
+
+	// Create a suspendable VM with Softnet enabled
+	vmName := "test"
+
+	err := devClient.VMs().Create(t.Context(), &v1.VM{
+		Meta: v1.Meta{
+			Name: vmName,
+		},
+		Image:    imageconstant.DefaultMacosImage,
+		CPU:      4,
+		Memory:   8 * 1024,
+		Headless: true,
+		VMSpec: v1.VMSpec{
+			Suspendable: true,
+			NetSoftnet:  true,
+		},
+	})
+	require.NoError(t, err)
+
+	// Wait for the VM to start
+	var vm *v1.VM
+
+	require.True(t, wait.Wait(2*time.Minute, func() bool {
+		vm, err = devClient.VMs().Get(context.Background(), vmName)
+		require.NoError(t, err)
+
+		t.Logf("Waiting for the VM to start. Current status: %s", vm.Status)
+
+		return vm.Status == v1.VMStatusRunning
+	}), "failed to start a VM")
+
+	// Ensure that the VM is using "--suspendable" and "--net-softnet"
+	tartVMName := ondiskname.New(vmName, vm.UID, vm.RestartCount).String()
+
+	tartRunCmdline, err := tartRunProcessCmdline(tartVMName)
+	require.NoError(t, err)
+	require.Contains(t, tartRunCmdline, "--suspendable")
+	require.Contains(t, tartRunCmdline, "--net-softnet")
+
+	// Update the VM's specification and tighten the Softnet restrictions
+	vm.NetSoftnetAllow = []string{"10.0.0.0/16"}
+	vm.NetSoftnetBlock = []string{"0.0.0.0/0"}
+
+	vm, err = devClient.VMs().Update(t.Context(), *vm)
+	require.NoError(t, err)
+	require.EqualValues(t, 1, vm.Generation)
+	require.EqualValues(t, 0, vm.ObservedGeneration)
+
+	require.True(t, wait.Wait(30*time.Second, func() bool {
+		vm, err = devClient.VMs().Get(context.Background(), vmName)
+		require.NoError(t, err)
+
+		t.Logf("Waiting for the VM's observed generation to be updated...")
+
+		return vm.ObservedGeneration == 1
+	}), "failed to wait for the VM's observed generation to be updated")
+
+	// Ensure that the VM is using "--suspendable", "--net-softnet" and "--net-softnet-{allow,block}"
+	tartRunCmdline, err = tartRunProcessCmdline(tartVMName)
+	require.NoError(t, err)
+	require.Contains(t, tartRunCmdline, "--suspendable")
 	require.Contains(t, tartRunCmdline, "--net-softnet")
 	require.True(t, sliceContainsAnotherSlice(tartRunCmdline, []string{"--net-softnet-allow", "10.0.0.0/16"}))
 	require.True(t, sliceContainsAnotherSlice(tartRunCmdline, []string{"--net-softnet-block", "0.0.0.0/0"}))
