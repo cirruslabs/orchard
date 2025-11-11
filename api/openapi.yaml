@@ -32,6 +32,12 @@ paths:
       summary: "Update cluster settings"
       tags:
         - cluster-settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClusterSettings'
       responses:
         '200':
           description: Cluster settings were successfully updated
@@ -44,6 +50,12 @@ paths:
       summary: "Create a Service Account"
       tags:
         - service-accounts
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ServiceAccount'
       responses:
         '200':
           description: Service Account resource was successfully created
@@ -90,6 +102,12 @@ paths:
       summary: "Update a Service Account"
       tags:
         - service-accounts
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ServiceAccount'
       responses:
         '200':
           description: Service Account object was successfully updated
@@ -109,19 +127,6 @@ paths:
         '404':
           description: Service Account resource with the given name doesn't exist
   /workers:
-    post:
-      summary: "Create a Worker"
-      tags:
-        - workers
-      responses:
-        '200':
-          description: Worker resource was successfully created
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Worker'
-        '409':
-          description: Worker resource with with the same name already exists
     get:
       summary: "List Workers"
       tags:
@@ -149,19 +154,6 @@ paths:
       responses:
         '200':
           description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Worker'
-        '404':
-          description: Worker resource with the given name doesn't exist
-    put:
-      summary: "Update a Worker"
-      tags:
-        - workers
-      responses:
-        '200':
-          description: Worker object was successfully updated
           content:
             application/json:
               schema:
@@ -230,6 +222,14 @@ paths:
       summary: "Create a VM"
       tags:
         - vms
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/VMMeta'
+                - $ref: '#/components/schemas/VMSpec'
       responses:
         '200':
           description: VM resource was successfully created
@@ -291,6 +291,12 @@ paths:
       summary: "Update a VM"
       tags:
         - vms
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VMSpec'
       responses:
         '200':
           description: VM object was successfully updated
@@ -323,19 +329,6 @@ paths:
       responses:
         '200':
           description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Events'
-        '404':
-          description: VM resource with the given name doesn't exist
-    post:
-      summary: "Add new events to a VM"
-      tags:
-        - vms
-      responses:
-        '200':
-          description: Events were successfully added
           content:
             application/json:
               schema:
@@ -684,7 +677,9 @@ components:
       properties:
         hostDirPolicies:
           type: array
-          description: If not empty, enables instantiating VMs with hostDir volumes that match the policies listed in this array.
+          description: |
+            If not empty, allows instantiating VMs with `hostDirs` that match the policies
+            listed in this array.
           items:
             type: object
             properties:
@@ -692,3 +687,22 @@ components:
                 type: string
               ro:
                 type: boolean
+          default: []
+          example:
+            - pathPrefix: /Users/ci/src
+              ro: true
+        schedulerProfile:
+          type: string
+          description: |
+            Scheduler profile to use. Possible values:
+            
+            * `optimize-utilization` — when scheduling a pending VM to a worker, pick the busiest worker
+            that can fit a VM first, falling back to less busier workers (this is the default behavior
+            when no explicit scheduler profile is set)
+            
+            * `distribute-load` — when scheduling a pending VM to a worker, pick the least occupied worker
+            that can fit a VM first, falling back to more busier workers
+          enum:
+            - optimize-utilization
+            - distribute-load
+          default: optimize-utilization
