@@ -227,7 +227,9 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/VMSpec'
+              allOf:
+                - $ref: '#/components/schemas/VMMeta'
+                - $ref: '#/components/schemas/VMSpec'
       responses:
         '200':
           description: VM resource was successfully created
