@@ -14,6 +14,8 @@ type ClusterSettings struct {
 	SchedulerProfile SchedulerProfile `json:"schedulerProfile,omitempty"`
 }
 
+func (clusterSettings *ClusterSettings) SetVersion(_ uint64) {}
+
 func NewSchedulerProfile(value string) (SchedulerProfile, error) {
 	switch value {
 	case string(SchedulerProfileOptimizeUtilization):

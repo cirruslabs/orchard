@@ -97,6 +97,10 @@ type VM struct {
 	Meta
 }
 
+func (vm *VM) SetVersion(version uint64) {
+	vm.Version = version
+}
+
 type VMSpec struct {
 	NetSoftnetDeprecated bool     `json:"net-softnet,omitempty"`
 	NetSoftnet           bool     `json:"netSoftnet,omitempty"`
