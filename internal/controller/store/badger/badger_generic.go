@@ -22,7 +22,7 @@ func genericSet[T any](txn *Transaction, key []byte, obj T) (err error) {
 func genericGet[T any, PT interface {
 	SetVersion(uint64)
 	*T
-}](txn *Transaction, key []byte) (_ PT, err error) {
+}](txn *Transaction, key []byte) (_ *T, err error) {
 	defer func() {
 		err = mapErr(err)
 	}()
