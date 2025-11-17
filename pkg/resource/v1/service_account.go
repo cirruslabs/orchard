@@ -6,3 +6,5 @@ type ServiceAccount struct {
 
 	Meta
 }
+
+func (serviceAccount *ServiceAccount) SetVersion(_ uint64) {}

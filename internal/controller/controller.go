@@ -196,8 +196,8 @@ func New(opts ...Option) (*Controller, error) {
 	return controller, nil
 }
 
-func (controller *Controller) ServiceAccounts() ([]*v1.ServiceAccount, error) {
-	var serviceAccounts []*v1.ServiceAccount
+func (controller *Controller) ServiceAccounts() ([]v1.ServiceAccount, error) {
+	var serviceAccounts []v1.ServiceAccount
 	var err error
 
 	if err := controller.store.View(func(txn storepkg.Transaction) error {

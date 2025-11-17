@@ -3,14 +3,15 @@ package controller
 import (
 	"crypto/tls"
 	"fmt"
+	"os"
+	"strings"
+
 	"github.com/cirruslabs/orchard/internal/certificatefingerprint"
 	"github.com/cirruslabs/orchard/internal/controller"
 	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
 	"github.com/pterm/pterm"
 	"github.com/samber/lo"
 	"github.com/sethvargo/go-password/password"
-	"os"
-	"strings"
 )
 
 const BootstrapContextName = "bootstrap-context"
@@ -33,7 +34,7 @@ func Bootstrap(controllerInstance *controller.Controller, controllerCert tls.Cer
 		// However, if the BootstrapAdminName service account still exists,
 		// return its credentials. We'll use them for updating the
 		// BootstrapContextName context.
-		if serviceAccount, ok := lo.Find(serviceAccounts, func(serviceAccount *v1.ServiceAccount) bool {
+		if serviceAccount, ok := lo.Find(serviceAccounts, func(serviceAccount v1.ServiceAccount) bool {
 			return serviceAccount.Name == BootstrapAdminName
 		}); ok {
 			return serviceAccount.Name, serviceAccount.Token, nil

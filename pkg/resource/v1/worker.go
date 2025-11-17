@@ -30,3 +30,5 @@ type Worker struct {
 func (worker Worker) Offline(workerOfflineTimeout time.Duration) bool {
 	return time.Since(worker.LastSeen) > workerOfflineTimeout
 }
+
+func (worker *Worker) SetVersion(_ uint64) {}
