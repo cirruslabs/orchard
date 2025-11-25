@@ -282,7 +282,7 @@ paths:
                 properties:
                   type:
                     type: string
-                    enum: [ADDED, MODIFIED, DELETED]
+                    enum: [ ADDED, MODIFIED, DELETED ]
                   object:
                     $ref: '#/components/schemas/VM'
         '404':
@@ -463,7 +463,7 @@ components:
           type: string
           description: VM image pull policy
           default: IfNotPresent
-          enum: [IfNotPresent, Always]
+          enum: [ IfNotPresent, Always ]
         cpu:
           type: number
           description: Number of CPUs assigned to this VM
@@ -567,7 +567,7 @@ components:
           description: |
             VM restart policy: specify "Never" to never restart or "OnFailure" to only restart when the VM fails
           default: Never
-          enum: [Never, OnFailure]
+          enum: [ Never, OnFailure ]
         resources:
           type: object
           description: Resources required by this VM on the worker
@@ -599,6 +599,33 @@ components:
             - path: /path/on/host/to/sources
               ro: true
             - path: /path/on/host/to/builds
+        powerState:
+          type: string
+          description: |
+            Desired power state of the VM.
+            
+            When set to `stopped` or `suspended`, the VM does not consume any `resources`
+            and can serve as a source for creating new Orchard VMs on the same worker. See
+            `tartName` for more details.
+            
+            Note that you can only transition into `stopped` or `suspended` only once
+            at the moment.
+          default: running
+          enum: [ running, stopped, suspended ]
+        tartName:
+          type: string
+          description: |
+            Name of the Tart VM backing this VM resource.
+            
+            `tartName` is specific to a worker, whereas `name` is cluster-wide.
+            
+            `tartName` is useful in combination with `powerState` for creating stopped or suspended VMs
+            that can be used to start or resume new VMs on the same worker.
+            
+            However, with great power comes great responsibility: you need to ensure that these new VMs
+            target the same worker using `labels` or `resources`, otherwise your new VM will fail with
+            "the specified VM does not exist" error.
+          readOnly: true
     VMState:
       title: Virtual Machine State
       type: object
@@ -686,7 +713,7 @@ components:
                 type: string
               ro:
                 type: boolean
-          default: []
+          default: [ ]
           example:
             - pathPrefix: /Users/ci/src
               ro: true
