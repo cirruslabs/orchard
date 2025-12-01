@@ -622,9 +622,15 @@ components:
             `tartName` is useful in combination with `powerState` for creating stopped or suspended VMs
             that can be used to start or resume new VMs on the same worker.
             
-            However, with great power comes great responsibility: you need to ensure that these new VMs
-            target the same worker using `labels` or `resources`, otherwise your new VM will fail with
-            "the specified VM does not exist" error.
+            However, with great power comes great responsibility. You need to make sure:
+            
+            * that these new VMs will target the same worker using `labels` or `resources`,
+            otherwise they will fail with the "the specified VM does not exist" error
+            
+            * that there's only one cloned new VM for each suspended VM at a time;
+            if you clone more new VMs from a single suspended VM, Tart will give them
+            new MAC addresses automatically, which will stop them from booting,
+            since the suspend‑resume machinery expects the same MAC address
           readOnly: true
     VMState:
       title: Virtual Machine State
