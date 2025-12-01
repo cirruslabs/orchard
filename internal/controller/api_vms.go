@@ -162,6 +162,10 @@ func (controller *Controller) updateVMSpec(ctx *gin.Context) responder.Responder
 		}
 
 		// Power state-specific sanity checks
+		if !userVM.PowerState.Valid() {
+			return responder.JSON(http.StatusPreconditionFailed, NewErrorResponse("invalid \"powerState\" "+
+				"value: %s", userVM.PowerState))
+		}
 		if dbVM.PowerState.TerminalState() {
 			return responder.JSON(http.StatusPreconditionFailed, NewErrorResponse("invalid \"powerState\" "+
 				"transition: cannot transition from a terminal power state"))

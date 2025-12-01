@@ -139,6 +139,15 @@ const (
 	PowerStateSuspended PowerState = "suspended"
 )
 
+func (powerState PowerState) Valid() bool {
+	switch powerState {
+	case PowerStateRunning, PowerStateStopped, PowerStateSuspended:
+		return true
+	default:
+		return false
+	}
+}
+
 func (powerState PowerState) TerminalState() bool {
 	return powerState != PowerStateRunning
 }
