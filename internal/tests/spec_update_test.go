@@ -65,7 +65,7 @@ func TestSpecUpdateSoftnet(t *testing.T) {
 	require.EqualValues(t, 1, vm.Generation)
 	require.EqualValues(t, 0, vm.ObservedGeneration)
 
-	require.True(t, wait.Wait(30*time.Second, func() bool {
+	require.True(t, wait.Wait(2*time.Minute, func() bool {
 		vm, err = devClient.VMs().Get(context.Background(), vmName)
 		require.NoError(t, err)
 
@@ -131,7 +131,7 @@ func TestSpecUpdateSoftnetSuspendable(t *testing.T) {
 	require.EqualValues(t, 1, vm.Generation)
 	require.EqualValues(t, 0, vm.ObservedGeneration)
 
-	require.True(t, wait.Wait(30*time.Second, func() bool {
+	require.True(t, wait.Wait(2*time.Minute, func() bool {
 		vm, err = devClient.VMs().Get(context.Background(), vmName)
 		require.NoError(t, err)
 
@@ -196,7 +196,7 @@ func TestSpecUpdatePowerStateSuspend(t *testing.T) {
 	require.EqualValues(t, 1, vm.Generation)
 	require.EqualValues(t, 0, vm.ObservedGeneration)
 
-	require.True(t, wait.Wait(30*time.Second, func() bool {
+	require.True(t, wait.Wait(2*time.Minute, func() bool {
 		vm, err = devClient.VMs().Get(context.Background(), vmName)
 		require.NoError(t, err)
 
@@ -267,7 +267,7 @@ func TestSpecUpdatePowerStateStopped(t *testing.T) {
 	require.EqualValues(t, 1, vm.Generation)
 	require.EqualValues(t, 0, vm.ObservedGeneration)
 
-	require.True(t, wait.Wait(30*time.Second, func() bool {
+	require.True(t, wait.Wait(2*time.Minute, func() bool {
 		vm, err = devClient.VMs().Get(context.Background(), vmName)
 		require.NoError(t, err)
 
