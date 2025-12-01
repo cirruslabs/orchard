@@ -366,7 +366,15 @@ func (worker *Worker) syncVMs(ctx context.Context, updateVM func(context.Context
 				// VM specification changed, reboot the VM for the changes to take effect
 				if v1.ConditionIsTrue(vm.Conditions(), v1.ConditionTypeRunning) {
 					// VM is running, suspend or stop it first
-					if vm.Resource.Suspendable {
+					shouldStop := vmResource.PowerState == v1.PowerStateStopped || !vm.Resource.Suspendable
+
+					if shouldStop {
+						vm.Stop()
+					} else {
+						vm.Suspend()
+					}
+
+					if vm.Resource.Suspendable && vmResource.PowerState != v1.PowerStateStopped {
 						vm.Suspend()
 					} else {
 						vm.Stop()
