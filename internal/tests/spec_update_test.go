@@ -10,10 +10,12 @@ import (
 	"github.com/cirruslabs/orchard/internal/tests/devcontroller"
 	"github.com/cirruslabs/orchard/internal/tests/wait"
 	"github.com/cirruslabs/orchard/internal/worker/ondiskname"
+	"github.com/cirruslabs/orchard/internal/worker/tart"
 	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
 	"github.com/samber/lo"
 	"github.com/shirou/gopsutil/v4/process"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 func TestSpecUpdateSoftnet(t *testing.T) {
@@ -145,6 +147,77 @@ func TestSpecUpdateSoftnetSuspendable(t *testing.T) {
 	require.Contains(t, tartRunCmdline, "--net-softnet")
 	require.True(t, sliceContainsAnotherSlice(tartRunCmdline, []string{"--net-softnet-allow", "10.0.0.0/16"}))
 	require.True(t, sliceContainsAnotherSlice(tartRunCmdline, []string{"--net-softnet-block", "0.0.0.0/0"}))
+}
+
+func TestSpecUpdatePowerStateSuspend(t *testing.T) {
+	devClient, _, _ := devcontroller.StartIntegrationTestEnvironment(t)
+
+	// Create a suspendable VM with Softnet enabled
+	vmName := "test"
+
+	err := devClient.VMs().Create(t.Context(), &v1.VM{
+		Meta: v1.Meta{
+			Name: vmName,
+		},
+		Image:    imageconstant.DefaultMacosImage,
+		CPU:      4,
+		Memory:   8 * 1024,
+		Headless: true,
+		VMSpec: v1.VMSpec{
+			Suspendable: true,
+			NetSoftnet:  true,
+		},
+	})
+	require.NoError(t, err)
+
+	// Wait for the VM to start
+	var vm *v1.VM
+
+	require.True(t, wait.Wait(2*time.Minute, func() bool {
+		vm, err = devClient.VMs().Get(context.Background(), vmName)
+		require.NoError(t, err)
+
+		t.Logf("Waiting for the VM to start. Current status: %s", vm.Status)
+
+		return vm.Status == v1.VMStatusRunning
+	}), "failed to start a VM")
+
+	// Ensure that the VM is running
+	tartVMName := ondiskname.New(vmName, vm.UID, vm.RestartCount).String()
+
+	_, err = tartRunProcessCmdline(tartVMName)
+	require.NoError(t, err)
+
+	// Update the VM's specification and change it's power state
+	vm.PowerState = v1.PowerStateSuspended
+
+	vm, err = devClient.VMs().Update(t.Context(), *vm)
+	require.NoError(t, err)
+	require.EqualValues(t, 1, vm.Generation)
+	require.EqualValues(t, 0, vm.ObservedGeneration)
+
+	require.True(t, wait.Wait(30*time.Second, func() bool {
+		vm, err = devClient.VMs().Get(context.Background(), vmName)
+		require.NoError(t, err)
+
+		t.Logf("Waiting for the VM's observed generation to be updated...")
+
+		return vm.ObservedGeneration == 1
+	}), "failed to wait for the VM's observed generation to be updated")
+
+	// Ensure that the VM is not running
+	_, err = tartRunProcessCmdline(tartVMName)
+	require.Error(t, err)
+
+	// Ensure that the VM is present and is suspended
+	tartVMs, err := tart.List(t.Context(), zap.NewNop().Sugar())
+	require.NoError(t, err)
+	require.Contains(t, tartVMs, tart.VMInfo{
+		Name:    vm.TartName,
+		Source:  "local",
+		State:   "suspended",
+		Running: false,
+	})
 }
 
 func tartRunProcessCmdline(vmName string) ([]string, error) {

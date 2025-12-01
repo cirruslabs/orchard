@@ -504,10 +504,12 @@ func (vm *VM) Stop() <-chan error {
 	return errCh
 }
 
-func (vm *VM) Start(vmResource v1.VM, eventStreamer *client.EventStreamer) {
+func (vm *VM) UpdateSpec(vmResource v1.VM) {
 	vm.Resource = vmResource
 	vm.Resource.ObservedGeneration = vmResource.Generation
+}
 
+func (vm *VM) Start(eventStreamer *client.EventStreamer) {
 	vm.setStatusMessage("Starting VM")
 	vm.conditions.Add(v1.ConditionTypeRunning)
 
