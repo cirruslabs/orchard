@@ -12,6 +12,7 @@ import (
 	"github.com/cirruslabs/orchard/internal/controller/notifier"
 	storepkg "github.com/cirruslabs/orchard/internal/controller/store"
 	"github.com/cirruslabs/orchard/internal/opentelemetry"
+	"github.com/cirruslabs/orchard/internal/worker/ondiskname"
 	"github.com/cirruslabs/orchard/pkg/resource/v1"
 	"github.com/cirruslabs/orchard/rpc"
 	mapset "github.com/deckarep/golang-set/v2"
@@ -267,10 +268,19 @@ NextVM:
 					return ErrVMSchedulingSkipped
 				}
 
-				if currentUnscheduledVM.Status != v1.VMStatusPending ||
-					currentUnscheduledVM.Worker != "" {
+				if unscheduledVM.IsScheduled() {
 					// Unscheduled VM is not unscheduled anymore,
 					// so there's nothing to do
+					return ErrVMSchedulingSkipped
+				}
+
+				if unscheduledVM.TerminalState() {
+					// We don't support re-scheduling of VMs in terminal state at the moment
+					return ErrVMSchedulingSkipped
+				}
+
+				if unscheduledVM.PowerState.TerminalState() {
+					// We don't support re-scheduling of stopped/suspended VMs at the moment
 					return ErrVMSchedulingSkipped
 				}
 
@@ -298,6 +308,10 @@ NextVM:
 
 				unscheduledVM.Worker = worker.Name
 				unscheduledVM.ScheduledAt = time.Now()
+				v1.ConditionsSet(&unscheduledVM.Conditions, v1.Condition{
+					Type:  v1.ConditionTypeScheduled,
+					State: v1.ConditionStateTrue,
+				})
 
 				// Fill out the actual CPU allocation
 				if unscheduledVM.CPU == 0 {
@@ -376,10 +390,10 @@ func ProcessVMs(vms []v1.VM) ([]v1.VM, WorkerInfos) {
 	workerToResources := make(WorkerInfos)
 
 	for _, vm := range vms {
-		if vm.Worker == "" {
-			unscheduledVMs = append(unscheduledVMs, vm)
-		} else if !vm.TerminalState() {
+		if vm.IsScheduled() {
 			workerToResources.AddVM(vm.Worker, vm.Resources)
+		} else {
+			unscheduledVMs = append(unscheduledVMs, vm)
 		}
 	}
 
@@ -427,7 +441,7 @@ func (scheduler *Scheduler) healthCheckingLoopIteration() (int, int, error) {
 	// transaction, re-checking that the VM still exists
 	// and it is still scheduled
 	for _, vm := range vms {
-		if vm.Worker == "" {
+		if !vm.IsScheduled() {
 			// Not a scheduled VM
 			//
 			// We'll re-check this below, but this allows us
@@ -447,7 +461,7 @@ func (scheduler *Scheduler) healthCheckingLoopIteration() (int, int, error) {
 				return err
 			}
 
-			if currentVM.Worker == "" {
+			if !vm.IsScheduled() {
 				// Not a scheduled VM, nothing to do
 				return nil
 			}
@@ -483,6 +497,14 @@ func (scheduler *Scheduler) healthCheckVM(txn storepkg.Transaction, vm v1.VM) er
 		vm.RestartCount++
 		vm.ScheduledAt = time.Time{}
 		vm.StartedAt = time.Time{}
+		vm.PowerState = v1.PowerStateRunning
+		vm.TartName = ondiskname.New(vm.Name, vm.UID, vm.RestartCount).String()
+		vm.Conditions = []v1.Condition{
+			{
+				Type:  v1.ConditionTypeScheduled,
+				State: v1.ConditionStateFalse,
+			},
+		}
 
 		return txn.SetVM(vm)
 	}
@@ -504,6 +526,34 @@ func (scheduler *Scheduler) healthCheckVM(txn storepkg.Transaction, vm v1.VM) er
 		vm.Status = v1.VMStatusFailed
 		vm.StatusMessage = "VM is assigned to a worker that " +
 			"lost connection with the controller"
+
+		return txn.SetVM(vm)
+	}
+
+	if vm.PowerState.TerminalState() && v1.ConditionIsFalse(vm.Conditions, v1.ConditionTypeRunning) {
+		// VM has entered a terminal power state and stopped running,
+		// de-schedule it to free up resources
+		v1.ConditionsSet(&vm.Conditions, v1.Condition{
+			Type:  v1.ConditionTypeScheduled,
+			State: v1.ConditionStateFalse,
+		})
+
+		return txn.SetVM(vm)
+	}
+
+	if vm.TerminalState() {
+		// VM has entered a terminal state,
+		// de-schedule it to free up resources
+		v1.ConditionsSet(&vm.Conditions, v1.Condition{
+			Type:  v1.ConditionTypeScheduled,
+			State: v1.ConditionStateFalse,
+		})
+
+		// Also correct the conditions for the worker
+		v1.ConditionsSet(&vm.Conditions, v1.Condition{
+			Type:  v1.ConditionTypeRunning,
+			State: v1.ConditionStateFalse,
+		})
 
 		return txn.SetVM(vm)
 	}

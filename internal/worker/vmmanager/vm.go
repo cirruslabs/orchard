@@ -47,7 +47,7 @@ type VM struct {
 	// ConditionStopping states for a short time. This way in run() we know
 	// that we're in a process of rebooting a VM, so we can avoid throwing
 	// an error about unexpected VM termination.
-	conditions mapset.Set[Condition]
+	conditions mapset.Set[v1.ConditionType]
 
 	// Image FQN feature, see https://github.com/cirruslabs/orchard/issues/164
 	imageFQN atomic.Pointer[string]
@@ -81,7 +81,7 @@ func NewVM(
 			"vm_restart_count", vmResource.RestartCount,
 		),
 
-		conditions: mapset.NewSet(ConditionCloning),
+		conditions: mapset.NewSet(v1.ConditionTypeCloning),
 
 		ctx:    vmContext,
 		cancel: vmContextCancel,
@@ -133,7 +133,7 @@ func NewVM(
 		// Backward compatibility with v1.VM specification's "Status" field
 		vm.started.Store(true)
 
-		vm.conditions.Add(ConditionReady)
+		vm.conditions.Add(v1.ConditionTypeRunning)
 
 		vm.run(vm.ctx, eventStreamer)
 	}()
@@ -194,8 +194,27 @@ func (vm *VM) setErr(err error) {
 	}
 }
 
-func (vm *VM) Conditions() mapset.Set[Condition] {
-	return vm.conditions.Clone()
+func (vm *VM) Conditions() []v1.Condition {
+	// Only expose a minimum amount of conditions necessary
+	// for the Orchard Controller to make decisions
+	return []v1.Condition{
+		vm.conditionTypeToCondition(v1.ConditionTypeRunning),
+	}
+}
+
+func (vm *VM) conditionTypeToCondition(conditionType v1.ConditionType) v1.Condition {
+	var conditionState v1.ConditionState
+
+	if vm.conditions.ContainsOne(conditionType) {
+		conditionState = v1.ConditionStateTrue
+	} else {
+		conditionState = v1.ConditionStateFalse
+	}
+
+	return v1.Condition{
+		Type:  conditionType,
+		State: conditionState,
+	}
 }
 
 func (vm *VM) cloneAndConfigure(ctx context.Context) error {
@@ -206,7 +225,7 @@ func (vm *VM) cloneAndConfigure(ctx context.Context) error {
 		return err
 	}
 
-	vm.conditions.Remove(ConditionCloning)
+	vm.conditions.Remove(v1.ConditionTypeCloning)
 
 	// Image FQN feature, see https://github.com/cirruslabs/orchard/issues/164
 	fqnRaw, _, err := tart.Tart(ctx, vm.logger, "fqn", vm.Resource.Image)
@@ -329,7 +348,7 @@ func (vm *VM) cloneAndConfigure(ctx context.Context) error {
 }
 
 func (vm *VM) run(ctx context.Context, eventStreamer *client.EventStreamer) {
-	defer vm.conditions.RemoveAll(ConditionReady, ConditionSuspending, ConditionStopping)
+	defer vm.conditions.RemoveAll(v1.ConditionTypeRunning, v1.ConditionTypeSuspending, v1.ConditionTypeStopping)
 
 	// Launch the startup script goroutine as close as possible
 	// to the VM startup (below) to avoid "tart ip" timing out
@@ -389,7 +408,7 @@ func (vm *VM) run(ctx context.Context, eventStreamer *client.EventStreamer) {
 	case <-vm.ctx.Done():
 		// Do not return an error because it's the user's intent to cancel this VM
 	default:
-		if !vm.conditions.ContainsAny(ConditionSuspending, ConditionStopping) {
+		if !vm.conditions.ContainsAny(v1.ConditionTypeSuspending, v1.ConditionTypeStopping) {
 			vm.setErr(fmt.Errorf("%w: VM exited unexpectedly", ErrVMFailed))
 		}
 	}
@@ -436,7 +455,7 @@ func (vm *VM) Suspend() <-chan error {
 	}
 
 	vm.setStatusMessage("Suspending VM")
-	vm.conditions.Add(ConditionSuspending)
+	vm.conditions.Add(v1.ConditionTypeSuspending)
 
 	go func() {
 		_, _, err := tart.Tart(context.Background(), zap.NewNop().Sugar(), "suspend", vm.id())
@@ -468,7 +487,7 @@ func (vm *VM) Stop() <-chan error {
 	}
 
 	vm.setStatusMessage("Stopping VM")
-	vm.conditions.Add(ConditionStopping)
+	vm.conditions.Add(v1.ConditionTypeStopping)
 
 	go func() {
 		// Try to gracefully terminate the VM
@@ -485,12 +504,14 @@ func (vm *VM) Stop() <-chan error {
 	return errCh
 }
 
-func (vm *VM) Start(vmResource v1.VM, eventStreamer *client.EventStreamer) {
+func (vm *VM) UpdateSpec(vmResource v1.VM) {
 	vm.Resource = vmResource
 	vm.Resource.ObservedGeneration = vmResource.Generation
+}
 
+func (vm *VM) Start(eventStreamer *client.EventStreamer) {
 	vm.setStatusMessage("Starting VM")
-	vm.conditions.Add(ConditionReady)
+	vm.conditions.Add(v1.ConditionTypeRunning)
 
 	vm.cancel()
 
@@ -509,7 +530,7 @@ func (vm *VM) Delete() error {
 	// (e.g. "tart clone", "tart run", etc.)
 	vm.cancel()
 
-	if vm.conditions.Contains(ConditionCloning) {
+	if vm.conditions.Contains(v1.ConditionTypeCloning) {
 		// Not cloned yet, nothing to delete
 		return nil
 	}

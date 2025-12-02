@@ -32,6 +32,7 @@ type VM struct {
 	Nested          bool            `json:"nested,omitempty"`
 
 	VMSpec
+	VMSpecReadOnly
 	VMState
 
 	// Status field is used to track the lifecycle of the VM associated with this resource.
@@ -101,18 +102,54 @@ func (vm *VM) SetVersion(version uint64) {
 	vm.Version = version
 }
 
+func (vm *VM) IsScheduled() bool {
+	if ConditionExists(vm.Conditions, ConditionTypeScheduled) {
+		return ConditionIsTrue(vm.Conditions, ConditionTypeScheduled)
+	} else {
+		return vm.Worker != ""
+	}
+}
+
 type VMSpec struct {
-	NetSoftnetDeprecated bool     `json:"net-softnet,omitempty"`
-	NetSoftnet           bool     `json:"netSoftnet,omitempty"`
-	NetSoftnetAllow      []string `json:"netSoftnetAllow,omitempty"`
-	NetSoftnetBlock      []string `json:"netSoftnetBlock,omitempty"`
-	Suspendable          bool     `json:"suspendable,omitempty"`
+	NetSoftnetDeprecated bool       `json:"net-softnet,omitempty"`
+	NetSoftnet           bool       `json:"netSoftnet,omitempty"`
+	NetSoftnetAllow      []string   `json:"netSoftnetAllow,omitempty"`
+	NetSoftnetBlock      []string   `json:"netSoftnetBlock,omitempty"`
+	Suspendable          bool       `json:"suspendable,omitempty"`
+	PowerState           PowerState `json:"powerState,omitempty"`
+}
+
+type VMSpecReadOnly struct {
+	TartName string `json:"tartName,omitempty"`
 }
 
 type VMState struct {
 	// ObservedGeneration corresponds to the Generation of VM specification
 	// on which the worker had acted upon.
 	ObservedGeneration uint64 `json:"observedGeneration"`
+
+	Conditions []Condition `json:"conditions,omitempty"`
+}
+
+type PowerState string
+
+const (
+	PowerStateRunning   PowerState = "running"
+	PowerStateStopped   PowerState = "stopped"
+	PowerStateSuspended PowerState = "suspended"
+)
+
+func (powerState PowerState) Valid() bool {
+	switch powerState {
+	case PowerStateRunning, PowerStateStopped, PowerStateSuspended:
+		return true
+	default:
+		return false
+	}
+}
+
+func (powerState PowerState) TerminalState() bool {
+	return powerState != PowerStateRunning
 }
 
 type Event struct {

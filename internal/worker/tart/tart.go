@@ -6,9 +6,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"go.uber.org/zap"
 	"os/exec"
 	"strings"
+
+	"go.uber.org/zap"
 )
 
 const tartCommandName = "tart"
@@ -20,6 +21,8 @@ var (
 
 type VMInfo struct {
 	Name    string
+	Source  string
+	State   string
 	Running bool
 }
 

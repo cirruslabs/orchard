@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/avast/retry-go/v4"
@@ -321,20 +320,17 @@ func (worker *Worker) syncVMs(ctx context.Context, updateVM func(context.Context
 		}
 
 		localState := mo.None[v1.VMStatus]()
-		var localConditions []string
+		var localConditions []v1.Condition
 		if vm != nil {
 			localState = mo.Some(vm.Status())
-
-			for condition := range vm.Conditions().Iter() {
-				localConditions = append(localConditions, string(condition))
-			}
+			localConditions = vm.Conditions()
 		}
 
 		action := transitions[remoteState][localState]
 
 		worker.logger.Debugf("processing VM: %s, remote state: %s, local state: %s, "+
 			"local conditions: [%s], action: %v\n", onDiskName, optionToString(remoteState),
-			optionToString(localState), strings.Join(localConditions, ", "), action)
+			optionToString(localState), v1.ConditionsHumanize(localConditions), action)
 
 		switch action {
 		case ActionCreate:
@@ -368,17 +364,30 @@ func (worker *Worker) syncVMs(ctx context.Context, updateVM func(context.Context
 		case ActionMonitorRunning:
 			if vmResource.Generation != vm.Resource.Generation {
 				// VM specification changed, reboot the VM for the changes to take effect
-				if vm.Conditions().Contains(vmmanager.ConditionReady) {
+				if v1.ConditionIsTrue(vm.Conditions(), v1.ConditionTypeRunning) {
 					// VM is running, suspend or stop it first
-					if vm.Resource.Suspendable {
+					shouldStop := vmResource.PowerState == v1.PowerStateStopped || !vm.Resource.Suspendable
+
+					if shouldStop {
+						vm.Stop()
+					} else {
+						vm.Suspend()
+					}
+
+					if vm.Resource.Suspendable && vmResource.PowerState != v1.PowerStateStopped {
 						vm.Suspend()
 					} else {
 						vm.Stop()
 					}
-				} else {
+				} else if vmResource.PowerState == v1.PowerStateRunning {
 					// VM stopped, start it with the new specification
+					vm.UpdateSpec(*vmResource)
+
 					eventStreamer := worker.client.VMs().StreamEvents(vmResource.Name)
-					vm.Start(*vmResource, eventStreamer)
+					vm.Start(eventStreamer)
+				} else if vmResource.PowerState == v1.PowerStateSuspended || vmResource.PowerState == v1.PowerStateStopped {
+					// VM stopped, just update its specification
+					vm.UpdateSpec(*vmResource)
 				}
 			}
 
@@ -394,6 +403,13 @@ func (worker *Worker) syncVMs(ctx context.Context, updateVM func(context.Context
 				vmResource.ObservedGeneration = vm.Resource.ObservedGeneration
 
 				updateNeeded = true
+			}
+
+			// Propagate VM's conditions to the Orchard Controller
+			for _, condition := range vm.Conditions() {
+				if v1.ConditionsSet(&vmResource.Conditions, condition) {
+					updateNeeded = true
+				}
 			}
 
 			if updateNeeded {

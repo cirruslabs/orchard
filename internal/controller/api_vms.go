@@ -10,6 +10,7 @@ import (
 	storepkg "github.com/cirruslabs/orchard/internal/controller/store"
 	"github.com/cirruslabs/orchard/internal/responder"
 	"github.com/cirruslabs/orchard/internal/simplename"
+	"github.com/cirruslabs/orchard/internal/worker/ondiskname"
 	"github.com/cirruslabs/orchard/pkg/resource/v1"
 	"github.com/gin-gonic/gin"
 	"github.com/google/go-cmp/cmp"
@@ -43,6 +44,16 @@ func (controller *Controller) createVM(ctx *gin.Context) responder.Responder {
 	vm.RestartedAt = time.Time{}
 	vm.RestartCount = 0
 	vm.UID = uuid.New().String()
+	vm.PowerState = v1.PowerStateRunning
+	vm.TartName = ondiskname.New(vm.Name, vm.UID, vm.RestartCount).String()
+	vm.Generation = 0
+	vm.ObservedGeneration = 0
+	vm.Conditions = []v1.Condition{
+		{
+			Type:  v1.ConditionTypeScheduled,
+			State: v1.ConditionStateFalse,
+		},
+	}
 
 	// Softnet-specific logic: automatically enable Softnet when NetSoftnetAllow or NetSoftnetBlock are set
 	// and propagate deprecated and non-deprecated boolean fields into each other
@@ -148,6 +159,20 @@ func (controller *Controller) updateVMSpec(ctx *gin.Context) responder.Responder
 		if dbVM.Suspendable && dbVM.NetSoftnet != userVM.NetSoftnet {
 			return responder.JSON(http.StatusPreconditionFailed, NewErrorResponse("\"netSoftnet\" cannot be "+
 				"toggled for suspendable VMs"))
+		}
+
+		// Power state-specific sanity checks
+		if !userVM.PowerState.Valid() {
+			return responder.JSON(http.StatusPreconditionFailed, NewErrorResponse("invalid \"powerState\" "+
+				"value: %s", userVM.PowerState))
+		}
+		if dbVM.PowerState.TerminalState() {
+			return responder.JSON(http.StatusPreconditionFailed, NewErrorResponse("invalid \"powerState\" "+
+				"transition: cannot transition from a terminal power state"))
+		}
+		if !dbVM.Suspendable && userVM.PowerState == v1.PowerStateSuspended {
+			return responder.JSON(http.StatusPreconditionFailed, NewErrorResponse("invalid \"powerState\" "+
+				"transition: only suspendable VMs can be suspended"))
 		}
 
 		if cmp.Equal(dbVM.VMSpec, userVM.VMSpec) {
