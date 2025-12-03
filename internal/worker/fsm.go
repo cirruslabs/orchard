@@ -22,6 +22,9 @@ const (
 	ActionDelete         Action = "delete"
 )
 
+/**
+ * Mapping of actions on how to act for a remote VM state based on a local VM state.
+ */
 var transitions = map[mo.Option[v1.VMStatus]]map[mo.Option[v1.VMStatus]]Action{
 	mo.None[v1.VMStatus](): {
 		mo.None[v1.VMStatus]():      ActionIgnore,
@@ -32,7 +35,7 @@ var transitions = map[mo.Option[v1.VMStatus]]map[mo.Option[v1.VMStatus]]Action{
 	mo.Some(v1.VMStatusPending): {
 		mo.None[v1.VMStatus]():      ActionCreate,
 		mo.Some(v1.VMStatusPending): ActionMonitorPending,
-		mo.Some(v1.VMStatusRunning): ActionReportRunning,
+		mo.Some(v1.VMStatusRunning): ActionReportRunning, // example, remote state is pending and local state is running
 		mo.Some(v1.VMStatusFailed):  ActionFail,
 	},
 	mo.Some(v1.VMStatusRunning): {
