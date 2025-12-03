@@ -373,12 +373,6 @@ func (worker *Worker) syncVMs(ctx context.Context, updateVM func(context.Context
 					} else {
 						vm.Suspend()
 					}
-
-					if vm.Resource.Suspendable && vmResource.PowerState != v1.PowerStateStopped {
-						vm.Suspend()
-					} else {
-						vm.Stop()
-					}
 				} else if vmResource.PowerState == v1.PowerStateRunning {
 					// VM stopped, start it with the new specification
 					vm.UpdateSpec(*vmResource)
