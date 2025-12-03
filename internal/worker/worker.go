@@ -364,7 +364,10 @@ func (worker *Worker) syncVMs(ctx context.Context, updateVM func(context.Context
 		case ActionMonitorRunning:
 			if vmResource.Generation != vm.Resource.Generation {
 				// VM specification changed, reboot the VM for the changes to take effect
-				if v1.ConditionIsTrue(vm.Conditions(), v1.ConditionTypeRunning) {
+				stoppingOrSuspending := v1.ConditionIsTrue(vm.Conditions(), v1.ConditionTypeStopping) ||
+					v1.ConditionIsTrue(vm.Conditions(), v1.ConditionTypeSuspending)
+
+				if v1.ConditionIsTrue(vm.Conditions(), v1.ConditionTypeRunning) && !stoppingOrSuspending {
 					// VM is running, suspend or stop it first
 					shouldStop := vmResource.PowerState == v1.PowerStateStopped || !vm.Resource.Suspendable
 
@@ -373,21 +376,17 @@ func (worker *Worker) syncVMs(ctx context.Context, updateVM func(context.Context
 					} else {
 						vm.Suspend()
 					}
+				}
 
-					if vm.Resource.Suspendable && vmResource.PowerState != v1.PowerStateStopped {
-						vm.Suspend()
-					} else {
-						vm.Stop()
+				if v1.ConditionIsFalse(vm.Conditions(), v1.ConditionTypeRunning) && !stoppingOrSuspending {
+					// VM stopped, update its specification
+					vm.UpdateSpec(*vmResource)
+
+					if vmResource.PowerState == v1.PowerStateRunning {
+						// Start the VM
+						eventStreamer := worker.client.VMs().StreamEvents(vmResource.Name)
+						vm.Start(eventStreamer)
 					}
-				} else if vmResource.PowerState == v1.PowerStateRunning {
-					// VM stopped, start it with the new specification
-					vm.UpdateSpec(*vmResource)
-
-					eventStreamer := worker.client.VMs().StreamEvents(vmResource.Name)
-					vm.Start(eventStreamer)
-				} else if vmResource.PowerState == v1.PowerStateSuspended || vmResource.PowerState == v1.PowerStateStopped {
-					// VM stopped, just update its specification
-					vm.UpdateSpec(*vmResource)
 				}
 			}
 
