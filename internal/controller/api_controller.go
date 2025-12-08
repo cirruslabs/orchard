@@ -19,6 +19,7 @@ func (controller *Controller) controllerInfo(ctx *gin.Context) responder.Respond
 	capabilities := []v1pkg.ControllerCapability{
 		v1pkg.ControllerCapabilityRPCV1,
 		v1pkg.ControllerCapabilityVMStateEndpoint,
+		v1pkg.ControllerCapabilityImagePullResource,
 	}
 
 	if controller.experimentalRPCV2 {

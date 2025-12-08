@@ -13,12 +13,19 @@ type Condition struct {
 type ConditionType string
 
 const (
+	// VM conditions
 	ConditionTypeScheduled ConditionType = "scheduled"
 	ConditionTypeRunning   ConditionType = "running"
 
+	// VM conditions (internal to worker)
 	ConditionTypeCloning    ConditionType = "cloning"
 	ConditionTypeSuspending ConditionType = "suspending"
 	ConditionTypeStopping   ConditionType = "stopping"
+
+	// ImagePull and ImagePullJob conditions
+	ConditionTypeProgressing ConditionType = "progressing"
+	ConditionTypeCompleted   ConditionType = "completed"
+	ConditionTypeFailed      ConditionType = "failed"
 )
 
 type ConditionState string

@@ -47,4 +47,14 @@ type Transaction interface {
 
 	GetClusterSettings() (*v1.ClusterSettings, error)
 	SetClusterSettings(clusterSettings v1.ClusterSettings) error
+
+	GetImagePull(name string) (result *v1.ImagePull, err error)
+	SetImagePull(pull v1.ImagePull) (err error)
+	DeleteImagePull(name string) (err error)
+	ListImagePulls() (result []v1.ImagePull, err error)
+
+	GetImagePullJob(name string) (result *v1.ImagePullJob, err error)
+	SetImagePullJob(pull v1.ImagePullJob) (err error)
+	DeleteImagePullJob(name string) (err error)
+	ListImagePullJobs() (result []v1.ImagePullJob, err error)
 }
