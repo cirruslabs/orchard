@@ -147,15 +147,26 @@ func (scheduler *Scheduler) imagePullLoopIteration() error {
 
 	// Garbage collect orphaned image pulls
 	for _, imagePull := range imagePulls {
-		if lo.ContainsBy(imagePull.OwnerReferences, func(ownerReference v1.OwnerReference) bool {
+		// Is this image pull controlled by an image pull job?
+		imagePullJobOwnerReferences := lo.Filter(imagePull.OwnerReferences, func(ownerReference v1.OwnerReference, _ int) bool {
+			return ownerReference.Kind == v1.KindImagePullJob
+		})
+
+		if len(imagePullJobOwnerReferences) == 0 {
+			continue
+		}
+
+		// Does this image pull has any invalid references?
+		hasOrphanedPullJobOwnerReferences := lo.ContainsBy(imagePullJobOwnerReferences, func(ownerReference v1.OwnerReference) bool {
 			imagePullJob, ok := imagePullJobIndex[ownerReference.Name]
 			if !ok {
-				return false
+				return true
 			}
 
-			return ownerReference == imagePullJob.OwnerReference()
-		}) {
-			// This image pull is still controlled by an existing image pull job
+			return ownerReference != imagePullJob.OwnerReference()
+		})
+
+		if !hasOrphanedPullJobOwnerReferences {
 			continue
 		}
 
