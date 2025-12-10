@@ -108,7 +108,7 @@ func (scheduler *Scheduler) imagePullLoopIteration() error {
 				Type:  v1.ConditionTypeFailed,
 				State: v1.ConditionStateTrue,
 			})
-		} else if (newImagePullJobState.Progressing + newImagePullJobState.Succeeded + newImagePullJobState.Failed) == newImagePullJobState.Total {
+		} else if (newImagePullJobState.Succeeded + newImagePullJobState.Failed) == newImagePullJobState.Total {
 			newImagePullJobState.Conditions = append(newImagePullJobState.Conditions, v1.Condition{
 				Type:  v1.ConditionTypeCompleted,
 				State: v1.ConditionStateTrue,
