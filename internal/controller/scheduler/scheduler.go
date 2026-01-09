@@ -99,16 +99,24 @@ func (scheduler *Scheduler) Run() {
 			scheduler.logger.Errorf("Failed to health-check VMs: %v", err)
 		}
 
+		imagePullLoopIterationStart := time.Now()
+		err = scheduler.imagePullLoopIteration()
+		imagePullLoopIterationEnd := time.Now()
+		if err != nil {
+			scheduler.logger.Errorf("Failed to process image pulls and image pull jobs: %v", err)
+		}
+
 		schedulingLoopIterationStart := time.Now()
 		numWorkersScheduling, numVMsScheduling, err := scheduler.schedulingLoopIteration()
 		schedulingLoopIterationEnd := time.Now()
 
 		scheduler.logger.Debugf("Health checking loop iteration for %d workers and %d VMs took %v, "+
-			"scheduling loop iteration for %d workers and %d VMs took %v",
+			"scheduling loop iteration for %d workers and %d VMs took %v, image pull loop iteration took %v",
 			numWorkersHealth, numVMsHealth,
 			healthCheckingLoopIterationEnd.Sub(healthCheckingLoopIterationStart),
 			numWorkersScheduling, numVMsScheduling,
-			schedulingLoopIterationEnd.Sub(schedulingLoopIterationStart))
+			schedulingLoopIterationEnd.Sub(schedulingLoopIterationStart),
+			imagePullLoopIterationEnd.Sub(imagePullLoopIterationStart))
 
 		if err != nil {
 			scheduler.logger.Errorf("Failed to schedule VMs: %v", err)
