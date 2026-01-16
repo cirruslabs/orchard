@@ -31,7 +31,6 @@ func TestListEventsPage(t *testing.T) {
 	err = store.View(func(txn storepkg.Transaction) error {
 		page, err = txn.ListEventsPage(storepkg.ListOptions{
 			Limit: 2,
-			Order: storepkg.ListOrderAsc,
 		}, "vms", "vm-uid")
 		return err
 	})
@@ -43,7 +42,6 @@ func TestListEventsPage(t *testing.T) {
 	err = store.View(func(txn storepkg.Transaction) error {
 		page2, err = txn.ListEventsPage(storepkg.ListOptions{
 			Limit:  2,
-			Order:  storepkg.ListOrderAsc,
 			Cursor: page.NextCursor,
 		}, "vms", "vm-uid")
 		return err
@@ -51,29 +49,4 @@ func TestListEventsPage(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, events[2:], page2.Items)
 	require.Empty(t, page2.NextCursor)
-
-	var descPage storepkg.Page[v1.Event]
-	err = store.View(func(txn storepkg.Transaction) error {
-		descPage, err = txn.ListEventsPage(storepkg.ListOptions{
-			Limit: 2,
-			Order: storepkg.ListOrderDesc,
-		}, "vms", "vm-uid")
-		return err
-	})
-	require.NoError(t, err)
-	require.Equal(t, []v1.Event{events[3], events[2]}, descPage.Items)
-	require.NotEmpty(t, descPage.NextCursor)
-
-	var descPage2 storepkg.Page[v1.Event]
-	err = store.View(func(txn storepkg.Transaction) error {
-		descPage2, err = txn.ListEventsPage(storepkg.ListOptions{
-			Limit:  2,
-			Order:  storepkg.ListOrderDesc,
-			Cursor: descPage.NextCursor,
-		}, "vms", "vm-uid")
-		return err
-	})
-	require.NoError(t, err)
-	require.Equal(t, []v1.Event{events[1], events[0]}, descPage2.Items)
-	require.Empty(t, descPage2.NextCursor)
 }

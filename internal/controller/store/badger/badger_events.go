@@ -20,13 +20,6 @@ func scopePrefix(scope []string) []byte {
 	return []byte(path.Join(keyParts...))
 }
 
-func prefixEnd(prefix []byte) []byte {
-	end := make([]byte, len(prefix)+1)
-	copy(end, prefix)
-	end[len(prefix)] = 0xFF
-	return end
-}
-
 func (txn *Transaction) AppendEvents(events []v1.Event, scope ...string) (err error) {
 	defer func() {
 		err = mapErr(err)
@@ -80,7 +73,6 @@ func (txn *Transaction) ListEventsPage(options storepkg.ListOptions, scope ...st
 	prefix := scopePrefix(scope)
 	itOptions := badger.DefaultIteratorOptions
 	itOptions.Prefix = prefix
-	itOptions.Reverse = options.Order == storepkg.ListOrderDesc
 
 	it := txn.badgerTxn.NewIterator(itOptions)
 	defer it.Close()
@@ -90,8 +82,6 @@ func (txn *Transaction) ListEventsPage(options storepkg.ListOptions, scope ...st
 		if it.ValidForPrefix(prefix) && bytes.Equal(it.Item().Key(), options.Cursor) {
 			it.Next()
 		}
-	} else if itOptions.Reverse {
-		it.Seek(prefixEnd(prefix))
 	} else {
 		it.Rewind()
 	}

@@ -404,22 +404,6 @@ func parseListVMEventsOptions(ctx *gin.Context) (storepkg.ListOptions, bool, res
 
 	limitRaw := ctx.Query("limit")
 	cursorRaw := ctx.Query("cursor")
-	orderRaw := ctx.Query("order")
-	lastRaw := ctx.Query("last")
-
-	if lastRaw != "" {
-		if limitRaw != "" || cursorRaw != "" || orderRaw != "" {
-			return options, false, responder.Code(http.StatusBadRequest)
-		}
-
-		last, ok := parsePositiveInt(lastRaw)
-		if !ok {
-			return options, false, responder.Code(http.StatusBadRequest)
-		}
-		options.Limit = last
-		options.Order = storepkg.ListOrderDesc
-		return options, true, nil
-	}
 
 	if limitRaw != "" {
 		limit, ok := parsePositiveInt(limitRaw)
@@ -436,18 +420,6 @@ func parseListVMEventsOptions(ctx *gin.Context) (storepkg.ListOptions, bool, res
 			return options, false, responder.Code(http.StatusBadRequest)
 		}
 		options.Cursor = cursor
-		usePagination = true
-	}
-
-	if orderRaw != "" {
-		switch orderRaw {
-		case "asc":
-			options.Order = storepkg.ListOrderAsc
-		case "desc":
-			options.Order = storepkg.ListOrderDesc
-		default:
-			return options, false, responder.Code(http.StatusBadRequest)
-		}
 		usePagination = true
 	}
 

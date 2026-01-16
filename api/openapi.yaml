@@ -338,18 +338,6 @@ paths:
           description: Opaque cursor from the X-Next-Cursor response header.
           schema:
             type: string
-        - in: query
-          name: order
-          description: Order to return events in. Defaults to "asc".
-          schema:
-            type: string
-            enum: [ asc, desc ]
-        - in: query
-          name: last
-          description: Return the last N events (alias for order=desc&limit=N).
-          schema:
-            type: integer
-            minimum: 1
       responses:
         '200':
           description: OK

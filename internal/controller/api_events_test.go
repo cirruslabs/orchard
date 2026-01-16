@@ -72,6 +72,15 @@ func TestListVMEventsInvalidOrder(t *testing.T) {
 		insecureAuthDisabled: true,
 	}
 
+	vm := v1.VM{
+		Meta: v1.Meta{Name: "test-vm"},
+		UID:  "vm-uid",
+	}
+	err = store.Update(func(txn storepkg.Transaction) error {
+		return txn.SetVM(vm)
+	})
+	require.NoError(t, err)
+
 	recorder := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(recorder)
 	ctx.Request = httptest.NewRequest(http.MethodGet, "/vms/test-vm/events?order=sideways", nil)

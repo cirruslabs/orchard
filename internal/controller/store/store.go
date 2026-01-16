@@ -50,17 +50,9 @@ type Transaction interface {
 	SetClusterSettings(clusterSettings v1.ClusterSettings) error
 }
 
-type ListOrder int
-
-const (
-	ListOrderAsc ListOrder = iota
-	ListOrderDesc
-)
-
 type ListOptions struct {
 	Limit  int
 	Cursor []byte
-	Order  ListOrder
 }
 
 type Page[T any] struct {
