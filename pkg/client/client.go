@@ -349,6 +349,18 @@ func (client *Client) ClusterSettings() *ClusterSettingsService {
 	}
 }
 
+func (client *Client) ImagePulls() *ImagePullsService {
+	return &ImagePullsService{
+		client: client,
+	}
+}
+
+func (client *Client) ImagePullJobs() *ImagePullJobsService {
+	return &ImagePullJobsService{
+		client: client,
+	}
+}
+
 func (client *Client) RPC() *RPCService {
 	return &RPCService{
 		client: client,
