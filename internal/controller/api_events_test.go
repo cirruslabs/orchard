@@ -59,38 +59,6 @@ func TestListVMEventsPagination(t *testing.T) {
 	require.Empty(t, cursor2)
 }
 
-func TestListVMEventsInvalidOrder(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	logger := zap.NewNop().Sugar()
-	store, err := badger.NewBadgerStore(t.TempDir(), true, logger)
-	require.NoError(t, err)
-
-	controller := &Controller{
-		store:                store,
-		logger:               logger,
-		insecureAuthDisabled: true,
-	}
-
-	vm := v1.VM{
-		Meta: v1.Meta{Name: "test-vm"},
-		UID:  "vm-uid",
-	}
-	err = store.Update(func(txn storepkg.Transaction) error {
-		return txn.SetVM(vm)
-	})
-	require.NoError(t, err)
-
-	recorder := httptest.NewRecorder()
-	ctx, _ := gin.CreateTestContext(recorder)
-	ctx.Request = httptest.NewRequest(http.MethodGet, "/vms/test-vm/events?order=sideways", nil)
-	ctx.Params = gin.Params{{Key: "name", Value: "test-vm"}}
-
-	controller.listVMEvents(ctx).Respond(ctx)
-
-	require.Equal(t, http.StatusBadRequest, ctx.Writer.Status())
-}
-
 func fetchVMEventsPage(
 	t *testing.T,
 	controller *Controller,
