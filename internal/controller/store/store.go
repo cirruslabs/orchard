@@ -43,8 +43,27 @@ type Transaction interface {
 
 	AppendEvents(event []v1.Event, scope ...string) (err error)
 	ListEvents(scope ...string) (result []v1.Event, err error)
+	ListEventsPage(options ListOptions, scope ...string) (result Page[v1.Event], err error)
 	DeleteEvents(scope ...string) (err error)
 
 	GetClusterSettings() (*v1.ClusterSettings, error)
 	SetClusterSettings(clusterSettings v1.ClusterSettings) error
+}
+
+type ListOrder int
+
+const (
+	ListOrderAsc ListOrder = iota
+	ListOrderDesc
+)
+
+type ListOptions struct {
+	Limit  int
+	Cursor []byte
+	Order  ListOrder
+}
+
+type Page[T any] struct {
+	Items      []T
+	NextCursor []byte
 }

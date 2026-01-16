@@ -1,9 +1,11 @@
 package controller
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/cirruslabs/orchard/internal/controller/lifecycle"
@@ -364,12 +366,29 @@ func (controller *Controller) listVMEvents(ctx *gin.Context) responder.Responder
 	}
 
 	name := ctx.Param("name")
+	options, usePagination, parseResponder := parseListVMEventsOptions(ctx)
+	if parseResponder != nil {
+		return parseResponder
+	}
 
 	return controller.storeView(func(txn storepkg.Transaction) responder.Responder {
 		vm, err := txn.GetVM(name)
 		if err != nil {
 			return responder.Error(err)
 		}
+
+		if usePagination {
+			page, err := txn.ListEventsPage(options, "vms", vm.UID)
+			if err != nil {
+				return responder.Error(err)
+			}
+			if len(page.NextCursor) != 0 {
+				ctx.Header("X-Next-Cursor", encodeEventCursor(page.NextCursor))
+			}
+
+			return responder.JSON(http.StatusOK, page.Items)
+		}
+
 		events, err := txn.ListEvents("vms", vm.UID)
 		if err != nil {
 			return responder.Error(err)
@@ -377,6 +396,84 @@ func (controller *Controller) listVMEvents(ctx *gin.Context) responder.Responder
 
 		return responder.JSON(http.StatusOK, events)
 	})
+}
+
+func parseListVMEventsOptions(ctx *gin.Context) (storepkg.ListOptions, bool, responder.Responder) {
+	var options storepkg.ListOptions
+	usePagination := false
+
+	limitRaw := ctx.Query("limit")
+	cursorRaw := ctx.Query("cursor")
+	orderRaw := ctx.Query("order")
+	lastRaw := ctx.Query("last")
+
+	if lastRaw != "" {
+		if limitRaw != "" || cursorRaw != "" || orderRaw != "" {
+			return options, false, responder.Code(http.StatusBadRequest)
+		}
+
+		last, ok := parsePositiveInt(lastRaw)
+		if !ok {
+			return options, false, responder.Code(http.StatusBadRequest)
+		}
+		options.Limit = last
+		options.Order = storepkg.ListOrderDesc
+		return options, true, nil
+	}
+
+	if limitRaw != "" {
+		limit, ok := parsePositiveInt(limitRaw)
+		if !ok {
+			return options, false, responder.Code(http.StatusBadRequest)
+		}
+		options.Limit = limit
+		usePagination = true
+	}
+
+	if cursorRaw != "" {
+		cursor, err := decodeEventCursor(cursorRaw)
+		if err != nil {
+			return options, false, responder.Code(http.StatusBadRequest)
+		}
+		options.Cursor = cursor
+		usePagination = true
+	}
+
+	if orderRaw != "" {
+		switch orderRaw {
+		case "asc":
+			options.Order = storepkg.ListOrderAsc
+		case "desc":
+			options.Order = storepkg.ListOrderDesc
+		default:
+			return options, false, responder.Code(http.StatusBadRequest)
+		}
+		usePagination = true
+	}
+
+	return options, usePagination, nil
+}
+
+func parsePositiveInt(raw string) (int, bool) {
+	value, err := strconv.ParseInt(raw, 10, 0)
+	if err != nil || value <= 0 {
+		return 0, false
+	}
+
+	return int(value), true
+}
+
+func encodeEventCursor(cursor []byte) string {
+	return base64.RawURLEncoding.EncodeToString(cursor)
+}
+
+func decodeEventCursor(cursorRaw string) ([]byte, error) {
+	cursor, err := base64.RawURLEncoding.DecodeString(cursorRaw)
+	if err == nil {
+		return cursor, nil
+	}
+
+	return base64.URLEncoding.DecodeString(cursorRaw)
 }
 
 func (controller *Controller) validateHostDirs(hostDirs []v1.HostDir) responder.Responder {
