@@ -326,9 +326,34 @@ paths:
       summary: "Retrieve events for a given VM"
       tags:
         - vms
+      parameters:
+        - in: query
+          name: limit
+          description: Maximum number of events to return.
+          schema:
+            type: integer
+            minimum: 1
+        - in: query
+          name: order
+          description: Sort order of events; asc (default) or desc.
+          schema:
+            type: string
+            enum:
+              - asc
+              - desc
+        - in: query
+          name: cursor
+          description: Opaque cursor from the X-Next-Cursor response header.
+          schema:
+            type: string
       responses:
         '200':
           description: OK
+          headers:
+            X-Next-Cursor:
+              description: Opaque cursor for the next page of events, if any.
+              schema:
+                type: string
           content:
             application/json:
               schema:
