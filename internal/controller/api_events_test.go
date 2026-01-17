@@ -57,6 +57,14 @@ func TestListVMEventsPagination(t *testing.T) {
 	page2, cursor2 := fetchVMEventsPage(t, controller, vm.Name, "limit=2&cursor="+url.QueryEscape(cursor))
 	require.Equal(t, events[2:], page2)
 	require.Empty(t, cursor2)
+
+	descPage, descCursor := fetchVMEventsPage(t, controller, vm.Name, "limit=2&order=desc")
+	require.Equal(t, []v1.Event{events[3], events[2]}, descPage)
+	require.NotEmpty(t, descCursor)
+
+	descPage2, descCursor2 := fetchVMEventsPage(t, controller, vm.Name, "limit=2&order=desc&cursor="+url.QueryEscape(descCursor))
+	require.Equal(t, []v1.Event{events[1], events[0]}, descPage2)
+	require.Empty(t, descCursor2)
 }
 
 func fetchVMEventsPage(

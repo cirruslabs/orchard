@@ -334,6 +334,14 @@ paths:
             type: integer
             minimum: 1
         - in: query
+          name: order
+          description: Sort order of events; asc (default) or desc.
+          schema:
+            type: string
+            enum:
+              - asc
+              - desc
+        - in: query
           name: cursor
           description: Opaque cursor from the X-Next-Cursor response header.
           schema:

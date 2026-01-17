@@ -73,6 +73,9 @@ func (txn *Transaction) ListEventsPage(options storepkg.ListOptions, scope ...st
 	prefix := scopePrefix(scope)
 	itOptions := badger.DefaultIteratorOptions
 	itOptions.Prefix = prefix
+	if options.Order == storepkg.ListOrderDesc {
+		itOptions.Reverse = true
+	}
 
 	it := txn.badgerTxn.NewIterator(itOptions)
 	defer it.Close()
@@ -82,6 +85,11 @@ func (txn *Transaction) ListEventsPage(options storepkg.ListOptions, scope ...st
 		if it.ValidForPrefix(prefix) && bytes.Equal(it.Item().Key(), options.Cursor) {
 			it.Next()
 		}
+	} else if options.Order == storepkg.ListOrderDesc {
+		seekKey := make([]byte, 0, len(prefix)+1)
+		seekKey = append(seekKey, prefix...)
+		seekKey = append(seekKey, 0xff)
+		it.Seek(seekKey)
 	} else {
 		it.Rewind()
 	}

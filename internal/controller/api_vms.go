@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/cirruslabs/orchard/internal/controller/lifecycle"
@@ -403,6 +404,7 @@ func parseListVMEventsOptions(ctx *gin.Context) (storepkg.ListOptions, bool, res
 	usePagination := false
 
 	limitRaw := ctx.Query("limit")
+	orderRaw := ctx.Query("order")
 	cursorRaw := ctx.Query("cursor")
 
 	if limitRaw != "" {
@@ -412,6 +414,20 @@ func parseListVMEventsOptions(ctx *gin.Context) (storepkg.ListOptions, bool, res
 		}
 		options.Limit = limit
 		usePagination = true
+	}
+
+	if orderRaw != "" {
+		order := strings.ToLower(orderRaw)
+		switch order {
+		case "asc":
+			options.Order = storepkg.ListOrderAsc
+			usePagination = true
+		case "desc":
+			options.Order = storepkg.ListOrderDesc
+			usePagination = true
+		default:
+			return options, false, responder.Code(http.StatusBadRequest)
+		}
 	}
 
 	if cursorRaw != "" {

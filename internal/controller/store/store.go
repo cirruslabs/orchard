@@ -53,9 +53,17 @@ type Transaction interface {
 type ListOptions struct {
 	Limit  int
 	Cursor []byte
+	Order  ListOrder
 }
 
 type Page[T any] struct {
 	Items      []T
 	NextCursor []byte
 }
+
+type ListOrder string
+
+const (
+	ListOrderAsc  ListOrder = "asc"
+	ListOrderDesc ListOrder = "desc"
+)
