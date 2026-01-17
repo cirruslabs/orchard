@@ -15,6 +15,18 @@ type VMsService struct {
 	client *Client
 }
 
+type LogsOrder string
+
+const (
+	LogsOrderAsc  LogsOrder = "asc"
+	LogsOrderDesc LogsOrder = "desc"
+)
+
+type LogsOptions struct {
+	Limit int
+	Order LogsOrder
+}
+
 func (service *VMsService) Create(ctx context.Context, vm *v1.VM) error {
 	err := service.client.request(ctx, http.MethodPost, "vms",
 		vm, nil, nil)
@@ -134,9 +146,23 @@ func (service *VMsService) StreamEvents(name string) *EventStreamer {
 }
 
 func (service *VMsService) Logs(ctx context.Context, name string) (lines []string, err error) {
+	return service.LogsWithOptions(ctx, name, LogsOptions{})
+}
+
+func (service *VMsService) LogsWithOptions(ctx context.Context, name string, options LogsOptions) (lines []string, err error) {
 	var events []v1.Event
+	params := map[string]string{}
+	if options.Limit > 0 {
+		params["limit"] = strconv.Itoa(options.Limit)
+	}
+	if options.Order != "" {
+		params["order"] = string(options.Order)
+	}
+	if len(params) == 0 {
+		params = nil
+	}
 	err = service.client.request(ctx, http.MethodGet, fmt.Sprintf("vms/%s/events", url.PathEscape(name)),
-		nil, &events, nil)
+		nil, &events, params)
 	if err != nil {
 		return
 	}
