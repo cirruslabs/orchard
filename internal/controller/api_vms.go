@@ -409,7 +409,7 @@ func parseListVMEventsOptions(ctx *gin.Context) (storepkg.ListOptions, responder
 	if orderRaw != "" {
 		order, err := client.ParseLogsOrder(orderRaw)
 		if err != nil {
-			return options, responder.JSON(http.StatusBadRequest, NewErrorResponse(err.Error()))
+			return options, responder.JSON(http.StatusBadRequest, NewErrorResponse("%s", err))
 		}
 		options.Order = storepkg.ListOrder(order)
 	}

@@ -121,9 +121,7 @@ func (txn *Transaction) ListEventsPage(options storepkg.ListOptions, scope ...st
 			lastKey := item.KeyCopy(nil)
 			it.Next()
 			if it.ValidForPrefix(prefix) {
-				if bytes.HasPrefix(lastKey, prefix) {
-					lastKey = lastKey[len(prefix):]
-				}
+				lastKey = bytes.TrimPrefix(lastKey, prefix)
 				result.NextCursor = lastKey
 			}
 			break

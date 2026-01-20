@@ -1,6 +1,8 @@
 package logs
 
 import (
+	"fmt"
+
 	"github.com/cirruslabs/orchard/pkg/client"
 	"github.com/spf13/cobra"
 )
