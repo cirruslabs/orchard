@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 
 	"github.com/cirruslabs/orchard/pkg/resource/v1"
 )
@@ -21,6 +22,18 @@ const (
 	LogsOrderAsc  LogsOrder = "asc"
 	LogsOrderDesc LogsOrder = "desc"
 )
+
+func ParseLogsOrder(raw string) (LogsOrder, error) {
+	order := strings.ToLower(raw)
+	switch order {
+	case string(LogsOrderAsc):
+		return LogsOrderAsc, nil
+	case string(LogsOrderDesc):
+		return LogsOrderDesc, nil
+	default:
+		return "", fmt.Errorf("invalid order %q: expected asc or desc", raw)
+	}
+}
 
 type LogsOptions struct {
 	Limit int

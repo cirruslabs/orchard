@@ -1,15 +1,11 @@
 package logs
 
 import (
-	"fmt"
-	"strings"
-
 	"github.com/cirruslabs/orchard/pkg/client"
 	"github.com/spf13/cobra"
 )
 
-var logLimit int
-var logOrder string
+var logTail int
 
 func newLogsVMCommand() *cobra.Command {
 	command := &cobra.Command{
@@ -19,8 +15,7 @@ func newLogsVMCommand() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 	}
 
-	command.Flags().IntVar(&logLimit, "limit", 0, "Maximum number of log lines to return")
-	command.Flags().StringVar(&logOrder, "order", "", "Sort order for log lines: asc or desc")
+	command.Flags().IntVar(&logTail, "tail", 0, "Number of log lines to show from the end (newest first)")
 
 	return command
 }
@@ -33,19 +28,10 @@ func runLogsVM(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	options := client.LogsOptions{
-		Limit: logLimit,
-	}
-	if logOrder != "" {
-		order := strings.ToLower(logOrder)
-		switch order {
-		case string(client.LogsOrderAsc):
-			options.Order = client.LogsOrderAsc
-		case string(client.LogsOrderDesc):
-			options.Order = client.LogsOrderDesc
-		default:
-			return fmt.Errorf("invalid order %q: expected asc or desc", logOrder)
-		}
+	options := client.LogsOptions{}
+	if logTail > 0 {
+		options.Limit = logTail
+		options.Order = client.LogsOrderDesc
 	}
 
 	lines, err := apiClient.VMs().LogsWithOptions(cmd.Context(), name, options)

@@ -80,13 +80,23 @@ func (txn *Transaction) ListEventsPage(options storepkg.ListOptions, scope ...st
 	it := txn.badgerTxn.NewIterator(itOptions)
 	defer it.Close()
 
-	if len(options.Cursor) > 0 {
-		it.Seek(options.Cursor)
-		if it.ValidForPrefix(prefix) && bytes.Equal(it.Item().Key(), options.Cursor) {
+	cursor := options.Cursor
+	if len(cursor) > 0 {
+		if !bytes.HasPrefix(cursor, prefix) {
+			seekKey := make([]byte, 0, len(prefix)+len(cursor))
+			seekKey = append(seekKey, prefix...)
+			seekKey = append(seekKey, cursor...)
+			cursor = seekKey
+		}
+		it.Seek(cursor)
+		if it.ValidForPrefix(prefix) && bytes.Equal(it.Item().Key(), cursor) {
 			it.Next()
 		}
 	} else if options.Order == storepkg.ListOrderDesc {
-		it.Seek(append(prefix, 0xFF))
+		seekKey := make([]byte, 0, len(prefix)+1)
+		seekKey = append(seekKey, prefix...)
+		seekKey = append(seekKey, 0xFF)
+		it.Seek(seekKey)
 	} else {
 		it.Rewind()
 	}
@@ -111,6 +121,9 @@ func (txn *Transaction) ListEventsPage(options storepkg.ListOptions, scope ...st
 			lastKey := item.KeyCopy(nil)
 			it.Next()
 			if it.ValidForPrefix(prefix) {
+				if bytes.HasPrefix(lastKey, prefix) {
+					lastKey = lastKey[len(prefix):]
+				}
 				result.NextCursor = lastKey
 			}
 			break

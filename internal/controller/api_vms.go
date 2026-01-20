@@ -6,7 +6,6 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/cirruslabs/orchard/internal/controller/lifecycle"
@@ -14,6 +13,7 @@ import (
 	"github.com/cirruslabs/orchard/internal/responder"
 	"github.com/cirruslabs/orchard/internal/simplename"
 	"github.com/cirruslabs/orchard/internal/worker/ondiskname"
+	"github.com/cirruslabs/orchard/pkg/client"
 	"github.com/cirruslabs/orchard/pkg/resource/v1"
 	"github.com/gin-gonic/gin"
 	"github.com/google/go-cmp/cmp"
@@ -367,7 +367,7 @@ func (controller *Controller) listVMEvents(ctx *gin.Context) responder.Responder
 	}
 
 	name := ctx.Param("name")
-	options, usePagination, parseResponder := parseListVMEventsOptions(ctx)
+	options, parseResponder := parseListVMEventsOptions(ctx)
 	if parseResponder != nil {
 		return parseResponder
 	}
@@ -378,30 +378,20 @@ func (controller *Controller) listVMEvents(ctx *gin.Context) responder.Responder
 			return responder.Error(err)
 		}
 
-		if usePagination {
-			page, err := txn.ListEventsPage(options, "vms", vm.UID)
-			if err != nil {
-				return responder.Error(err)
-			}
-			if len(page.NextCursor) != 0 {
-				ctx.Header("X-Next-Cursor", encodeEventCursor(page.NextCursor))
-			}
-
-			return responder.JSON(http.StatusOK, page.Items)
-		}
-
-		events, err := txn.ListEvents("vms", vm.UID)
+		page, err := txn.ListEventsPage(options, "vms", vm.UID)
 		if err != nil {
 			return responder.Error(err)
 		}
+		if len(page.NextCursor) != 0 {
+			ctx.Header("X-Next-Cursor", encodeEventCursor(page.NextCursor))
+		}
 
-		return responder.JSON(http.StatusOK, events)
+		return responder.JSON(http.StatusOK, page.Items)
 	})
 }
 
-func parseListVMEventsOptions(ctx *gin.Context) (storepkg.ListOptions, bool, responder.Responder) {
+func parseListVMEventsOptions(ctx *gin.Context) (storepkg.ListOptions, responder.Responder) {
 	var options storepkg.ListOptions
-	usePagination := false
 
 	limitRaw := ctx.Query("limit")
 	orderRaw := ctx.Query("order")
@@ -410,36 +400,30 @@ func parseListVMEventsOptions(ctx *gin.Context) (storepkg.ListOptions, bool, res
 	if limitRaw != "" {
 		limit, ok := parsePositiveInt(limitRaw)
 		if !ok {
-			return options, false, responder.Code(http.StatusBadRequest)
+			return options, responder.JSON(http.StatusBadRequest,
+				NewErrorResponse("invalid limit %q: expected positive integer", limitRaw))
 		}
 		options.Limit = limit
-		usePagination = true
 	}
 
 	if orderRaw != "" {
-		order := strings.ToLower(orderRaw)
-		switch order {
-		case "asc":
-			options.Order = storepkg.ListOrderAsc
-			usePagination = true
-		case "desc":
-			options.Order = storepkg.ListOrderDesc
-			usePagination = true
-		default:
-			return options, false, responder.Code(http.StatusBadRequest)
+		order, err := client.ParseLogsOrder(orderRaw)
+		if err != nil {
+			return options, responder.JSON(http.StatusBadRequest, NewErrorResponse(err.Error()))
 		}
+		options.Order = storepkg.ListOrder(order)
 	}
 
 	if cursorRaw != "" {
 		cursor, err := decodeEventCursor(cursorRaw)
 		if err != nil {
-			return options, false, responder.Code(http.StatusBadRequest)
+			return options, responder.JSON(http.StatusBadRequest,
+				NewErrorResponse("invalid cursor %q", cursorRaw))
 		}
 		options.Cursor = cursor
-		usePagination = true
 	}
 
-	return options, usePagination, nil
+	return options, nil
 }
 
 func parsePositiveInt(raw string) (int, bool) {
