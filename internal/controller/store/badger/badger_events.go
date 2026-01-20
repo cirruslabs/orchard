@@ -86,10 +86,7 @@ func (txn *Transaction) ListEventsPage(options storepkg.ListOptions, scope ...st
 			it.Next()
 		}
 	} else if options.Order == storepkg.ListOrderDesc {
-		seekKey := make([]byte, 0, len(prefix)+1)
-		seekKey = append(seekKey, prefix...)
-		seekKey = append(seekKey, 0xff)
-		it.Seek(seekKey)
+		it.Seek(append(prefix, 0xFF))
 	} else {
 		it.Rewind()
 	}
