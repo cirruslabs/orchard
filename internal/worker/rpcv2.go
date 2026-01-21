@@ -3,11 +3,12 @@ package worker
 import (
 	"context"
 	"fmt"
+	"net"
+
 	"github.com/cirruslabs/orchard/internal/proxy"
 	"github.com/cirruslabs/orchard/internal/worker/vmmanager"
 	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
 	"github.com/samber/lo"
-	"net"
 )
 
 func (worker *Worker) watchRPCV2(ctx context.Context) error {
@@ -81,8 +82,8 @@ func (worker *Worker) handlePortForwardV2Inner(
 		host = "localhost"
 	} else {
 		// Port-forwarding request to a VM, find that VM
-		vm, ok := lo.Find(worker.vmm.List(), func(item *vmmanager.VM) bool {
-			return item.Resource.UID == portForward.VMUID
+		vm, ok := lo.Find(worker.vmm.List(), func(item vmmanager.VM) bool {
+			return item.Resource().UID == portForward.VMUID
 		})
 		if !ok {
 			return nil, fmt.Errorf("failed to get the VM: %v", err)
@@ -142,8 +143,8 @@ func (worker *Worker) handleGetIPV2Inner(
 	resolveIP *v1.ResolveIPAction,
 ) (string, error) {
 	// Find the desired VM
-	vm, ok := lo.Find(worker.vmm.List(), func(item *vmmanager.VM) bool {
-		return item.Resource.UID == resolveIP.VMUID
+	vm, ok := lo.Find(worker.vmm.List(), func(item vmmanager.VM) bool {
+		return item.Resource().UID == resolveIP.VMUID
 	})
 	if !ok {
 		return "", fmt.Errorf("VM %q not found", resolveIP.VMUID)

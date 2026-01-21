@@ -1,4 +1,4 @@
-package vmmanager
+package tart
 
 import (
 	"bufio"
@@ -16,7 +16,6 @@ import (
 	"github.com/avast/retry-go"
 	"github.com/cirruslabs/chacha/pkg/localnetworkhelper"
 	"github.com/cirruslabs/orchard/internal/worker/ondiskname"
-	"github.com/cirruslabs/orchard/internal/worker/tart"
 	"github.com/cirruslabs/orchard/pkg/client"
 	"github.com/cirruslabs/orchard/pkg/resource/v1"
 	mapset "github.com/deckarep/golang-set/v2"
@@ -30,7 +29,7 @@ var ErrVMFailed = errors.New("VM failed")
 
 type VM struct {
 	onDiskName ondiskname.OnDiskName
-	Resource   v1.VM
+	resource   v1.VM
 	logger     *zap.SugaredLogger
 
 	// Backward compatibility with v1.VM specification's "Status" field
@@ -74,7 +73,7 @@ func NewVM(
 
 	vm := &VM{
 		onDiskName: ondiskname.NewFromResource(vmResource),
-		Resource:   vmResource,
+		resource:   vmResource,
 		logger: logger.With(
 			"vm_uid", vmResource.UID,
 			"vm_name", vmResource.Name,
@@ -101,7 +100,7 @@ func NewVM(
 
 			pullStartedAt := time.Now()
 
-			_, _, err := tart.Tart(vm.ctx, vm.logger, "pull", vm.Resource.Image)
+			_, _, err := Tart(vm.ctx, vm.logger, "pull", vm.resource.Image)
 			if err != nil {
 				select {
 				case <-vm.ctx.Done():
@@ -114,8 +113,8 @@ func NewVM(
 			}
 
 			vmPullTimeHistogram.Record(vm.ctx, time.Since(pullStartedAt).Seconds(), metric.WithAttributes(
-				attribute.String("worker", vm.Resource.Worker),
-				attribute.String("image", vm.Resource.Image),
+				attribute.String("worker", vm.resource.Worker),
+				attribute.String("image", vm.resource.Image),
 			))
 		}
 
@@ -139,6 +138,15 @@ func NewVM(
 	}()
 
 	return vm
+}
+
+func (vm *VM) Resource() v1.VM {
+	return vm.resource
+}
+
+func (vm *VM) SetResource(vmResource v1.VM) {
+	vm.resource = vmResource
+	vm.resource.ObservedGeneration = vmResource.Generation
 }
 
 func (vm *VM) OnDiskName() ondiskname.OnDiskName {
@@ -220,7 +228,7 @@ func (vm *VM) conditionTypeToCondition(conditionType v1.ConditionType) v1.Condit
 func (vm *VM) cloneAndConfigure(ctx context.Context) error {
 	vm.setStatusMessage("cloning VM...")
 
-	_, _, err := tart.Tart(ctx, vm.logger, "clone", vm.Resource.Image, vm.id())
+	_, _, err := Tart(ctx, vm.logger, "clone", vm.resource.Image, vm.id())
 	if err != nil {
 		return err
 	}
@@ -228,7 +236,7 @@ func (vm *VM) cloneAndConfigure(ctx context.Context) error {
 	vm.conditions.Remove(v1.ConditionTypeCloning)
 
 	// Image FQN feature, see https://github.com/cirruslabs/orchard/issues/164
-	fqnRaw, _, err := tart.Tart(ctx, vm.logger, "fqn", vm.Resource.Image)
+	fqnRaw, _, err := Tart(ctx, vm.logger, "fqn", vm.resource.Image)
 	if err == nil {
 		fqn := strings.TrimSpace(fqnRaw)
 		vm.imageFQN.Store(&fqn)
@@ -237,14 +245,14 @@ func (vm *VM) cloneAndConfigure(ctx context.Context) error {
 	// Set memory
 	vm.setStatusMessage("configuring VM...")
 
-	memory := vm.Resource.AssignedMemory
+	memory := vm.resource.AssignedMemory
 
 	if memory == 0 {
-		memory = vm.Resource.Memory
+		memory = vm.resource.Memory
 	}
 
 	if memory != 0 {
-		_, _, err = tart.Tart(ctx, vm.logger, "set", "--memory",
+		_, _, err = Tart(ctx, vm.logger, "set", "--memory",
 			strconv.FormatUint(memory, 10), vm.id())
 		if err != nil {
 			return err
@@ -252,22 +260,22 @@ func (vm *VM) cloneAndConfigure(ctx context.Context) error {
 	}
 
 	// Set CPU
-	cpu := vm.Resource.AssignedCPU
+	cpu := vm.resource.AssignedCPU
 
 	if cpu == 0 {
-		cpu = vm.Resource.CPU
+		cpu = vm.resource.CPU
 	}
 
 	if cpu != 0 {
-		_, _, err = tart.Tart(ctx, vm.logger, "set", "--cpu",
+		_, _, err = Tart(ctx, vm.logger, "set", "--cpu",
 			strconv.FormatUint(cpu, 10), vm.id())
 		if err != nil {
 			return err
 		}
 	}
 
-	if diskSize := vm.Resource.DiskSize; diskSize != 0 {
-		_, _, err = tart.Tart(ctx, vm.logger, "set", "--disk-size",
+	if diskSize := vm.resource.DiskSize; diskSize != 0 {
+		_, _, err = Tart(ctx, vm.logger, "set", "--disk-size",
 			strconv.FormatUint(diskSize, 10), vm.id())
 		if err != nil {
 			return err
@@ -332,13 +340,13 @@ func (vm *VM) cloneAndConfigure(ctx context.Context) error {
 	// to avoid collisions when cloning from an OCI image on multiple hosts[1].
 	//
 	// [1]: https://github.com/cirruslabs/orchard/issues/181
-	_, _, err = tart.Tart(ctx, vm.logger, "set", "--random-mac", vm.id())
+	_, _, err = Tart(ctx, vm.logger, "set", "--random-mac", vm.id())
 	if err != nil {
 		return err
 	}
 
-	if vm.Resource.RandomSerial {
-		_, _, err = tart.Tart(ctx, vm.logger, "set", "--random-serial", vm.id())
+	if vm.resource.RandomSerial {
+		_, _, err = Tart(ctx, vm.logger, "set", "--random-serial", vm.id())
 		if err != nil {
 			return err
 		}
@@ -352,47 +360,47 @@ func (vm *VM) run(ctx context.Context, eventStreamer *client.EventStreamer) {
 
 	// Launch the startup script goroutine as close as possible
 	// to the VM startup (below) to avoid "tart ip" timing out
-	if vm.Resource.StartupScript != nil {
+	if vm.resource.StartupScript != nil {
 		vm.setStatusMessage("VM started, running startup script...")
 
-		go vm.runScript(vm.Resource.StartupScript, eventStreamer)
+		go vm.runScript(vm.resource.StartupScript, eventStreamer)
 	} else {
 		vm.setStatusMessage("VM started")
 	}
 
 	var runArgs = []string{"run"}
 
-	if vm.Resource.NetSoftnetDeprecated || vm.Resource.NetSoftnet {
+	if vm.resource.NetSoftnetDeprecated || vm.resource.NetSoftnet {
 		runArgs = append(runArgs, "--net-softnet")
 	}
-	if len(vm.Resource.NetSoftnetAllow) != 0 {
-		runArgs = append(runArgs, "--net-softnet-allow", strings.Join(vm.Resource.NetSoftnetAllow, ","))
+	if len(vm.resource.NetSoftnetAllow) != 0 {
+		runArgs = append(runArgs, "--net-softnet-allow", strings.Join(vm.resource.NetSoftnetAllow, ","))
 	}
-	if len(vm.Resource.NetSoftnetBlock) != 0 {
-		runArgs = append(runArgs, "--net-softnet-block", strings.Join(vm.Resource.NetSoftnetBlock, ","))
+	if len(vm.resource.NetSoftnetBlock) != 0 {
+		runArgs = append(runArgs, "--net-softnet-block", strings.Join(vm.resource.NetSoftnetBlock, ","))
 	}
-	if vm.Resource.NetBridged != "" {
-		runArgs = append(runArgs, fmt.Sprintf("--net-bridged=%s", vm.Resource.NetBridged))
+	if vm.resource.NetBridged != "" {
+		runArgs = append(runArgs, fmt.Sprintf("--net-bridged=%s", vm.resource.NetBridged))
 	}
 
-	if vm.Resource.Headless {
+	if vm.resource.Headless {
 		runArgs = append(runArgs, "--no-graphics")
 	}
 
-	if vm.Resource.Nested {
+	if vm.resource.Nested {
 		runArgs = append(runArgs, "--nested")
 	}
 
-	if vm.Resource.Suspendable {
+	if vm.resource.Suspendable {
 		runArgs = append(runArgs, "--suspendable")
 	}
 
-	for _, hostDir := range vm.Resource.HostDirs {
+	for _, hostDir := range vm.resource.HostDirs {
 		runArgs = append(runArgs, fmt.Sprintf("--dir=%s", hostDir.String()))
 	}
 
 	runArgs = append(runArgs, vm.id())
-	_, _, err := tart.Tart(ctx, vm.logger, runArgs...)
+	_, _, err := Tart(ctx, vm.logger, runArgs...)
 	if err != nil {
 		select {
 		case <-vm.ctx.Done():
@@ -417,8 +425,8 @@ func (vm *VM) run(ctx context.Context, eventStreamer *client.EventStreamer) {
 func (vm *VM) IP(ctx context.Context) (string, error) {
 	// Bridged networking is problematic, so try with
 	// the agent resolver first using a small timeout
-	if vm.Resource.NetBridged != "" {
-		stdout, _, err := tart.Tart(ctx, vm.logger, "ip", "--wait", "5",
+	if vm.resource.NetBridged != "" {
+		stdout, _, err := Tart(ctx, vm.logger, "ip", "--wait", "5",
 			"--resolver", "agent", vm.id())
 		if err == nil {
 			return strings.TrimSpace(stdout), nil
@@ -427,13 +435,13 @@ func (vm *VM) IP(ctx context.Context) (string, error) {
 
 	args := []string{"ip", "--wait", "60"}
 
-	if vm.Resource.NetBridged != "" {
+	if vm.resource.NetBridged != "" {
 		args = append(args, "--resolver", "arp")
 	}
 
 	args = append(args, vm.id())
 
-	stdout, _, err := tart.Tart(ctx, vm.logger, args...)
+	stdout, _, err := Tart(ctx, vm.logger, args...)
 	if err != nil {
 		return "", err
 	}
@@ -458,7 +466,7 @@ func (vm *VM) Suspend() <-chan error {
 	vm.conditions.Add(v1.ConditionTypeSuspending)
 
 	go func() {
-		_, _, err := tart.Tart(context.Background(), zap.NewNop().Sugar(), "suspend", vm.id())
+		_, _, err := Tart(context.Background(), zap.NewNop().Sugar(), "suspend", vm.id())
 		if err != nil {
 			err := fmt.Errorf("failed to suspend VM: %w", err)
 			vm.setErr(err)
@@ -491,7 +499,7 @@ func (vm *VM) Stop() <-chan error {
 
 	go func() {
 		// Try to gracefully terminate the VM
-		_, _, _ = tart.Tart(context.Background(), zap.NewNop().Sugar(), "stop", "--timeout", "5", vm.id())
+		_, _, _ = Tart(context.Background(), zap.NewNop().Sugar(), "stop", "--timeout", "5", vm.id())
 
 		// Terminate the VM goroutine ("tart pull", "tart clone", "tart run", etc.) via the context
 		vm.cancel()
@@ -502,11 +510,6 @@ func (vm *VM) Stop() <-chan error {
 	}()
 
 	return errCh
-}
-
-func (vm *VM) UpdateSpec(vmResource v1.VM) {
-	vm.Resource = vmResource
-	vm.Resource.ObservedGeneration = vmResource.Generation
 }
 
 func (vm *VM) Start(eventStreamer *client.EventStreamer) {
@@ -535,7 +538,7 @@ func (vm *VM) Delete() error {
 		return nil
 	}
 
-	_, _, err := tart.Tart(context.Background(), vm.logger, "delete", vm.id())
+	_, _, err := Tart(context.Background(), vm.logger, "delete", vm.id())
 	if err != nil {
 		return fmt.Errorf("%w: failed to delete VM: %v", ErrVMFailed, err)
 	}
@@ -685,7 +688,7 @@ func (vm *VM) runScript(script *v1.VMScript, eventStreamer *client.EventStreamer
 		})
 	}
 
-	err := vm.shell(vm.ctx, vm.Resource.Username, vm.Resource.Password,
+	err := vm.shell(vm.ctx, vm.resource.Username, vm.resource.Password,
 		script.ScriptContent, script.Env, consumeLine)
 	if err != nil {
 		vm.setErr(fmt.Errorf("%w: failed to run startup script: %v", ErrVMFailed, err))
