@@ -5,12 +5,12 @@ import (
 )
 
 type VMManager struct {
-	vms map[ondiskname.OnDiskName]*VM
+	vms map[ondiskname.OnDiskName]VM
 }
 
 func New() *VMManager {
 	return &VMManager{
-		vms: map[ondiskname.OnDiskName]*VM{},
+		vms: map[ondiskname.OnDiskName]VM{},
 	}
 }
 
@@ -20,13 +20,13 @@ func (vmm *VMManager) Exists(key ondiskname.OnDiskName) bool {
 	return ok
 }
 
-func (vmm *VMManager) Get(key ondiskname.OnDiskName) (*VM, bool) {
+func (vmm *VMManager) Get(key ondiskname.OnDiskName) (VM, bool) {
 	vm, ok := vmm.vms[key]
 
 	return vm, ok
 }
 
-func (vmm *VMManager) Put(key ondiskname.OnDiskName, vm *VM) {
+func (vmm *VMManager) Put(key ondiskname.OnDiskName, vm VM) {
 	vmm.vms[key] = vm
 }
 
@@ -38,8 +38,8 @@ func (vmm *VMManager) Len() int {
 	return len(vmm.vms)
 }
 
-func (vmm *VMManager) List() []*VM {
-	var vms []*VM
+func (vmm *VMManager) List() []VM {
+	var vms []VM
 
 	for _, vm := range vmm.vms {
 		vms = append(vms, vm)

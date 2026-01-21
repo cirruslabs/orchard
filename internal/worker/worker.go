@@ -14,8 +14,8 @@ import (
 	"github.com/cirruslabs/orchard/internal/worker/dhcpleasetime"
 	"github.com/cirruslabs/orchard/internal/worker/iokitregistry"
 	"github.com/cirruslabs/orchard/internal/worker/ondiskname"
-	"github.com/cirruslabs/orchard/internal/worker/tart"
 	"github.com/cirruslabs/orchard/internal/worker/vmmanager"
+	"github.com/cirruslabs/orchard/internal/worker/vmmanager/tart"
 	"github.com/cirruslabs/orchard/pkg/client"
 	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
 	"github.com/cirruslabs/orchard/rpc"
@@ -287,7 +287,7 @@ func (worker *Worker) syncVMs(ctx context.Context, updateVM func(context.Context
 		remoteVMsIndex[onDiskName] = &remoteVMCopy
 	}
 
-	localVMsIndex := map[ondiskname.OnDiskName]*vmmanager.VM{}
+	localVMsIndex := map[ondiskname.OnDiskName]vmmanager.VM{}
 	for _, vm := range worker.vmm.List() {
 		onDiskName := vm.OnDiskName()
 		allKeys.Add(onDiskName)
@@ -297,7 +297,7 @@ func (worker *Worker) syncVMs(ctx context.Context, updateVM func(context.Context
 	worker.logger.Infof("syncing %d local VMs against %d remote VMs...",
 		len(localVMsIndex), len(remoteVMsIndex))
 
-	var pairs []lo.Tuple3[ondiskname.OnDiskName, *v1.VM, *vmmanager.VM]
+	var pairs []lo.Tuple3[ondiskname.OnDiskName, *v1.VM, vmmanager.VM]
 
 	for onDiskName := range allKeys.Iter() {
 		vmResource := remoteVMsIndex[onDiskName]
@@ -362,14 +362,14 @@ func (worker *Worker) syncVMs(ctx context.Context, updateVM func(context.Context
 				return err
 			}
 		case ActionMonitorRunning:
-			if vmResource.Generation != vm.Resource.Generation {
+			if vmResource.Generation != vm.Resource().Generation {
 				// VM specification changed, reboot the VM for the changes to take effect
 				stoppingOrSuspending := v1.ConditionIsTrue(vm.Conditions(), v1.ConditionTypeStopping) ||
 					v1.ConditionIsTrue(vm.Conditions(), v1.ConditionTypeSuspending)
 
 				if v1.ConditionIsTrue(vm.Conditions(), v1.ConditionTypeRunning) && !stoppingOrSuspending {
 					// VM is running, suspend or stop it first
-					shouldStop := vmResource.PowerState == v1.PowerStateStopped || !vm.Resource.Suspendable
+					shouldStop := vmResource.PowerState == v1.PowerStateStopped || !vm.Resource().Suspendable
 
 					if shouldStop {
 						vm.Stop()
@@ -380,7 +380,7 @@ func (worker *Worker) syncVMs(ctx context.Context, updateVM func(context.Context
 
 				if v1.ConditionIsFalse(vm.Conditions(), v1.ConditionTypeRunning) && !stoppingOrSuspending {
 					// VM stopped, update its specification
-					vm.UpdateSpec(*vmResource)
+					vm.SetResource(*vmResource)
 
 					if vmResource.PowerState == v1.PowerStateRunning {
 						// Start the VM
@@ -398,8 +398,8 @@ func (worker *Worker) syncVMs(ctx context.Context, updateVM func(context.Context
 				updateNeeded = true
 			}
 
-			if vmResource.ObservedGeneration != vm.Resource.ObservedGeneration {
-				vmResource.ObservedGeneration = vm.Resource.ObservedGeneration
+			if vmResource.ObservedGeneration != vm.Resource().ObservedGeneration {
+				vmResource.ObservedGeneration = vm.Resource().ObservedGeneration
 
 				updateNeeded = true
 			}
@@ -521,7 +521,7 @@ func (worker *Worker) syncOnDiskVMs(ctx context.Context) error {
 	return nil
 }
 
-func (worker *Worker) deleteVM(vm *vmmanager.VM) error {
+func (worker *Worker) deleteVM(vm vmmanager.VM) error {
 	<-vm.Stop()
 
 	if err := vm.Delete(); err != nil {
@@ -536,7 +536,7 @@ func (worker *Worker) deleteVM(vm *vmmanager.VM) error {
 func (worker *Worker) createVM(odn ondiskname.OnDiskName, vmResource v1.VM) {
 	eventStreamer := worker.client.VMs().StreamEvents(vmResource.Name)
 
-	vm := vmmanager.NewVM(vmResource, eventStreamer, worker.vmPullTimeHistogram,
+	vm := tart.NewVM(vmResource, eventStreamer, worker.vmPullTimeHistogram,
 		worker.localNetworkHelper, worker.logger)
 
 	worker.vmm.Put(odn, vm)
@@ -558,8 +558,8 @@ func (worker *Worker) requestVMSyncing() {
 	}
 }
 
-func sortNonExistentAndFailedFirst(input []lo.Tuple3[ondiskname.OnDiskName, *v1.VM, *vmmanager.VM]) {
-	slices.SortStableFunc(input, func(left, right lo.Tuple3[ondiskname.OnDiskName, *v1.VM, *vmmanager.VM]) int {
+func sortNonExistentAndFailedFirst(input []lo.Tuple3[ondiskname.OnDiskName, *v1.VM, vmmanager.VM]) {
+	slices.SortStableFunc(input, func(left, right lo.Tuple3[ondiskname.OnDiskName, *v1.VM, vmmanager.VM]) int {
 		_, leftVM, _ := lo.Unpack3(left)
 		_, rightVM, _ := lo.Unpack3(right)
 

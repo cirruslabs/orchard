@@ -10,7 +10,7 @@ import (
 	"github.com/cirruslabs/orchard/internal/tests/devcontroller"
 	"github.com/cirruslabs/orchard/internal/tests/wait"
 	"github.com/cirruslabs/orchard/internal/worker/ondiskname"
-	"github.com/cirruslabs/orchard/internal/worker/tart"
+	"github.com/cirruslabs/orchard/internal/worker/vmmanager/tart"
 	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
 	"github.com/samber/lo"
 	"github.com/shirou/gopsutil/v4/process"

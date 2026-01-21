@@ -3,19 +3,21 @@ package worker
 import (
 	"context"
 	"fmt"
+	"time"
+
 	"github.com/cirruslabs/orchard/internal/proxy"
 	"github.com/cirruslabs/orchard/internal/worker/vmmanager"
 	"github.com/cirruslabs/orchard/rpc"
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/protobuf/types/known/emptypb"
-	"time"
+
+	"net"
 
 	//nolint:staticcheck // https://github.com/mitchellh/go-grpc-net-conn/pull/1
 	"github.com/golang/protobuf/proto"
 	grpc_net_conn "github.com/mitchellh/go-grpc-net-conn"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
-	"net"
 
 	"github.com/samber/lo"
 )
@@ -90,8 +92,8 @@ func (worker *Worker) handlePortForward(
 		host = "localhost"
 	} else {
 		// Port-forwarding request to a VM, find that VM
-		vm, ok := lo.Find(worker.vmm.List(), func(item *vmmanager.VM) bool {
-			return item.Resource.UID == portForwardAction.VmUid
+		vm, ok := lo.Find(worker.vmm.List(), func(item vmmanager.VM) bool {
+			return item.Resource().UID == portForwardAction.VmUid
 		})
 		if !ok {
 			worker.logger.Warnf("port forwarding failed: failed to get the VM: %v", err)
@@ -154,8 +156,8 @@ func (worker *Worker) handleGetIP(
 	ctxWithMetadata := metadata.NewOutgoingContext(ctx, grpcMetadata)
 
 	// Find the desired VM
-	vm, ok := lo.Find(worker.vmm.List(), func(item *vmmanager.VM) bool {
-		return item.Resource.UID == resolveIP.VmUid
+	vm, ok := lo.Find(worker.vmm.List(), func(item vmmanager.VM) bool {
+		return item.Resource().UID == resolveIP.VmUid
 	})
 	if !ok {
 		worker.logger.Warnf("failed to resolve IP for the VM with UID %q: VM not found",
