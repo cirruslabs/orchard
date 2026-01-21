@@ -39,20 +39,29 @@ func TestListVMEventsPagination(t *testing.T) {
 	}
 	appendVMEvents(t, devController.Address(), vm.Name, events)
 
-	page, cursor := fetchVMEventsPage(t, devController.Address(), vm.Name, "limit=2")
+	page, cursor := fetchVMEventsPage(t, ctx, devClient, vm.Name, client.EventsPageOptions{Limit: 2})
 	require.Equal(t, events[:2], page)
 	require.NotEmpty(t, cursor)
 
-	page2, cursor2 := fetchVMEventsPage(t, devController.Address(), vm.Name, "limit=2&cursor="+url.QueryEscape(cursor))
+	page2, cursor2 := fetchVMEventsPage(t, ctx, devClient, vm.Name, client.EventsPageOptions{
+		Limit:  2,
+		Cursor: cursor,
+	})
 	require.Equal(t, events[2:], page2)
 	require.Empty(t, cursor2)
 
-	descPage, descCursor := fetchVMEventsPage(t, devController.Address(), vm.Name, "limit=2&order=desc")
+	descPage, descCursor := fetchVMEventsPage(t, ctx, devClient, vm.Name, client.EventsPageOptions{
+		Limit: 2,
+		Order: client.LogsOrderDesc,
+	})
 	require.Equal(t, []v1.Event{events[3], events[2]}, descPage)
 	require.NotEmpty(t, descCursor)
 
-	descPage2, descCursor2 := fetchVMEventsPage(t, devController.Address(), vm.Name,
-		"limit=2&order=desc&cursor="+url.QueryEscape(descCursor))
+	descPage2, descCursor2 := fetchVMEventsPage(t, ctx, devClient, vm.Name, client.EventsPageOptions{
+		Limit:  2,
+		Order:  client.LogsOrderDesc,
+		Cursor: descCursor,
+	})
 	require.Equal(t, []v1.Event{events[1], events[0]}, descPage2)
 	require.Empty(t, descCursor2)
 
@@ -86,29 +95,15 @@ func appendVMEvents(t *testing.T, baseURL, name string, events []v1.Event) {
 
 func fetchVMEventsPage(
 	t *testing.T,
-	baseURL string,
+	ctx context.Context,
+	devClient *client.Client,
 	name string,
-	query string,
+	options client.EventsPageOptions,
 ) ([]v1.Event, string) {
 	t.Helper()
 
-	endpoint, err := url.JoinPath(baseURL, "v1", "vms", name, "events")
+	events, cursor, err := devClient.VMs().EventsPage(ctx, name, options)
 	require.NoError(t, err)
 
-	req, err := http.NewRequest(http.MethodGet, endpoint, nil)
-	require.NoError(t, err)
-	if query != "" {
-		req.URL.RawQuery = query
-	}
-
-	resp, err := http.DefaultClient.Do(req)
-	require.NoError(t, err)
-	defer resp.Body.Close()
-
-	require.Equal(t, http.StatusOK, resp.StatusCode)
-
-	var events []v1.Event
-	require.NoError(t, json.NewDecoder(resp.Body).Decode(&events))
-
-	return events, resp.Header.Get("X-Next-Cursor")
+	return events, cursor
 }

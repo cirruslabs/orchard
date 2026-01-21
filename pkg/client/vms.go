@@ -40,6 +40,12 @@ type LogsOptions struct {
 	Order LogsOrder
 }
 
+type EventsPageOptions struct {
+	Limit  int
+	Order  LogsOrder
+	Cursor string
+}
+
 func (service *VMsService) Create(ctx context.Context, vm *v1.VM) error {
 	err := service.client.request(ctx, http.MethodPost, "vms",
 		vm, nil, nil)
@@ -185,4 +191,32 @@ func (service *VMsService) LogsWithOptions(ctx context.Context, name string, opt
 		}
 	}
 	return
+}
+
+func (service *VMsService) EventsPage(
+	ctx context.Context,
+	name string,
+	options EventsPageOptions,
+) (events []v1.Event, nextCursor string, err error) {
+	params := map[string]string{}
+	if options.Limit > 0 {
+		params["limit"] = strconv.Itoa(options.Limit)
+	}
+	if options.Order != "" {
+		params["order"] = string(options.Order)
+	}
+	if options.Cursor != "" {
+		params["cursor"] = options.Cursor
+	}
+	if len(params) == 0 {
+		params = nil
+	}
+
+	headers, err := service.client.requestWithHeaders(ctx, http.MethodGet, fmt.Sprintf("vms/%s/events", url.PathEscape(name)),
+		nil, &events, params)
+	if err != nil {
+		return nil, "", err
+	}
+
+	return events, headers.Get("X-Next-Cursor"), nil
 }
