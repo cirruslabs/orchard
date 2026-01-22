@@ -1,9 +1,11 @@
 package controller
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/cirruslabs/orchard/internal/controller/lifecycle"
@@ -11,6 +13,7 @@ import (
 	"github.com/cirruslabs/orchard/internal/responder"
 	"github.com/cirruslabs/orchard/internal/simplename"
 	"github.com/cirruslabs/orchard/internal/worker/ondiskname"
+	"github.com/cirruslabs/orchard/pkg/client"
 	"github.com/cirruslabs/orchard/pkg/resource/v1"
 	"github.com/gin-gonic/gin"
 	"github.com/google/go-cmp/cmp"
@@ -364,19 +367,85 @@ func (controller *Controller) listVMEvents(ctx *gin.Context) responder.Responder
 	}
 
 	name := ctx.Param("name")
+	options, parseResponder := parseListVMEventsOptions(ctx)
+	if parseResponder != nil {
+		return parseResponder
+	}
 
 	return controller.storeView(func(txn storepkg.Transaction) responder.Responder {
 		vm, err := txn.GetVM(name)
 		if err != nil {
 			return responder.Error(err)
 		}
-		events, err := txn.ListEvents("vms", vm.UID)
+
+		page, err := txn.ListEventsPage(options, "vms", vm.UID)
 		if err != nil {
 			return responder.Error(err)
 		}
+		if len(page.NextCursor) != 0 {
+			ctx.Header("X-Next-Cursor", encodeEventCursor(page.NextCursor))
+		}
 
-		return responder.JSON(http.StatusOK, events)
+		return responder.JSON(http.StatusOK, page.Items)
 	})
+}
+
+func parseListVMEventsOptions(ctx *gin.Context) (storepkg.ListOptions, responder.Responder) {
+	var options storepkg.ListOptions
+
+	limitRaw := ctx.Query("limit")
+	orderRaw := ctx.Query("order")
+	cursorRaw := ctx.Query("cursor")
+
+	if limitRaw != "" {
+		limit, ok := parsePositiveInt(limitRaw)
+		if !ok {
+			return options, responder.JSON(http.StatusBadRequest,
+				NewErrorResponse("invalid limit %q: expected positive integer", limitRaw))
+		}
+		options.Limit = limit
+	}
+
+	if orderRaw != "" {
+		order, err := client.ParseLogsOrder(orderRaw)
+		if err != nil {
+			return options, responder.JSON(http.StatusBadRequest, NewErrorResponse("%s", err))
+		}
+		options.Order = storepkg.ListOrder(order)
+	}
+
+	if cursorRaw != "" {
+		cursor, err := decodeEventCursor(cursorRaw)
+		if err != nil {
+			return options, responder.JSON(http.StatusBadRequest,
+				NewErrorResponse("invalid cursor %q", cursorRaw))
+		}
+		options.Cursor = cursor
+	}
+
+	return options, nil
+}
+
+func parsePositiveInt(raw string) (int, bool) {
+	value, err := strconv.ParseInt(raw, 10, 0)
+	if err != nil || value <= 0 {
+		return 0, false
+	}
+
+	return int(value), true
+}
+
+func encodeEventCursor(cursor []byte) string {
+	return base64.RawURLEncoding.EncodeToString(cursor)
+}
+
+func decodeEventCursor(cursorRaw string) ([]byte, error) {
+	cursor, err := base64.RawURLEncoding.DecodeString(cursorRaw)
+	if err == nil {
+		return cursor, nil
+	}
+
+	return base64.URLEncoding.DecodeString(cursorRaw)
 }
 
 func (controller *Controller) validateHostDirs(hostDirs []v1.HostDir) responder.Responder {

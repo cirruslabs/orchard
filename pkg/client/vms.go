@@ -7,12 +7,43 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 
 	"github.com/cirruslabs/orchard/pkg/resource/v1"
 )
 
 type VMsService struct {
 	client *Client
+}
+
+type LogsOrder string
+
+const (
+	LogsOrderAsc  LogsOrder = "asc"
+	LogsOrderDesc LogsOrder = "desc"
+)
+
+func ParseLogsOrder(raw string) (LogsOrder, error) {
+	order := strings.ToLower(raw)
+	switch order {
+	case string(LogsOrderAsc):
+		return LogsOrderAsc, nil
+	case string(LogsOrderDesc):
+		return LogsOrderDesc, nil
+	default:
+		return "", fmt.Errorf("invalid order %q: expected asc or desc", raw)
+	}
+}
+
+type LogsOptions struct {
+	Limit int
+	Order LogsOrder
+}
+
+type EventsPageOptions struct {
+	Limit  int
+	Order  LogsOrder
+	Cursor string
 }
 
 func (service *VMsService) Create(ctx context.Context, vm *v1.VM) error {
@@ -134,9 +165,23 @@ func (service *VMsService) StreamEvents(name string) *EventStreamer {
 }
 
 func (service *VMsService) Logs(ctx context.Context, name string) (lines []string, err error) {
+	return service.LogsWithOptions(ctx, name, LogsOptions{})
+}
+
+func (service *VMsService) LogsWithOptions(ctx context.Context, name string, options LogsOptions) (lines []string, err error) {
 	var events []v1.Event
+	params := map[string]string{}
+	if options.Limit > 0 {
+		params["limit"] = strconv.Itoa(options.Limit)
+	}
+	if options.Order != "" {
+		params["order"] = string(options.Order)
+	}
+	if len(params) == 0 {
+		params = nil
+	}
 	err = service.client.request(ctx, http.MethodGet, fmt.Sprintf("vms/%s/events", url.PathEscape(name)),
-		nil, &events, nil)
+		nil, &events, params)
 	if err != nil {
 		return
 	}
@@ -146,4 +191,32 @@ func (service *VMsService) Logs(ctx context.Context, name string) (lines []strin
 		}
 	}
 	return
+}
+
+func (service *VMsService) EventsPage(
+	ctx context.Context,
+	name string,
+	options EventsPageOptions,
+) (events []v1.Event, nextCursor string, err error) {
+	params := map[string]string{}
+	if options.Limit > 0 {
+		params["limit"] = strconv.Itoa(options.Limit)
+	}
+	if options.Order != "" {
+		params["order"] = string(options.Order)
+	}
+	if options.Cursor != "" {
+		params["cursor"] = options.Cursor
+	}
+	if len(params) == 0 {
+		params = nil
+	}
+
+	headers, err := service.client.requestWithHeaders(ctx, http.MethodGet, fmt.Sprintf("vms/%s/events", url.PathEscape(name)),
+		nil, &events, params)
+	if err != nil {
+		return nil, "", err
+	}
+
+	return events, headers.Get("X-Next-Cursor"), nil
 }

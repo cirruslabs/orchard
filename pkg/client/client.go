@@ -168,20 +168,20 @@ func (client *Client) configureFromDefaultContext() error {
 	return nil
 }
 
-func (client *Client) request(
+func (client *Client) requestWithHeaders(
 	ctx context.Context,
 	method string,
 	path string,
 	in interface{},
 	out interface{},
 	params map[string]string,
-) error {
+) (http.Header, error) {
 	var body io.Reader
 
 	if in != nil {
 		jsonBytes, err := json.Marshal(in)
 		if err != nil {
-			return fmt.Errorf("%w to marshal request body: %v", ErrFailed, err)
+			return nil, fmt.Errorf("%w to marshal request body: %v", ErrFailed, err)
 		}
 
 		body = bytes.NewBuffer(jsonBytes)
@@ -197,21 +197,21 @@ func (client *Client) request(
 
 	request, err := http.NewRequestWithContext(ctx, method, endpointURL.String(), body)
 	if err != nil {
-		return fmt.Errorf("%w instantiate a request: %v", ErrFailed, err)
+		return nil, fmt.Errorf("%w instantiate a request: %v", ErrFailed, err)
 	}
 
 	client.modifyHeader(request.Header)
 
 	response, err := client.httpClient.Do(request)
 	if err != nil {
-		return fmt.Errorf("%w to make a request: %v", ErrFailed, err)
+		return nil, fmt.Errorf("%w to make a request: %v", ErrFailed, err)
 	}
 	defer func() {
 		_ = response.Body.Close()
 	}()
 
 	if response.StatusCode != http.StatusOK {
-		return fmt.Errorf("%w to make a request: %d %s%s",
+		return nil, fmt.Errorf("%w to make a request: %d %s%s",
 			ErrAPI, response.StatusCode, http.StatusText(response.StatusCode),
 			detailsFromErrorResponseBody(response.Body))
 	}
@@ -219,15 +219,27 @@ func (client *Client) request(
 	if out != nil {
 		bodyBytes, err := io.ReadAll(response.Body)
 		if err != nil {
-			return fmt.Errorf("%w to read response body: %v", ErrAPI, err)
+			return nil, fmt.Errorf("%w to read response body: %v", ErrAPI, err)
 		}
 
 		if err := json.Unmarshal(bodyBytes, out); err != nil {
-			return fmt.Errorf("%w to unmarshal response body: %v", ErrAPI, err)
+			return nil, fmt.Errorf("%w to unmarshal response body: %v", ErrAPI, err)
 		}
 	}
 
-	return nil
+	return response.Header, nil
+}
+
+func (client *Client) request(
+	ctx context.Context,
+	method string,
+	path string,
+	in interface{},
+	out interface{},
+	params map[string]string,
+) error {
+	_, err := client.requestWithHeaders(ctx, method, path, in, out, params)
+	return err
 }
 
 func detailsFromErrorResponseBody(body io.Reader) string {
