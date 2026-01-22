@@ -51,6 +51,8 @@ type Worker struct {
 
 	localNetworkHelper *localnetworkhelper.LocalNetworkHelper
 
+	imagePulls map[string]*ImagePull
+
 	logger *zap.SugaredLogger
 }
 
@@ -60,6 +62,7 @@ func New(client *client.Client, opts ...Option) (*Worker, error) {
 		pollTicker:    time.NewTicker(pollInterval),
 		vmm:           vmmanager.New(),
 		syncRequested: make(chan bool, 1),
+		imagePulls:    map[string]*ImagePull{},
 	}
 
 	// Apply options
@@ -213,6 +216,14 @@ func (worker *Worker) runNewSession(ctx context.Context) error {
 			worker.logger.Warnf("failed to sync VMs: %v", err)
 
 			return nil
+		}
+
+		if info.Capabilities.Has(v1.ControllerCapabilityImagePullResource) {
+			if err := worker.syncPulls(subCtx); err != nil {
+				worker.logger.Warnf("failed to sync image pulls: %v", err)
+
+				return nil
+			}
 		}
 
 		select {
