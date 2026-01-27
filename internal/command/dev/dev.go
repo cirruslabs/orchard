@@ -198,21 +198,6 @@ func CreateDevControllerAndWorker(
 		return nil, nil, err
 	}
 
-	// set local-dev context as active
-	configHandle, err := config.NewHandle()
-	if err != nil {
-		return nil, nil, err
-	}
-	localContext := config.Context{URL: devController.Address()}
-	err = configHandle.CreateContext("local-dev", localContext, true)
-	if err != nil {
-		return nil, nil, err
-	}
-	err = configHandle.SetDefaultContext("local-dev")
-	if err != nil {
-		return nil, nil, err
-	}
-
 	return devController, devWorker, nil
 }
 
@@ -243,6 +228,21 @@ func CreateDevController(
 	}
 
 	defaultClient, err := client.New(client.WithAddress(devController.Address()))
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// set local-dev context as active
+	configHandle, err := config.NewHandle()
+	if err != nil {
+		return nil, nil, err
+	}
+	localContext := config.Context{URL: devController.Address()}
+	err = configHandle.CreateContext("local-dev", localContext, true)
+	if err != nil {
+		return nil, nil, err
+	}
+	err = configHandle.SetDefaultContext("local-dev")
 	if err != nil {
 		return nil, nil, err
 	}
