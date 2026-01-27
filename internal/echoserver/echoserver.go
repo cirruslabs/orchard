@@ -46,6 +46,8 @@ func (echoServer *EchoServer) Run(ctx context.Context) error {
 				if errors.Is(err, net.ErrClosed) {
 					return nil
 				}
+
+				return err
 			}
 
 			group.Go(func() error {
