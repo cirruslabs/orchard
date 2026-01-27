@@ -1,7 +1,7 @@
 package worker
 
 import (
-	"github.com/cirruslabs/chacha/pkg/localnetworkhelper"
+	"github.com/cirruslabs/orchard/internal/dialer"
 	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
 	"go.uber.org/zap"
 )
@@ -33,9 +33,15 @@ func WithDefaultCPUAndMemory(defaultCPU uint64, defaultMemory uint64) Option {
 	}
 }
 
-func WithLocalNetworkHelper(localNetworkHelper *localnetworkhelper.LocalNetworkHelper) Option {
+func WithDialer(dialer dialer.Dialer) Option {
 	return func(worker *Worker) {
-		worker.localNetworkHelper = localNetworkHelper
+		worker.dialer = dialer
+	}
+}
+
+func WithSynthetic() Option {
+	return func(worker *Worker) {
+		worker.synthetic = true
 	}
 }
 

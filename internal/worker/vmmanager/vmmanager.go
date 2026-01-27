@@ -6,6 +6,7 @@ import (
 	"github.com/cirruslabs/orchard/internal/worker/ondiskname"
 	"github.com/cirruslabs/orchard/pkg/client"
 	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
+	"github.com/puzpuzpuz/xsync/v4"
 )
 
 type VM interface {
@@ -26,45 +27,47 @@ type VM interface {
 }
 
 type VMManager struct {
-	vms map[ondiskname.OnDiskName]VM
+	vms *xsync.Map[ondiskname.OnDiskName, VM]
 }
 
 func New() *VMManager {
 	return &VMManager{
-		vms: map[ondiskname.OnDiskName]VM{},
+		vms: xsync.NewMap[ondiskname.OnDiskName, VM](),
 	}
 }
 
 func (vmm *VMManager) Exists(key ondiskname.OnDiskName) bool {
-	_, ok := vmm.vms[key]
+	_, ok := vmm.vms.Load(key)
 
 	return ok
 }
 
 func (vmm *VMManager) Get(key ondiskname.OnDiskName) (VM, bool) {
-	vm, ok := vmm.vms[key]
+	vm, ok := vmm.vms.Load(key)
 
 	return vm, ok
 }
 
 func (vmm *VMManager) Put(key ondiskname.OnDiskName, vm VM) {
-	vmm.vms[key] = vm
+	vmm.vms.Store(key, vm)
 }
 
 func (vmm *VMManager) Delete(key ondiskname.OnDiskName) {
-	delete(vmm.vms, key)
+	vmm.vms.Delete(key)
 }
 
 func (vmm *VMManager) Len() int {
-	return len(vmm.vms)
+	return vmm.vms.Size()
 }
 
 func (vmm *VMManager) List() []VM {
 	var vms []VM
 
-	for _, vm := range vmm.vms {
+	vmm.vms.Range(func(odn ondiskname.OnDiskName, vm VM) bool {
 		vms = append(vms, vm)
-	}
+
+		return true
+	})
 
 	return vms
 }

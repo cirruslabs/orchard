@@ -14,11 +14,11 @@ import (
 	"time"
 
 	"github.com/avast/retry-go"
-	"github.com/cirruslabs/chacha/pkg/localnetworkhelper"
+	"github.com/cirruslabs/orchard/internal/dialer"
 	"github.com/cirruslabs/orchard/internal/worker/ondiskname"
+	"github.com/cirruslabs/orchard/internal/worker/vmmanager/base"
 	"github.com/cirruslabs/orchard/pkg/client"
 	"github.com/cirruslabs/orchard/pkg/resource/v1"
-	mapset "github.com/deckarep/golang-set/v2"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 	"go.uber.org/zap"
@@ -32,41 +32,24 @@ type VM struct {
 	resource   v1.VM
 	logger     *zap.SugaredLogger
 
-	// Backward compatibility with v1.VM specification's "Status" field
-	//
-	// "started" is always true after the first "tart run",
-	// whereas ConditionReady can be used to tell if a VM
-	// is really running or not.
-	started atomic.Bool
-
-	// A more orthogonal alternative to v1.VM specification's "Status" field,
-	// which allows a VM to have more than one state.
-	//
-	// For example, a VM can be both in ConditionReady and ConditionSuspending/
-	// ConditionStopping states for a short time. This way in run() we know
-	// that we're in a process of rebooting a VM, so we can avoid throwing
-	// an error about unexpected VM termination.
-	conditions mapset.Set[v1.ConditionType]
-
 	// Image FQN feature, see https://github.com/cirruslabs/orchard/issues/164
 	imageFQN atomic.Pointer[string]
-
-	statusMessage atomic.Pointer[string]
-	err           atomic.Pointer[error]
 
 	ctx    context.Context
 	cancel context.CancelFunc
 
 	wg *sync.WaitGroup
 
-	localNetworkHelper *localnetworkhelper.LocalNetworkHelper
+	dialer dialer.Dialer
+
+	*base.VM
 }
 
 func NewVM(
 	vmResource v1.VM,
 	eventStreamer *client.EventStreamer,
 	vmPullTimeHistogram metric.Float64Histogram,
-	localNetworkHelper *localnetworkhelper.LocalNetworkHelper,
+	dialer dialer.Dialer,
 	logger *zap.SugaredLogger,
 ) *VM {
 	vmContext, vmContextCancel := context.WithCancel(context.Background())
@@ -80,14 +63,14 @@ func NewVM(
 			"vm_restart_count", vmResource.RestartCount,
 		),
 
-		conditions: mapset.NewSet(v1.ConditionTypeCloning),
-
 		ctx:    vmContext,
 		cancel: vmContextCancel,
 
 		wg: &sync.WaitGroup{},
 
-		localNetworkHelper: localNetworkHelper,
+		dialer: dialer,
+
+		VM: base.NewVM(logger),
 	}
 
 	vm.wg.Add(1)
@@ -96,7 +79,7 @@ func NewVM(
 		defer vm.wg.Done()
 
 		if vmResource.ImagePullPolicy == v1.ImagePullPolicyAlways {
-			vm.setStatusMessage("pulling VM image...")
+			vm.SetStatusMessage("pulling VM image...")
 
 			pullStartedAt := time.Now()
 
@@ -106,7 +89,7 @@ func NewVM(
 				case <-vm.ctx.Done():
 					// Do not return an error because it's the user's intent to cancel this VM operation
 				default:
-					vm.setErr(fmt.Errorf("failed to pull the VM: %w", err))
+					vm.SetErr(fmt.Errorf("failed to pull the VM: %w", err))
 				}
 
 				return
@@ -123,16 +106,16 @@ func NewVM(
 			case <-vm.ctx.Done():
 				// Do not return an error because it's the user's intent to cancel this VM operation
 			default:
-				vm.setErr(fmt.Errorf("failed to clone the VM: %w", err))
+				vm.SetErr(fmt.Errorf("failed to clone the VM: %w", err))
 			}
 
 			return
 		}
 
 		// Backward compatibility with v1.VM specification's "Status" field
-		vm.started.Store(true)
+		vm.SetStarted(true)
 
-		vm.conditions.Add(v1.ConditionTypeRunning)
+		vm.ConditionsSet().Add(v1.ConditionTypeRunning)
 
 		vm.run(vm.ctx, eventStreamer)
 	}()
@@ -161,79 +144,15 @@ func (vm *VM) id() string {
 	return vm.onDiskName.String()
 }
 
-func (vm *VM) Status() v1.VMStatus {
-	if vm.Err() != nil {
-		return v1.VMStatusFailed
-	}
-
-	if vm.started.Load() {
-		return v1.VMStatusRunning
-	}
-
-	return v1.VMStatusPending
-}
-
-func (vm *VM) StatusMessage() string {
-	status := vm.statusMessage.Load()
-
-	if status != nil {
-		return *status
-	}
-
-	return ""
-}
-
-func (vm *VM) setStatusMessage(status string) {
-	vm.logger.Debugf(status)
-	vm.statusMessage.Store(&status)
-}
-
-func (vm *VM) Err() error {
-	if err := vm.err.Load(); err != nil {
-		return *err
-	}
-
-	return nil
-}
-
-func (vm *VM) setErr(err error) {
-	if vm.err.CompareAndSwap(nil, &err) {
-		vm.logger.Error(err)
-	}
-}
-
-func (vm *VM) Conditions() []v1.Condition {
-	// Only expose a minimum amount of conditions necessary
-	// for the Orchard Controller to make decisions
-	return []v1.Condition{
-		vm.conditionTypeToCondition(v1.ConditionTypeRunning),
-	}
-}
-
-func (vm *VM) conditionTypeToCondition(conditionType v1.ConditionType) v1.Condition {
-	var conditionState v1.ConditionState
-
-	if vm.conditions.ContainsOne(conditionType) {
-		conditionState = v1.ConditionStateTrue
-	} else {
-		conditionState = v1.ConditionStateFalse
-	}
-
-	return v1.Condition{
-		Type:  conditionType,
-		State: conditionState,
-	}
-}
-
 func (vm *VM) cloneAndConfigure(ctx context.Context) error {
-	vm.setStatusMessage("cloning VM...")
+	vm.SetStatusMessage("cloning VM...")
 
 	_, _, err := Tart(ctx, vm.logger, "clone", vm.resource.Image, vm.id())
 	if err != nil {
 		return err
 	}
 
-	vm.conditions.Remove(v1.ConditionTypeCloning)
+	vm.ConditionsSet().Remove(v1.ConditionTypeCloning)
 
 	// Image FQN feature, see https://github.com/cirruslabs/orchard/issues/164
 	fqnRaw, _, err := Tart(ctx, vm.logger, "fqn", vm.resource.Image)
@@ -243,7 +162,7 @@ func (vm *VM) cloneAndConfigure(ctx context.Context) error {
 	}
 
 	// Set memory
-	vm.setStatusMessage("configuring VM...")
+	vm.SetStatusMessage("configuring VM...")
 
 	memory := vm.resource.AssignedMemory
 
@@ -356,16 +275,16 @@ func (vm *VM) cloneAndConfigure(ctx context.Context) error {
 }
 
 func (vm *VM) run(ctx context.Context, eventStreamer *client.EventStreamer) {
-	defer vm.conditions.RemoveAll(v1.ConditionTypeRunning, v1.ConditionTypeSuspending, v1.ConditionTypeStopping)
+	defer vm.ConditionsSet().RemoveAll(v1.ConditionTypeRunning, v1.ConditionTypeSuspending, v1.ConditionTypeStopping)
 
 	// Launch the startup script goroutine as close as possible
 	// to the VM startup (below) to avoid "tart ip" timing out
 	if vm.resource.StartupScript != nil {
-		vm.setStatusMessage("VM started, running startup script...")
+		vm.SetStatusMessage("VM started, running startup script...")
 
 		go vm.runScript(vm.resource.StartupScript, eventStreamer)
 	} else {
-		vm.setStatusMessage("VM started")
+		vm.SetStatusMessage("VM started")
 	}
 
 	var runArgs = []string{"run"}
@@ -406,7 +325,7 @@ func (vm *VM) run(ctx context.Context, eventStreamer *client.EventStreamer) {
 		case <-vm.ctx.Done():
 			// Do not return an error because it's the user's intent to cancel this VM
 		default:
-			vm.setErr(fmt.Errorf("%w: %v", ErrVMFailed, err))
+			vm.SetErr(fmt.Errorf("%w: %v", ErrVMFailed, err))
 		}
 
 		return
@@ -416,8 +335,8 @@ func (vm *VM) run(ctx context.Context, eventStreamer *client.EventStreamer) {
 	case <-vm.ctx.Done():
 		// Do not return an error because it's the user's intent to cancel this VM
 	default:
-		if !vm.conditions.ContainsAny(v1.ConditionTypeSuspending, v1.ConditionTypeStopping) {
-			vm.setErr(fmt.Errorf("%w: VM exited unexpectedly", ErrVMFailed))
+		if !vm.ConditionsSet().ContainsAny(v1.ConditionTypeSuspending, v1.ConditionTypeStopping) {
+			vm.SetErr(fmt.Errorf("%w: VM exited unexpectedly", ErrVMFailed))
 		}
 	}
 }
@@ -462,14 +381,14 @@ func (vm *VM) Suspend() <-chan error {
 		// VM is still running
 	}
 
-	vm.setStatusMessage("Suspending VM")
-	vm.conditions.Add(v1.ConditionTypeSuspending)
+	vm.SetStatusMessage("Suspending VM")
+	vm.ConditionsSet().Add(v1.ConditionTypeSuspending)
 
 	go func() {
 		_, _, err := Tart(context.Background(), zap.NewNop().Sugar(), "suspend", vm.id())
 		if err != nil {
 			err := fmt.Errorf("failed to suspend VM: %w", err)
-			vm.setErr(err)
+			vm.SetErr(err)
 			errCh <- err
 
 			return
@@ -494,8 +413,8 @@ func (vm *VM) Stop() <-chan error {
 		// VM is still running
 	}
 
-	vm.setStatusMessage("Stopping VM")
-	vm.conditions.Add(v1.ConditionTypeStopping)
+	vm.SetStatusMessage("Stopping VM")
+	vm.ConditionsSet().Add(v1.ConditionTypeStopping)
 
 	go func() {
 		// Try to gracefully terminate the VM
@@ -513,8 +432,8 @@ func (vm *VM) Stop() <-chan error {
 }
 
 func (vm *VM) Start(eventStreamer *client.EventStreamer) {
-	vm.setStatusMessage("Starting VM")
-	vm.conditions.Add(v1.ConditionTypeRunning)
+	vm.SetStatusMessage("Starting VM")
+	vm.ConditionsSet().Add(v1.ConditionTypeRunning)
 
 	vm.cancel()
 
@@ -533,7 +452,7 @@ func (vm *VM) Delete() error {
 	// (e.g. "tart clone", "tart run", etc.)
 	vm.cancel()
 
-	if vm.conditions.Contains(v1.ConditionTypeCloning) {
+	if vm.ConditionsSet().Contains(v1.ConditionTypeCloning) {
 		// Not cloned yet, nothing to delete
 		return nil
 	}
@@ -586,8 +505,8 @@ func (vm *VM) shell(
 
 		var netConn net.Conn
 
-		if vm.localNetworkHelper != nil {
-			netConn, err = vm.localNetworkHelper.PrivilegedDialContext(dialCtx, "tcp", addr)
+		if vm.dialer != nil {
+			netConn, err = vm.dialer.DialContext(dialCtx, "tcp", addr)
 		} else {
 			dialer := net.Dialer{}
 
@@ -691,6 +610,6 @@ func (vm *VM) runScript(script *v1.VMScript, eventStreamer *client.EventStreamer
 	err := vm.shell(vm.ctx, vm.resource.Username, vm.resource.Password,
 		script.ScriptContent, script.Env, consumeLine)
 	if err != nil {
-		vm.setErr(fmt.Errorf("%w: failed to run startup script: %v", ErrVMFailed, err))
+		vm.SetErr(fmt.Errorf("%w: failed to run startup script: %v", ErrVMFailed, err))
 	}
 }

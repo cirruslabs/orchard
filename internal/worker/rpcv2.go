@@ -100,8 +100,8 @@ func (worker *Worker) handlePortForwardV2Inner(
 
 	var vmConn net.Conn
 
-	if worker.localNetworkHelper != nil {
-		vmConn, err = worker.localNetworkHelper.PrivilegedDialContext(ctx, "tcp",
+	if worker.dialer != nil {
+		vmConn, err = worker.dialer.DialContext(ctx, "tcp",
 			fmt.Sprintf("%s:%d", host, portForward.Port))
 	} else {
 		dialer := net.Dialer{}

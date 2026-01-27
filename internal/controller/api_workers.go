@@ -59,7 +59,7 @@ func (controller *Controller) createWorker(ctx *gin.Context) responder.Responder
 			return responder.Code(http.StatusInternalServerError)
 		}
 
-		if uint(len(workers)+1) > controller.maxWorkersPerLicense {
+		if !controller.synthetic && uint(len(workers)+1) > controller.maxWorkersPerLicense {
 			return responder.JSON(http.StatusConflict, NewErrorResponse("cannot register a new worker "+
 				"because the license capacity of %d workers has been reached, "+
 				"consider upgrading at https://tart.run/licensing/", controller.maxWorkersPerLicense))

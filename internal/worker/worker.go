@@ -9,12 +9,13 @@ import (
 	"time"
 
 	"github.com/avast/retry-go/v4"
-	"github.com/cirruslabs/chacha/pkg/localnetworkhelper"
+	"github.com/cirruslabs/orchard/internal/dialer"
 	"github.com/cirruslabs/orchard/internal/opentelemetry"
 	"github.com/cirruslabs/orchard/internal/worker/dhcpleasetime"
 	"github.com/cirruslabs/orchard/internal/worker/iokitregistry"
 	"github.com/cirruslabs/orchard/internal/worker/ondiskname"
 	"github.com/cirruslabs/orchard/internal/worker/vmmanager"
+	"github.com/cirruslabs/orchard/internal/worker/vmmanager/synthetic"
 	"github.com/cirruslabs/orchard/internal/worker/vmmanager/tart"
 	"github.com/cirruslabs/orchard/pkg/client"
 	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
@@ -47,9 +48,11 @@ type Worker struct {
 	defaultCPU    uint64
 	defaultMemory uint64
 
+	synthetic bool
+
 	vmPullTimeHistogram metric.Float64Histogram
 
-	localNetworkHelper *localnetworkhelper.LocalNetworkHelper
+	dialer dialer.Dialer
 
 	logger *zap.SugaredLogger
 }
@@ -69,12 +72,12 @@ func New(client *client.Client, opts ...Option) (*Worker, error) {
 
 	// Apply defaults
 	if worker.name == "" {
-		hostname, err := os.Hostname()
+		name, err := DefaultName()
 		if err != nil {
 			return nil, err
 		}
 
-		worker.name = hostname
+		worker.name = name
 	}
 
 	defaultResources := v1.Resources{
@@ -223,6 +226,10 @@ func (worker *Worker) runNewSession(ctx context.Context) error {
 			return subCtx.Err()
 		}
 	}
+}
+
+func DefaultName() (string, error) {
+	return os.Hostname()
 }
 
 func (worker *Worker) registerWorker(ctx context.Context) error {
@@ -459,6 +466,11 @@ func (worker *Worker) syncVMs(ctx context.Context, updateVM func(context.Context
 
 //nolint:nestif,gocognit // complexity is tolerable for now
 func (worker *Worker) syncOnDiskVMs(ctx context.Context) error {
+	if worker.synthetic {
+		// There's no on-disk VMs when using synthetic VMs
+		return nil
+	}
+
 	remoteVMs, err := worker.client.VMs().FindForWorker(ctx, worker.name)
 	if err != nil {
 		return err
@@ -536,8 +548,14 @@ func (worker *Worker) deleteVM(vm vmmanager.VM) error {
 func (worker *Worker) createVM(odn ondiskname.OnDiskName, vmResource v1.VM) {
 	eventStreamer := worker.client.VMs().StreamEvents(vmResource.Name)
 
-	vm := tart.NewVM(vmResource, eventStreamer, worker.vmPullTimeHistogram,
-		worker.localNetworkHelper, worker.logger)
+	var vm vmmanager.VM
+
+	if worker.synthetic {
+		vm = synthetic.NewVM(vmResource, eventStreamer, worker.vmPullTimeHistogram, worker.logger)
+	} else {
+		vm = tart.NewVM(vmResource, eventStreamer, worker.vmPullTimeHistogram,
+			worker.dialer, worker.logger)
+	}
 
 	worker.vmm.Put(odn, vm)
 }
