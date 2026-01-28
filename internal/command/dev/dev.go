@@ -11,6 +11,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 
 	"github.com/cirruslabs/orchard/internal/config"
 	"github.com/cirruslabs/orchard/internal/controller"
@@ -142,21 +143,15 @@ func runDev(cmd *cobra.Command, args []string) error {
 		return devController.Run(ctx)
 	})
 
-	workerName, err := worker.DefaultName()
-	if err != nil {
-		return err
-	}
-
 	for i := range workers {
 		group.Go(func() error {
-			workerNameLocal := workerName
+			workerOptsLocal := slices.Clone(additionalWorkerOpts)
 
 			if workers > 1 {
-				workerNameLocal = fmt.Sprintf("%s-%d", workerName, i)
+				workerOptsLocal = append(workerOptsLocal, worker.WithNameSuffix(fmt.Sprintf("-%d", i+1)))
 			}
 
-			devWorker, err := CreateDevWorker(devClient, resources,
-				append(additionalWorkerOpts, worker.WithName(workerNameLocal)), logger)
+			devWorker, err := CreateDevWorker(devClient, resources, workerOptsLocal, logger)
 			if err != nil {
 				return err
 			}

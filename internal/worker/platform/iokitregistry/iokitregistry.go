@@ -3,8 +3,9 @@ package iokitregistry
 import (
 	"errors"
 	"fmt"
-	"howett.net/plist"
 	"os/exec"
+
+	"howett.net/plist"
 )
 
 var ErrFailed = errors.New("failed to query I/O Kit registry")
