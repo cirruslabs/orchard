@@ -36,6 +36,7 @@ var experimentalPingInterval time.Duration
 var deprecatedPrometheusMetrics bool
 var experimentalDisableDBCompression bool
 var workerOfflineTimeout time.Duration
+var synthetic bool
 
 func newRunCommand() *cobra.Command {
 	cmd := &cobra.Command{
@@ -89,6 +90,10 @@ func newRunCommand() *cobra.Command {
 		"duration (e.g. 60s or 5m30s) after which a worker is considered offline for the purposes "+
 			"of scheduling (no new VMs will be scheduled on such worker and already assigned VMs will be "+
 			"marked as failed)")
+
+	// Hidden flags
+	cmd.Flags().BoolVar(&synthetic, "synthetic", false, "")
+	cmd.Flags().MarkHidden("synthetic")
 
 	return cmd
 }
@@ -150,6 +155,10 @@ func runController(cmd *cobra.Command, args []string) (err error) {
 
 	if apiPrefix != "" {
 		controllerOpts = append(controllerOpts, controller.WithAPIPrefix(apiPrefix))
+	}
+
+	if synthetic {
+		controllerOpts = append(controllerOpts, controller.WithSynthetic())
 	}
 
 	var controllerCert tls.Certificate
