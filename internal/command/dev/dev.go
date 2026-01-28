@@ -142,21 +142,15 @@ func runDev(cmd *cobra.Command, args []string) error {
 		return devController.Run(ctx)
 	})
 
-	workerName, err := worker.DefaultName()
-	if err != nil {
-		return err
-	}
-
 	for i := range workers {
 		group.Go(func() error {
-			workerNameLocal := workerName
+			workerOptsLocal := additionalWorkerOpts
 
 			if workers > 1 {
-				workerNameLocal = fmt.Sprintf("%s-%d", workerName, i)
+				workerOptsLocal = append(workerOptsLocal, worker.WithNameSuffix(fmt.Sprintf("-%d", i+1)))
 			}
 
-			devWorker, err := CreateDevWorker(devClient, resources,
-				append(additionalWorkerOpts, worker.WithName(workerNameLocal)), logger)
+			devWorker, err := CreateDevWorker(devClient, resources, workerOptsLocal, logger)
 			if err != nil {
 				return err
 			}

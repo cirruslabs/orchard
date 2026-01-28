@@ -17,6 +17,7 @@ import (
 	"github.com/cirruslabs/chacha/pkg/privdrop"
 	"github.com/cirruslabs/orchard/internal/bootstraptoken"
 	"github.com/cirruslabs/orchard/internal/dialer"
+	"github.com/cirruslabs/orchard/internal/echoserver"
 	"github.com/cirruslabs/orchard/internal/netconstants"
 	"github.com/cirruslabs/orchard/internal/worker"
 	"github.com/cirruslabs/orchard/pkg/client"
@@ -24,6 +25,7 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+	"golang.org/x/sync/errgroup"
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
@@ -45,6 +47,10 @@ var defaultMemory uint64
 var username string
 var addressPprof string
 var debug bool
+
+// Hidden flags
+var synthetic bool
+var workers int
 
 func newRunCommand() *cobra.Command {
 	cmd := &cobra.Command{
@@ -81,6 +87,14 @@ func newRunCommand() *cobra.Command {
 	cmd.Flags().StringVar(&addressPprof, "listen-pprof", "",
 		"start pprof HTTP server on localhost:6060 for diagnostic purposes (e.g. \"localhost:6060\")")
 	cmd.Flags().BoolVar(&debug, "debug", false, "enable debug logging")
+
+	// Hidden flags
+	cmd.Flags().BoolVar(&synthetic, "synthetic", false,
+		"do not instantiate real Tart VM, use synthetic in-memory VMs suitable for load testing")
+	cmd.Flags().MarkHidden("synthetic")
+
+	cmd.Flags().IntVar(&workers, "workers", 1, "number of workers to start")
+	cmd.Flags().MarkHidden("workers")
 
 	return cmd
 }
@@ -175,16 +189,49 @@ func runWorker(cmd *cobra.Command, args []string) (err error) {
 		}()
 	}
 
-	workerInstance, err := worker.New(
-		controllerClient,
-		workerOpts...,
-	)
-	if err != nil {
-		return err
-	}
-	defer workerInstance.Close()
+	group, ctx := errgroup.WithContext(cmd.Context())
 
-	return workerInstance.Run(cmd.Context())
+	if synthetic {
+		// Use TCP echo server to partially emulate VM's TCP/IP stack,
+		// this way we get port-forwarding working when running in
+		// synthetic mode
+		echoServer, err := echoserver.New()
+		if err != nil {
+			return err
+		}
+
+		group.Go(func() error {
+			return echoServer.Run(ctx)
+		})
+
+		dialer := dialer.DialFunc(func(ctx context.Context, network, addr string) (net.Conn, error) {
+			dialer := net.Dialer{}
+
+			return dialer.DialContext(ctx, "tcp", echoServer.Addr())
+		})
+
+		workerOpts = append(workerOpts, worker.WithSynthetic(), worker.WithDialer(dialer))
+	}
+
+	for i := range workers {
+		group.Go(func() error {
+			workerOptsLocal := workerOpts
+
+			if workers > 1 {
+				workerOptsLocal = append(workerOptsLocal, worker.WithNameSuffix(fmt.Sprintf("-%d", i+1)))
+			}
+
+			workerInstance, err := worker.New(controllerClient, workerOptsLocal...)
+			if err != nil {
+				return err
+			}
+			defer workerInstance.Close()
+
+			return workerInstance.Run(cmd.Context())
+		})
+	}
+
+	return group.Wait()
 }
 
 func readBootstrapToken() (string, error) {

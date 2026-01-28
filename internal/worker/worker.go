@@ -12,8 +12,8 @@ import (
 	"github.com/cirruslabs/orchard/internal/dialer"
 	"github.com/cirruslabs/orchard/internal/opentelemetry"
 	"github.com/cirruslabs/orchard/internal/worker/dhcpleasetime"
-	"github.com/cirruslabs/orchard/internal/worker/iokitregistry"
 	"github.com/cirruslabs/orchard/internal/worker/ondiskname"
+	"github.com/cirruslabs/orchard/internal/worker/platform"
 	"github.com/cirruslabs/orchard/internal/worker/vmmanager"
 	"github.com/cirruslabs/orchard/internal/worker/vmmanager/synthetic"
 	"github.com/cirruslabs/orchard/internal/worker/vmmanager/tart"
@@ -38,6 +38,7 @@ var ErrPollFailed = errors.New("failed to poll controller")
 
 type Worker struct {
 	name          string
+	nameSuffix    string
 	syncRequested chan bool
 	vmm           *vmmanager.VMManager
 	client        *client.Client
@@ -72,12 +73,16 @@ func New(client *client.Client, opts ...Option) (*Worker, error) {
 
 	// Apply defaults
 	if worker.name == "" {
-		name, err := DefaultName()
+		hostname, err := os.Hostname()
 		if err != nil {
 			return nil, err
 		}
 
-		worker.name = name
+		worker.name = hostname
+	}
+
+	if worker.nameSuffix != "" {
+		worker.name += worker.nameSuffix
 	}
 
 	defaultResources := v1.Resources{
@@ -120,8 +125,10 @@ func New(client *client.Client, opts ...Option) (*Worker, error) {
 }
 
 func (worker *Worker) Run(ctx context.Context) error {
-	if err := dhcpleasetime.Check(); err != nil {
-		worker.logger.Warnf("%v", err)
+	if !worker.synthetic {
+		if err := dhcpleasetime.Check(); err != nil {
+			worker.logger.Warnf("%v", err)
+		}
 	}
 
 	for {
@@ -228,12 +235,8 @@ func (worker *Worker) runNewSession(ctx context.Context) error {
 	}
 }
 
-func DefaultName() (string, error) {
-	return os.Hostname()
-}
-
 func (worker *Worker) registerWorker(ctx context.Context) error {
-	platformUUID, err := iokitregistry.PlatformUUID()
+	platformUUID, err := platform.MachineID()
 	if err != nil {
 		return err
 	}

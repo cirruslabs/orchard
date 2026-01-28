@@ -14,6 +14,12 @@ func WithName(name string) Option {
 	}
 }
 
+func WithNameSuffix(nameSuffix string) Option {
+	return func(worker *Worker) {
+		worker.nameSuffix = nameSuffix
+	}
+}
+
 func WithResources(resources v1.Resources) Option {
 	return func(worker *Worker) {
 		worker.resources = resources
