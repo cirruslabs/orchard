@@ -11,6 +11,7 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/cirruslabs/chacha/pkg/localnetworkhelper"
@@ -215,7 +216,7 @@ func runWorker(cmd *cobra.Command, args []string) (err error) {
 
 	for i := range workers {
 		group.Go(func() error {
-			workerOptsLocal := workerOpts
+			workerOptsLocal := slices.Clone(workerOpts)
 
 			if workers > 1 {
 				workerOptsLocal = append(workerOptsLocal, worker.WithNameSuffix(fmt.Sprintf("-%d", i+1)))
