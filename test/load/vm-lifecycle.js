@@ -31,10 +31,21 @@ export default async function () {
 }
 
 function createVM(vmName) {
+    const loremIpsum = `Lorem ipsum
+    dolor sit amet,
+    consectetur adipiscing elit.
+    Fusce at orci nisi.
+    Donec lacinia neque et risus elementum,
+    ut interdum lacus pretium.
+`;
+
     const body = JSON.stringify({
         name: vmName,
         image: 'ghcr.io/cirruslabs/macos-tahoe-base:latest',
         headless: true,
+        startup_script: {
+            script_content: loremIpsum
+        },
     });
 
     const resp = http.post(`${BASE_URL}/vms`, body, {

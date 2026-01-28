@@ -190,6 +190,8 @@ func (vm *VM) runScript(script *v1.VMScript, eventStreamer *client.EventStreamer
 
 	for line := range strings.Lines(script.ScriptContent) {
 		consumeLine(line)
+
+		randomDelay()
 	}
 }
 
