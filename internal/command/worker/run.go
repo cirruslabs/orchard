@@ -228,7 +228,7 @@ func runWorker(cmd *cobra.Command, args []string) (err error) {
 			}
 			defer workerInstance.Close()
 
-			return workerInstance.Run(cmd.Context())
+			return workerInstance.Run(ctx)
 		})
 	}
 
