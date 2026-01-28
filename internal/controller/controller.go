@@ -66,6 +66,7 @@ type Controller struct {
 	disableDBCompression bool
 	pingInterval         time.Duration
 	prometheusMetrics    bool
+	synthetic            bool
 
 	sshListenAddr   string
 	sshSigner       ssh.Signer

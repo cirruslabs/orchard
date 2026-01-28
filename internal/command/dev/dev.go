@@ -3,20 +3,26 @@
 package dev
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"net"
+	"net/http"
 	"os"
 	"path"
 	"path/filepath"
 
 	"github.com/cirruslabs/orchard/internal/config"
 	"github.com/cirruslabs/orchard/internal/controller"
+	"github.com/cirruslabs/orchard/internal/dialer"
+	"github.com/cirruslabs/orchard/internal/echoserver"
 	"github.com/cirruslabs/orchard/internal/netconstants"
 	"github.com/cirruslabs/orchard/internal/worker"
 	"github.com/cirruslabs/orchard/pkg/client"
 	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 )
 
 var ErrFailed = errors.New("failed to run development controller and worker")
@@ -25,6 +31,9 @@ var devDataDirPath string
 var apiPrefix string
 var stringToStringResources map[string]string
 var experimentalRPCV2 bool
+var addressPprof string
+var synthetic bool
+var workers int
 
 func NewCommand() *cobra.Command {
 	command := &cobra.Command{
@@ -42,11 +51,35 @@ func NewCommand() *cobra.Command {
 		"resources that the development worker will provide")
 	command.Flags().BoolVar(&experimentalRPCV2, "experimental-rpc-v2", false,
 		"enable experimental RPC v2 (https://github.com/cirruslabs/orchard/issues/235)")
+	command.Flags().StringVar(&addressPprof, "listen-pprof", "",
+		"start pprof HTTP server on localhost:6060 for diagnostic purposes (e.g. \"localhost:6060\")")
+	command.Flags().BoolVar(&synthetic, "synthetic", false,
+		"do not instantiate real Tart VM, use synthetic in-memory VMs suitable for load testing")
+	command.Flags().IntVar(&workers, "workers", 1, "number of workers to start")
 
 	return command
 }
 
 func runDev(cmd *cobra.Command, args []string) error {
+	// Initialize the logger
+	logger, err := zap.NewDevelopment()
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if syncErr := logger.Sync(); syncErr != nil && err == nil {
+			err = syncErr
+		}
+	}()
+
+	if addressPprof != "" {
+		go func() {
+			if err := http.ListenAndServe(addressPprof, nil); err != nil {
+				logger.Sugar().Errorf("pprof server failed: %v", err)
+			}
+		}()
+	}
+
 	if !filepath.IsAbs(devDataDirPath) {
 		pwd, err := os.Getwd()
 		if err != nil {
@@ -71,29 +104,69 @@ func runDev(cmd *cobra.Command, args []string) error {
 		additionalControllerOpts = append(additionalControllerOpts, controller.WithExperimentalRPCV2())
 	}
 
-	devController, devWorker, err := CreateDevControllerAndWorker(devDataDirPath,
-		fmt.Sprintf(":%d", netconstants.DefaultControllerPort), resources,
-		additionalControllerOpts, nil)
+	group, ctx := errgroup.WithContext(cmd.Context())
+
+	var additionalWorkerOpts []worker.Option
+
+	if synthetic {
+		// Use TCP echo server to partially emulate VM's TCP/IP stack,
+		// this way we get port-forwarding working when running in
+		// synthetic mode
+		echoServer, err := echoserver.New()
+		if err != nil {
+			return err
+		}
+
+		group.Go(func() error {
+			return echoServer.Run(ctx)
+		})
+
+		dialer := dialer.DialFunc(func(ctx context.Context, network, addr string) (net.Conn, error) {
+			dialer := net.Dialer{}
+
+			return dialer.DialContext(ctx, "tcp", echoServer.Addr())
+		})
+
+		additionalControllerOpts = append(additionalControllerOpts, controller.WithSynthetic())
+		additionalWorkerOpts = append(additionalWorkerOpts, worker.WithSynthetic(),
+			worker.WithDialer(dialer))
+	}
+
+	devController, devClient, err := CreateDevController(devDataDirPath, fmt.Sprintf(":%d",
+		netconstants.DefaultControllerPort), additionalControllerOpts, logger)
 	if err != nil {
 		return err
 	}
-	defer devWorker.Close()
 
-	errChan := make(chan error, 2)
+	group.Go(func() error {
+		return devController.Run(ctx)
+	})
 
-	go func() {
-		if err := devController.Run(cmd.Context()); err != nil {
-			errChan <- err
-		}
-	}()
+	workerName, err := worker.DefaultName()
+	if err != nil {
+		return err
+	}
 
-	go func() {
-		if err := devWorker.Run(cmd.Context()); err != nil {
-			errChan <- err
-		}
-	}()
+	for i := range workers {
+		group.Go(func() error {
+			workerNameLocal := workerName
 
-	return <-errChan
+			if workers > 1 {
+				workerNameLocal = fmt.Sprintf("%s-%d", workerName, i)
+			}
+
+			devWorker, err := CreateDevWorker(devClient, resources,
+				append(additionalWorkerOpts, worker.WithName(workerNameLocal)), logger)
+			if err != nil {
+				return err
+			}
+			defer devWorker.Close()
+
+			return devWorker.Run(ctx)
+		})
+	}
+
+	return group.Wait()
 }
 
 func CreateDevControllerAndWorker(
@@ -114,6 +187,26 @@ func CreateDevControllerAndWorker(
 		}
 	}()
 
+	devController, defaultClient, err := CreateDevController(devDataDirPath, controllerListenAddr,
+		additionalControllerOpts, logger)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	devWorker, err := CreateDevWorker(defaultClient, resources, additionalWorkerOpts, logger)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return devController, devWorker, nil
+}
+
+func CreateDevController(
+	devDataDirPath string,
+	controllerListenAddr string,
+	additionalControllerOpts []controller.Option,
+	logger *zap.Logger,
+) (*controller.Controller, *client.Client, error) {
 	dataDir, err := controller.NewDataDir(devDataDirPath)
 	if err != nil {
 		return nil, nil, err
@@ -139,18 +232,6 @@ func CreateDevControllerAndWorker(
 		return nil, nil, err
 	}
 
-	workerOpts := []worker.Option{
-		worker.WithResources(resources),
-		worker.WithLogger(logger),
-	}
-
-	workerOpts = append(workerOpts, additionalWorkerOpts...)
-
-	devWorker, err := worker.New(defaultClient, workerOpts...)
-	if err != nil {
-		return nil, nil, err
-	}
-
 	// set local-dev context as active
 	configHandle, err := config.NewHandle()
 	if err != nil {
@@ -166,5 +247,21 @@ func CreateDevControllerAndWorker(
 		return nil, nil, err
 	}
 
-	return devController, devWorker, nil
+	return devController, defaultClient, nil
+}
+
+func CreateDevWorker(
+	client *client.Client,
+	resources v1.Resources,
+	additionalWorkerOpts []worker.Option,
+	logger *zap.Logger,
+) (*worker.Worker, error) {
+	workerOpts := []worker.Option{
+		worker.WithResources(resources),
+		worker.WithLogger(logger),
+	}
+
+	workerOpts = append(workerOpts, additionalWorkerOpts...)
+
+	return worker.New(client, workerOpts...)
 }

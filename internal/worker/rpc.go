@@ -113,8 +113,8 @@ func (worker *Worker) handlePortForward(
 	// Connect to the VM's port
 	var vmConn net.Conn
 
-	if worker.localNetworkHelper != nil {
-		vmConn, err = worker.localNetworkHelper.PrivilegedDialContext(ctx, "tcp",
+	if worker.dialer != nil {
+		vmConn, err = worker.dialer.DialContext(ctx, "tcp",
 			fmt.Sprintf("%s:%d", host, portForwardAction.Port))
 	} else {
 		dialer := net.Dialer{}

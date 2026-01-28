@@ -1,9 +1,9 @@
 package client
 
 import (
-	"context"
 	"crypto/x509"
-	"net"
+
+	"github.com/cirruslabs/orchard/internal/dialer"
 )
 
 type Option func(*Client)
@@ -27,8 +27,8 @@ func WithCredentials(serviceAccountName string, serviceAccountToken string) Opti
 	}
 }
 
-func WithDialContext(dialContext func(ctx context.Context, network, addr string) (net.Conn, error)) Option {
+func WithDialer(dialer dialer.Dialer) Option {
 	return func(client *Client) {
-		client.dialContext = dialContext
+		client.dialer = dialer
 	}
 }

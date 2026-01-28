@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/cirruslabs/orchard/internal/config"
+	"github.com/cirruslabs/orchard/internal/dialer"
 	"github.com/cirruslabs/orchard/internal/version"
 	"github.com/cirruslabs/orchard/rpc"
 	"github.com/coder/websocket"
@@ -42,7 +43,7 @@ type Client struct {
 	serviceAccountName  string
 	serviceAccountToken string
 
-	dialContext func(ctx context.Context, network, addr string) (net.Conn, error)
+	dialer dialer.Dialer
 }
 
 type Config struct {
@@ -84,8 +85,8 @@ func New(opts ...Option) (*Client, error) {
 		TLSClientConfig: client.tlsConfig,
 	}
 
-	if client.dialContext != nil {
-		transport.DialContext = client.dialContext
+	if client.dialer != nil {
+		transport.DialContext = client.dialer.DialContext
 	}
 
 	client.httpClient = &http.Client{

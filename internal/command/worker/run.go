@@ -3,11 +3,20 @@
 package worker
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"io"
+	"net"
+	"net/http"
+	_ "net/http/pprof"
+	"os"
+	"strings"
+
 	"github.com/cirruslabs/chacha/pkg/localnetworkhelper"
 	"github.com/cirruslabs/chacha/pkg/privdrop"
 	"github.com/cirruslabs/orchard/internal/bootstraptoken"
+	"github.com/cirruslabs/orchard/internal/dialer"
 	"github.com/cirruslabs/orchard/internal/netconstants"
 	"github.com/cirruslabs/orchard/internal/worker"
 	"github.com/cirruslabs/orchard/pkg/client"
@@ -16,11 +25,6 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
-	"io"
-	"net/http"
-	_ "net/http/pprof"
-	"os"
-	"strings"
 )
 
 var (
@@ -98,8 +102,12 @@ func runWorker(cmd *cobra.Command, args []string) (err error) {
 			return err
 		}
 
-		clientOpts = append(clientOpts, client.WithDialContext(localNetworkHelper.PrivilegedDialContext))
-		workerOpts = append(workerOpts, worker.WithLocalNetworkHelper(localNetworkHelper))
+		dialer := dialer.DialFunc(func(ctx context.Context, network, addr string) (net.Conn, error) {
+			return localNetworkHelper.PrivilegedDialContext(ctx, network, addr)
+		})
+
+		clientOpts = append(clientOpts, client.WithDialer(dialer))
+		workerOpts = append(workerOpts, worker.WithDialer(dialer))
 
 		if err := privdrop.Drop(username); err != nil {
 			return err
