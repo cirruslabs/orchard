@@ -4,6 +4,7 @@ package badger
 import (
 	"path"
 
+	storepkg "github.com/cirruslabs/orchard/internal/controller/store"
 	"github.com/cirruslabs/orchard/pkg/resource/v1"
 )
 
@@ -25,6 +26,6 @@ func (txn *Transaction) DeleteVM(name string) error {
 	return genericDelete(txn, VMKey(name))
 }
 
-func (txn *Transaction) ListVMs() ([]v1.VM, error) {
-	return genericList[v1.VM](txn, []byte(SpaceVMs))
+func (txn *Transaction) ListVMs(opts ...storepkg.ListOption) ([]v1.VM, error) {
+	return genericList[v1.VM](txn, []byte(SpaceVMs), opts...)
 }

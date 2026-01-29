@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/cirruslabs/orchard/internal/controller/lifecycle"
@@ -298,8 +299,30 @@ func (controller *Controller) listVMs(ctx *gin.Context) responder.Responder {
 		return responder
 	}
 
+	var opts []storepkg.ListOption
+
+	if filterRaw := ctx.Query("filter"); filterRaw != "" {
+		var filters []v1.Filter
+
+		for _, filterRaw := range strings.Split(filterRaw, ",") {
+			filter, err := v1.NewFilter(filterRaw)
+			if err != nil {
+				return responder.JSON(http.StatusPreconditionFailed, NewErrorResponse("%v", err))
+			}
+
+			filters = append(filters, filter)
+		}
+
+		if len(filters) > 1 {
+			return responder.JSON(http.StatusPreconditionFailed, NewErrorResponse("only "+
+				"a single filter is currently supported"))
+		}
+
+		opts = append(opts, storepkg.WithListFilters(filters...))
+	}
+
 	return controller.storeView(func(txn storepkg.Transaction) responder.Responder {
-		vms, err := txn.ListVMs()
+		vms, err := txn.ListVMs(opts...)
 		if err != nil {
 			return responder.Error(err)
 		}

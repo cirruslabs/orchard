@@ -243,6 +243,13 @@ paths:
       summary: "List VMs"
       tags:
         - vms
+      parameters:
+        - in: query
+          name: filter
+          description: "Filter VMs using `path=value` syntax; currently only `worker=<name>` is supported to return VMs assigned to the given worker"
+          schema:
+            type: string
+          required: false
       responses:
         '200':
           description: OK

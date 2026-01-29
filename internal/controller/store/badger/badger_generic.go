@@ -3,6 +3,8 @@ package badger
 import (
 	"encoding/json"
 
+	storepkg "github.com/cirruslabs/orchard/internal/controller/store"
+	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
 	"github.com/dgraph-io/badger/v3"
 )
 
@@ -51,11 +53,19 @@ func genericGet[T any, PT interface {
 
 func genericList[T any, PT interface {
 	SetVersion(uint64)
+	Match(v1.Filter) bool
 	*T
-}](txn *Transaction, prefix []byte) (_ []T, err error) {
+}](txn *Transaction, prefix []byte, opts ...storepkg.ListOption) (_ []T, err error) {
 	defer func() {
 		err = mapErr(err)
 	}()
+
+	// Apply options
+	listInput := &storepkg.ListInput{}
+
+	for _, opt := range opts {
+		opt(listInput)
+	}
 
 	// Declare an empty, non-nil slice to
 	// return [] when no objects are found
@@ -66,6 +76,7 @@ func genericList[T any, PT interface {
 	})
 	defer it.Close()
 
+Outer:
 	for it.Rewind(); it.Valid(); it.Next() {
 		item := it.Item()
 
@@ -78,6 +89,12 @@ func genericList[T any, PT interface {
 
 		if err := json.Unmarshal(valueBytes, &obj); err != nil {
 			return nil, err
+		}
+
+		for _, filter := range listInput.Filters {
+			if !PT(&obj).Match(filter) {
+				continue Outer
+			}
 		}
 
 		PT(&obj).SetVersion(item.Version())

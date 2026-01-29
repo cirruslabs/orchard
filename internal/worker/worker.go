@@ -339,7 +339,7 @@ func (worker *Worker) syncVMs(ctx context.Context, updateVM func(context.Context
 		action := transitions[remoteState][localState]
 
 		worker.logger.Debugf("processing VM: %s, remote state: %s, local state: %s, "+
-			"local conditions: [%s], action: %v\n", onDiskName, optionToString(remoteState),
+			"local conditions: [%s], action: %v", onDiskName, optionToString(remoteState),
 			optionToString(localState), v1.ConditionsHumanize(localConditions), action)
 
 		switch action {

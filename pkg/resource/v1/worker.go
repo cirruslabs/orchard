@@ -32,3 +32,7 @@ func (worker Worker) Offline(workerOfflineTimeout time.Duration) bool {
 }
 
 func (worker *Worker) SetVersion(_ uint64) {}
+
+func (worker *Worker) Match(filter Filter) bool {
+	return false
+}

@@ -8,3 +8,7 @@ type ServiceAccount struct {
 }
 
 func (serviceAccount *ServiceAccount) SetVersion(_ uint64) {}
+
+func (serviceAccount *ServiceAccount) Match(filter Filter) bool {
+	return false
+}

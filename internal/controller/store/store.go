@@ -29,7 +29,7 @@ type Transaction interface {
 	GetVM(name string) (result *v1.VM, err error)
 	SetVM(vm v1.VM) (err error)
 	DeleteVM(name string) (err error)
-	ListVMs() (result []v1.VM, err error)
+	ListVMs(opts ...ListOption) (result []v1.VM, err error)
 
 	GetWorker(name string) (result *v1.Worker, err error)
 	SetWorker(worker v1.Worker) (err error)
