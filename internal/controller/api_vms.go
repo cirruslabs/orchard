@@ -313,7 +313,7 @@ func (controller *Controller) listVMs(ctx *gin.Context) responder.Responder {
 			filters = append(filters, filter)
 		}
 
-		if len(filters) > 0 {
+		if len(filters) > 1 {
 			return responder.JSON(http.StatusPreconditionFailed, NewErrorResponse("only "+
 				"a single filter is currently supported"))
 		}
