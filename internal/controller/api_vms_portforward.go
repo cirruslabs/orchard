@@ -3,6 +3,10 @@ package controller
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"strconv"
+	"time"
+
 	storepkg "github.com/cirruslabs/orchard/internal/controller/store"
 	"github.com/cirruslabs/orchard/internal/netconncancel"
 	"github.com/cirruslabs/orchard/internal/proxy"
@@ -15,13 +19,11 @@ import (
 	"github.com/pkg/errors"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"net/http"
-	"strconv"
-	"time"
 )
 
 func (controller *Controller) portForwardVM(ctx *gin.Context) responder.Responder {
-	if responder := controller.authorize(ctx, v1.ServiceAccountRoleComputeWrite); responder != nil {
+	if responder := controller.authorizeAny(ctx, v1.ServiceAccountRoleComputeWrite,
+		v1.ServiceAccountRoleComputeConnect); responder != nil {
 		return responder
 	}
 

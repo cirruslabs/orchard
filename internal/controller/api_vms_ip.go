@@ -3,18 +3,20 @@ package controller
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"strconv"
+	"time"
+
 	"github.com/cirruslabs/orchard/internal/responder"
 	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
 	"github.com/cirruslabs/orchard/rpc"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"net/http"
-	"strconv"
-	"time"
 )
 
 func (controller *Controller) ip(ctx *gin.Context) responder.Responder {
-	if responder := controller.authorize(ctx, v1.ServiceAccountRoleComputeWrite); responder != nil {
+	if responder := controller.authorizeAny(ctx, v1.ServiceAccountRoleComputeWrite,
+		v1.ServiceAccountRoleComputeConnect); responder != nil {
 		return responder
 	}
 

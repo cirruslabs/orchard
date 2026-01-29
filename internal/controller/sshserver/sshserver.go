@@ -5,6 +5,10 @@ import (
 	"crypto/subtle"
 	"errors"
 	"fmt"
+	"net"
+	"strings"
+	"time"
+
 	"github.com/cirruslabs/orchard/internal/controller/notifier"
 	"github.com/cirruslabs/orchard/internal/controller/rendezvous"
 	storepkg "github.com/cirruslabs/orchard/internal/controller/store"
@@ -15,9 +19,6 @@ import (
 	"github.com/samber/lo"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/ssh"
-	"net"
-	"strings"
-	"time"
 )
 
 const (
@@ -110,9 +111,12 @@ func (server *SSHServer) passwordCallback(connMetadata ssh.ConnMetadata, passwor
 		}
 
 		// Authorize
-		if !lo.Contains(serviceAccount.Roles, v1.ServiceAccountRoleComputeWrite) {
-			return fmt.Errorf("authorization failed for user %q because it lacks %q role",
-				connMetadata.User(), v1.ServiceAccountRoleComputeWrite)
+		authorized := lo.Contains(serviceAccount.Roles, v1.ServiceAccountRoleComputeWrite) ||
+			lo.Contains(serviceAccount.Roles, v1.ServiceAccountRoleComputeConnect)
+
+		if !authorized {
+			return fmt.Errorf("authorization failed for user %q because it lacks %q or %q roles",
+				connMetadata.User(), v1.ServiceAccountRoleComputeWrite, v1.ServiceAccountRoleComputeConnect)
 		}
 
 		return nil

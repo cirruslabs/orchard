@@ -18,6 +18,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/penglongli/gin-metrics/ginmetrics"
+	"github.com/samber/lo"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/metadata"
 )
@@ -239,8 +240,30 @@ func (controller *Controller) authenticateMiddleware(c *gin.Context) {
 	c.Next()
 }
 
+type AuthorizeMode int
+
+const (
+	AuthorizeModeAll AuthorizeMode = iota
+	AuthorizeModeAny
+)
+
 func (controller *Controller) authorize(
 	ctx *gin.Context,
+	requiredRoles ...v1pkg.ServiceAccountRole,
+) responder.Responder {
+	return controller.authorizeBase(ctx, AuthorizeModeAll, requiredRoles...)
+}
+
+func (controller *Controller) authorizeAny(
+	ctx *gin.Context,
+	requiredRoles ...v1pkg.ServiceAccountRole,
+) responder.Responder {
+	return controller.authorizeBase(ctx, AuthorizeModeAny, requiredRoles...)
+}
+
+func (controller *Controller) authorizeBase(
+	ctx *gin.Context,
+	mode AuthorizeMode,
 	requiredRoles ...v1pkg.ServiceAccountRole,
 ) responder.Responder {
 	if controller.insecureAuthDisabled {
@@ -254,21 +277,34 @@ func (controller *Controller) authorize(
 	serviceAccount := serviceAccountUntyped.(*v1pkg.ServiceAccount)
 	serviceAccountRolesSet := mapset.NewSet[v1pkg.ServiceAccountRole](serviceAccount.Roles...)
 
-	requiredRolesSet := mapset.NewSet[v1pkg.ServiceAccountRole](requiredRoles...)
+	var authorized bool
 
-	missingRoles := requiredRolesSet.Difference(serviceAccountRolesSet).ToSlice()
-	if len(missingRoles) == 0 {
+	switch mode {
+	case AuthorizeModeAll:
+		authorized = serviceAccountRolesSet.Contains(requiredRoles...)
+	case AuthorizeModeAny:
+		authorized = serviceAccountRolesSet.ContainsAny(requiredRoles...)
+	}
+
+	if authorized {
 		return nil
 	}
 
-	var missingRolesStrings []string
+	var hint string
 
-	for _, missingRole := range missingRoles {
-		missingRolesStrings = append(missingRolesStrings, string(missingRole))
+	switch mode {
+	case AuthorizeModeAll:
+		hint = "all of the following roles must be present"
+	case AuthorizeModeAny:
+		hint = "any of the following roles must be present"
 	}
 
+	humanizedRoles := lo.Map(requiredRoles, func(role v1pkg.ServiceAccountRole, _ int) string {
+		return string(role)
+	})
+
 	return responder.JSON(http.StatusUnauthorized,
-		NewErrorResponse("missing roles: %s", strings.Join(missingRolesStrings, ", ")))
+		NewErrorResponse("%s: %s", hint, strings.Join(humanizedRoles, ", ")))
 }
 
 func (controller *Controller) authorizeGRPC(ctx context.Context, scopes ...v1pkg.ServiceAccountRole) bool {

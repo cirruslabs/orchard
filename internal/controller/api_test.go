@@ -2,12 +2,13 @@
 package controller
 
 import (
+	"net/http"
+	"testing"
+
 	"github.com/cirruslabs/orchard/internal/responder"
 	v1pkg "github.com/cirruslabs/orchard/pkg/resource/v1"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
-	"net/http"
-	"testing"
 )
 
 func TestAuthorizeInsecureAuthDisabled(t *testing.T) {
@@ -31,7 +32,7 @@ func TestAuthorizeAuthenticatedNoRoles(t *testing.T) {
 
 	const requiredRole = v1pkg.ServiceAccountRoleAdminWrite
 
-	require.Equal(t, responder.JSON(http.StatusUnauthorized, NewErrorResponse("missing roles: %s", requiredRole)),
+	require.Equal(t, responder.JSON(http.StatusUnauthorized, NewErrorResponse("all of the following roles must be present: %s", requiredRole)),
 		controller.authorize(ctx, requiredRole))
 }
 
