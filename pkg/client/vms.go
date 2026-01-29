@@ -57,13 +57,18 @@ func (service *VMsService) Create(ctx context.Context, vm *v1.VM) error {
 }
 
 func (service *VMsService) FindForWorker(ctx context.Context, worker string) ([]v1.VM, error) {
-	allVms, err := service.List(ctx)
+	allVms, err := service.List(ctx, WithListFilters(v1.Filter{
+		Path:  "worker",
+		Value: worker,
+	}))
 	if err != nil {
 		return nil, err
 	}
 
 	var result []v1.VM
 
+	// Backwards compatibility with older Orchard Controllers
+	// that do not support the "filter" query parameter
 	for _, vmResource := range allVms {
 		if vmResource.Worker != worker {
 			continue
@@ -75,11 +80,18 @@ func (service *VMsService) FindForWorker(ctx context.Context, worker string) ([]
 	return result, nil
 }
 
-func (service *VMsService) List(ctx context.Context) ([]v1.VM, error) {
+func (service *VMsService) List(ctx context.Context, opts ...ListOption) ([]v1.VM, error) {
+	params := map[string]string{}
+
+	// Apply options
+	for _, opt := range opts {
+		opt(params)
+	}
+
 	var vms []v1.VM
 
 	err := service.client.request(ctx, http.MethodGet, "vms",
-		nil, &vms, nil)
+		nil, &vms, params)
 	if err != nil {
 		return nil, err
 	}

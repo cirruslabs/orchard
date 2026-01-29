@@ -298,8 +298,19 @@ func (controller *Controller) listVMs(ctx *gin.Context) responder.Responder {
 		return responder
 	}
 
+	var opts []storepkg.ListOption
+
+	if filterRaw := ctx.Query("filter"); filterRaw != "" {
+		filter, err := v1.NewFilter(filterRaw)
+		if err != nil {
+			return responder.Error(err)
+		}
+
+		opts = append(opts, storepkg.WithListFilters(filter))
+	}
+
 	return controller.storeView(func(txn storepkg.Transaction) responder.Responder {
-		vms, err := txn.ListVMs()
+		vms, err := txn.ListVMs(opts...)
 		if err != nil {
 			return responder.Error(err)
 		}

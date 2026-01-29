@@ -102,6 +102,15 @@ func (vm *VM) SetVersion(version uint64) {
 	vm.Version = version
 }
 
+func (vm *VM) Match(filter Filter) bool {
+	switch filter.Path {
+	case "worker":
+		return vm.Worker == filter.Value
+	default:
+		return false
+	}
+}
+
 func (vm *VM) IsScheduled() bool {
 	if ConditionExists(vm.Conditions, ConditionTypeScheduled) {
 		return ConditionIsTrue(vm.Conditions, ConditionTypeScheduled)
