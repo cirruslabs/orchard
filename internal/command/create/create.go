@@ -10,7 +10,11 @@ func NewCommand() *cobra.Command {
 		Short: "Create resources on the controller",
 	}
 
-	command.AddCommand(newCreateVMCommand(), newCreateServiceAccount())
+	command.AddCommand(
+		newCreateVMCommand(),
+		newCreateServiceAccount(),
+		newCreateImagePullJob(),
+	)
 
 	return command
 }
