@@ -8,7 +8,7 @@ import {expect} from 'https://jslib.k6.io/k6-testing/0.6.1/index.js';
 
 const BASE_URL = __ENV.BASE_URL || 'http://127.0.0.1:6120/v1';
 const WS_BASE_URL = __ENV.WS_BASE_URL || BASE_URL.replace(/^http/, 'ws');
-const WS_BYTES = __ENV.WS_BYTES || 64 * 1024;
+const WS_BYTES = Number(__ENV.WS_BYTES) || 64 * 1024;
 const SERVICE_ACCOUNT_NAME = __ENV.SERVICE_ACCOUNT_NAME;
 const SERVICE_ACCOUNT_TOKEN = __ENV.SERVICE_ACCOUNT_TOKEN;
 
@@ -80,7 +80,9 @@ async function portForward(vmName) {
     ws.binaryType = 'arraybuffer';
 
     const sentBytes = new Uint8Array(crypto.randomBytes(WS_BYTES));
-    let receivedBytes = new Uint8Array();
+    const sentHash = crypto.sha256(sentBytes, 'hex');
+    let numReceivedBytes = 0;
+    const receivedHasher = crypto.createHash('sha256');
 
     const evt = await new Promise((resolve, reject) => {
         ws.onopen = () => {
@@ -89,15 +91,11 @@ async function portForward(vmName) {
 
         ws.onmessage = (event) => {
             if (event.data instanceof ArrayBuffer) {
-                const chunk = new Uint8Array(event.data);
-
-                const combined = new Uint8Array(receivedBytes.length + chunk.length);
-                combined.set(receivedBytes);
-                combined.set(chunk, receivedBytes.length);
-                receivedBytes = combined;
+                numReceivedBytes += event.data.byteLength;
+                receivedHasher.update(event.data);
             }
 
-            if (receivedBytes.length >= WS_BYTES) {
+            if (numReceivedBytes >= WS_BYTES) {
                 ws.close();
             }
         };
@@ -112,7 +110,8 @@ async function portForward(vmName) {
     });
 
     expect(evt.code).toBe(1000);
-    expect(receivedBytes).toEqual(sentBytes);
+    expect(WS_BYTES).toEqual(numReceivedBytes);
+    expect(sentHash).toEqual(receivedHasher.digest('hex'));
 }
 
 function deleteVM(vmName) {
