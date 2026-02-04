@@ -21,6 +21,17 @@ type Meta struct {
 	Version uint64 `json:"version,omitempty"`
 }
 
+type OwnerReference struct {
+	Kind Kind `json:"kind,omitempty"`
+
+	Name string `json:"name,omitempty"`
+
+	// UID is a useful field for avoiding data races within a single Name.
+	//
+	// It is populated by the Controller when receiving a POST request.
+	UID string `json:"uid,omitempty"`
+}
+
 type VM struct {
 	Image           string          `json:"image,omitempty"`
 	ImagePullPolicy ImagePullPolicy `json:"imagePullPolicy,omitempty"`
@@ -204,9 +215,10 @@ const (
 type ControllerCapability string
 
 const (
-	ControllerCapabilityRPCV1           ControllerCapability = "rpc-v1"
-	ControllerCapabilityRPCV2           ControllerCapability = "rpc-v2"
-	ControllerCapabilityVMStateEndpoint ControllerCapability = "vm-state-endpoint"
+	ControllerCapabilityRPCV1             ControllerCapability = "rpc-v1"
+	ControllerCapabilityRPCV2             ControllerCapability = "rpc-v2"
+	ControllerCapabilityVMStateEndpoint   ControllerCapability = "vm-state-endpoint"
+	ControllerCapabilityImagePullResource ControllerCapability = "pull-resource"
 )
 
 type ControllerCapabilities []ControllerCapability

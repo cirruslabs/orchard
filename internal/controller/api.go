@@ -184,6 +184,37 @@ func (controller *Controller) initAPI() *gin.Engine {
 		controller.appendVMEvents(c).Respond(c)
 	})
 
+	// Image pulls
+	v1.POST("/imagepulls", func(c *gin.Context) {
+		controller.createImagePull(c).Respond(c)
+	})
+	v1.PUT("/imagepulls/:name/state", func(c *gin.Context) {
+		controller.updateImagePullState(c).Respond(c)
+	})
+	v1.GET("/imagepulls/:name", func(c *gin.Context) {
+		controller.getImagePull(c).Respond(c)
+	})
+	v1.GET("/imagepulls", func(c *gin.Context) {
+		controller.listImagePulls(c).Respond(c)
+	})
+	v1.DELETE("/imagepulls/:name", func(c *gin.Context) {
+		controller.deleteImagePull(c).Respond(c)
+	})
+
+	// Image pull jobs
+	v1.POST("/imagepulljobs", func(c *gin.Context) {
+		controller.createImagePullJob(c).Respond(c)
+	})
+	v1.GET("/imagepulljobs/:name", func(c *gin.Context) {
+		controller.getImagePullJob(c).Respond(c)
+	})
+	v1.GET("/imagepulljobs", func(c *gin.Context) {
+		controller.listImagePullJobs(c).Respond(c)
+	})
+	v1.DELETE("/imagepulljobs/:name", func(c *gin.Context) {
+		controller.deleteImagePullJob(c).Respond(c)
+	})
+
 	return ginEngine
 }
 

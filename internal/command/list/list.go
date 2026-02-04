@@ -12,7 +12,13 @@ func NewCommand() *cobra.Command {
 		Short: "List resources on the controller",
 	}
 
-	command.AddCommand(newListWorkersCommand(), newListVMsCommand(), newListServiceAccountsCommand())
+	command.AddCommand(
+		newListWorkersCommand(),
+		newListVMsCommand(),
+		newListServiceAccountsCommand(),
+		newListImagePullsCommand(),
+		newListImagePullJobsCommand(),
+	)
 
 	command.Flags().BoolVarP(&quiet, "", "q", false, "only show resource names")
 
