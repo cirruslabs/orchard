@@ -196,7 +196,11 @@ func runWorker(cmd *cobra.Command, args []string) (err error) {
 		// Use TCP echo server to partially emulate VM's TCP/IP stack,
 		// this way we get port-forwarding working when running in
 		// synthetic mode
-		echoServer, err := echoserver.New()
+		echoServerOpts := []echoserver.Option{
+			echoserver.WithLogger(logger.Sugar().With("component", "echoserver")),
+		}
+
+		echoServer, err := echoserver.New(echoServerOpts...)
 		if err != nil {
 			return err
 		}

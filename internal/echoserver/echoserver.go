@@ -6,24 +6,37 @@ import (
 	"io"
 	"net"
 	"strings"
-	"syscall"
 
+	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )
 
 type EchoServer struct {
 	listener net.Listener
+	logger   *zap.SugaredLogger
 }
 
-func New() (*EchoServer, error) {
+func New(opts ...Option) (*EchoServer, error) {
 	listener, err := net.Listen("tcp", ":0")
 	if err != nil {
 		return nil, err
 	}
 
-	return &EchoServer{
+	echoServer := &EchoServer{
 		listener: listener,
-	}, nil
+	}
+
+	// Apply options
+	for _, opt := range opts {
+		opt(echoServer)
+	}
+
+	// Apply defaults
+	if echoServer.logger == nil {
+		echoServer.logger = zap.NewNop().Sugar()
+	}
+
+	return echoServer, nil
 }
 
 func (echoServer *EchoServer) Addr() string {
@@ -55,25 +68,16 @@ func (echoServer *EchoServer) Run(ctx context.Context) error {
 
 				buf := make([]byte, 4096)
 
-				for {
-					n, err := conn.Read(buf)
-					if err != nil {
-						if errors.Is(err, io.EOF) {
-							return nil
-						}
-
-						return err
+				_, err := io.CopyBuffer(conn, conn, buf)
+				if err != nil {
+					if errors.Is(err, io.EOF) {
+						return nil
 					}
 
-					_, err = conn.Write(buf[:n])
-					if err != nil {
-						if errors.Is(err, syscall.EPIPE) {
-							return nil
-						}
-
-						return err
-					}
+					echoServer.logger.Warnf("connection failed: %v", err)
 				}
+
+				return nil
 			})
 		}
 	})
