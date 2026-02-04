@@ -80,7 +80,9 @@ async function portForward(vmName) {
     ws.binaryType = 'arraybuffer';
 
     const sentBytes = new Uint8Array(crypto.randomBytes(WS_BYTES));
-    let receivedBytes = new Uint8Array();
+    const sentHash = crypto.sha256(sentBytes, 'hex');
+    let numReceivedBytes = 0;
+    const receivedHasher = crypto.createHash('sha256');
 
     const evt = await new Promise((resolve, reject) => {
         ws.onopen = () => {
@@ -89,15 +91,11 @@ async function portForward(vmName) {
 
         ws.onmessage = (event) => {
             if (event.data instanceof ArrayBuffer) {
-                const chunk = new Uint8Array(event.data);
-
-                const combined = new Uint8Array(receivedBytes.length + chunk.length);
-                combined.set(receivedBytes);
-                combined.set(chunk, receivedBytes.length);
-                receivedBytes = combined;
+                numReceivedBytes += event.data.byteLength;
+                receivedHasher.update(event.data);
             }
 
-            if (receivedBytes.length >= WS_BYTES) {
+            if (numReceivedBytes >= WS_BYTES) {
                 ws.close();
             }
         };
@@ -112,7 +110,8 @@ async function portForward(vmName) {
     });
 
     expect(evt.code).toBe(1000);
-    expect(receivedBytes).toEqual(sentBytes);
+    expect(WS_BYTES).toEqual(numReceivedBytes);
+    expect(sentHash).toEqual(receivedHasher.digest('hex'));
 }
 
 function deleteVM(vmName) {
