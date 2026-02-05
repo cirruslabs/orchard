@@ -312,7 +312,7 @@ func (controller *Controller) listVMs(ctx *gin.Context) responder.Responder {
 		}
 	}
 
-	allVMs, err, _ := controller.single.Do("list-vms", func() (interface{}, error) {
+	computedVMs, err, _ := controller.single.Do("list-vms", func() (interface{}, error) {
 		var vms []v1.VM
 
 		viewErr := controller.store.View(func(txn storepkg.Transaction) (err error) {
@@ -327,16 +327,16 @@ func (controller *Controller) listVMs(ctx *gin.Context) responder.Responder {
 		return responder.Error(err)
 	}
 
-	vmList, ok := allVMs.([]v1.VM)
+	allVMs, ok := computedVMs.([]v1.VM)
 	if !ok {
-		controller.logger.Errorf("failed to cast list-vms result to []v1.VM: %T", allVMs)
+		controller.logger.Errorf("failed to compute vms: %T", computedVMs)
 		return responder.Code(http.StatusInternalServerError)
 	}
 
-	vms := make([]v1.VM, 0, len(vmList))
+	vms := make([]v1.VM, 0, len(allVMs))
 
 Outer:
-	for _, vm := range vmList {
+	for _, vm := range allVMs {
 		for _, filter := range filters {
 			if !vm.Match(filter) {
 				continue Outer
