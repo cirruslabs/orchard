@@ -299,11 +299,9 @@ func (controller *Controller) listVMs(ctx *gin.Context) responder.Responder {
 		return responder
 	}
 
-	var opts []storepkg.ListOption
+	var filters []v1.Filter
 
 	if filterRaw := ctx.Query("filter"); filterRaw != "" {
-		var filters []v1.Filter
-
 		for _, filterRaw := range strings.Split(filterRaw, ",") {
 			filter, err := v1.NewFilter(filterRaw)
 			if err != nil {
@@ -312,19 +310,24 @@ func (controller *Controller) listVMs(ctx *gin.Context) responder.Responder {
 
 			filters = append(filters, filter)
 		}
-
-		if len(filters) > 1 {
-			return responder.JSON(http.StatusPreconditionFailed, NewErrorResponse("only "+
-				"a single filter is currently supported"))
-		}
-
-		opts = append(opts, storepkg.WithListFilters(filters...))
 	}
 
 	return controller.storeView(func(txn storepkg.Transaction) responder.Responder {
-		vms, err := txn.ListVMs(opts...)
+		allVMs, err := txn.ListVMs()
+
 		if err != nil {
 			return responder.Error(err)
+		}
+
+		vms := make([]v1.VM, 0)
+	Outer:
+		for _, vm := range allVMs {
+			for _, filter := range filters {
+				if !vm.Match(filter) {
+					continue Outer
+				}
+			}
+			vms = append(vms, vm)
 		}
 
 		return responder.JSON(http.StatusOK, vms)
