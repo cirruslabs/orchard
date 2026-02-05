@@ -312,7 +312,7 @@ func (controller *Controller) listVMs(ctx *gin.Context) responder.Responder {
 		}
 	}
 
-	computedVMs, err, _ := controller.single.Do("list-vms", func() (interface{}, error) {
+	resultCh := controller.single.DoChan("list-vms", func() (interface{}, error) {
 		var vms []v1.VM
 
 		viewErr := controller.store.View(func(txn storepkg.Transaction) (err error) {
@@ -322,6 +322,17 @@ func (controller *Controller) listVMs(ctx *gin.Context) responder.Responder {
 
 		return vms, viewErr
 	})
+
+	var computedVMs interface{}
+	var err error
+
+	select {
+	case <-ctx.Done():
+		return responder.Empty()
+	case result := <-resultCh:
+		computedVMs = result.Val
+		err = result.Err
+	}
 
 	if err != nil {
 		return responder.Error(err)
