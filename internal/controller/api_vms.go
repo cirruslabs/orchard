@@ -312,26 +312,40 @@ func (controller *Controller) listVMs(ctx *gin.Context) responder.Responder {
 		}
 	}
 
-	return controller.storeView(func(txn storepkg.Transaction) responder.Responder {
-		allVMs, err := txn.ListVMs()
+	allVMs, err, _ := controller.single.Do("list-vms", func() (interface{}, error) {
+		var vms []v1.VM
 
-		if err != nil {
-			return responder.Error(err)
-		}
+		viewErr := controller.store.View(func(txn storepkg.Transaction) (err error) {
+			vms, err = txn.ListVMs()
+			return
+		})
 
-		vms := make([]v1.VM, 0)
-	Outer:
-		for _, vm := range allVMs {
-			for _, filter := range filters {
-				if !vm.Match(filter) {
-					continue Outer
-				}
-			}
-			vms = append(vms, vm)
-		}
-
-		return responder.JSON(http.StatusOK, vms)
+		return vms, viewErr
 	})
+
+	if err != nil {
+		return responder.Error(err)
+	}
+
+	vmList, ok := allVMs.([]v1.VM)
+	if !ok {
+		controller.logger.Errorf("failed to cast list-vms result to []v1.VM: %T", allVMs)
+		return responder.Code(http.StatusInternalServerError)
+	}
+
+	vms := make([]v1.VM, 0, len(vmList))
+
+Outer:
+	for _, vm := range vmList {
+		for _, filter := range filters {
+			if !vm.Match(filter) {
+				continue Outer
+			}
+		}
+		vms = append(vms, vm)
+	}
+
+	return responder.JSON(http.StatusOK, vms)
 }
 
 func (controller *Controller) deleteVM(ctx *gin.Context) responder.Responder {

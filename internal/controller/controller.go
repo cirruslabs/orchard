@@ -29,6 +29,7 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
+	"golang.org/x/sync/singleflight"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/keepalive"
 )
@@ -73,6 +74,8 @@ type Controller struct {
 	sshNoClientAuth bool
 	sshServer       *sshserver.SSHServer
 
+	single singleflight.Group
+
 	rpc.UnimplementedControllerServer
 }
 
@@ -83,6 +86,7 @@ func New(opts ...Option) (*Controller, error) {
 		workerOfflineTimeout: 3 * time.Minute,
 		maxWorkersPerLicense: maxWorkersPerDefaultLicense,
 		pingInterval:         30 * time.Second,
+		single:               singleflight.Group{},
 	}
 
 	// Apply options
