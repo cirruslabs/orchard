@@ -17,6 +17,7 @@ func NewCommand() *cobra.Command {
 		newGetBootstrapTokenCommand(),
 		newGetClusterSettingsCommand(),
 		newGetServiceAccountCommand(),
+		newGetVMAccessTokenCommand(),
 		newGetVMCommand(),
 		newGetWorkerCommand(),
 	)

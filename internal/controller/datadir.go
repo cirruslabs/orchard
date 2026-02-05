@@ -99,6 +99,18 @@ func (dataDir *DataDir) SSHHostKeyPath() string {
 	return filepath.Join(dataDir.path, "ssh_host_ed25519_key")
 }
 
+func (dataDir *DataDir) VMAccessTokenSigningKeyPath() string {
+	return filepath.Join(dataDir.path, "vm_access_token_signing_key")
+}
+
+func (dataDir *DataDir) VMAccessTokenSigningKey() ([]byte, error) {
+	return os.ReadFile(dataDir.VMAccessTokenSigningKeyPath())
+}
+
+func (dataDir *DataDir) SetVMAccessTokenSigningKey(signingKey []byte) error {
+	return os.WriteFile(dataDir.VMAccessTokenSigningKeyPath(), signingKey, 0600)
+}
+
 func (dataDir *DataDir) Initialized() (bool, error) {
 	dataDirEntries, err := os.ReadDir(dataDir.path)
 	if err != nil {

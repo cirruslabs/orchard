@@ -42,6 +42,7 @@ type Client struct {
 
 	serviceAccountName  string
 	serviceAccountToken string
+	bearerToken         string
 
 	dialer dialer.Dialer
 }
@@ -320,6 +321,12 @@ func (client *Client) formatPath(path string) *url.URL {
 
 func (client *Client) modifyHeader(header http.Header) {
 	header.Set("User-Agent", fmt.Sprintf("Orchard/%s", version.FullVersion))
+
+	if client.bearerToken != "" {
+		header.Set("Authorization", fmt.Sprintf("Bearer %s", client.bearerToken))
+
+		return
+	}
 
 	if client.serviceAccountName != "" && client.serviceAccountToken != "" {
 		authPlain := fmt.Sprintf("%s:%s", client.serviceAccountName, client.serviceAccountToken)

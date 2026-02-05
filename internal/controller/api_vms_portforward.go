@@ -11,6 +11,7 @@ import (
 	"github.com/cirruslabs/orchard/internal/netconncancel"
 	"github.com/cirruslabs/orchard/internal/proxy"
 	"github.com/cirruslabs/orchard/internal/responder"
+	"github.com/cirruslabs/orchard/internal/vmtempauth"
 	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
 	"github.com/cirruslabs/orchard/rpc"
 	"github.com/coder/websocket"
@@ -22,9 +23,15 @@ import (
 )
 
 func (controller *Controller) portForwardVM(ctx *gin.Context) responder.Responder {
-	if responder := controller.authorizeAny(ctx, v1.ServiceAccountRoleComputeWrite,
-		v1.ServiceAccountRoleComputeConnect); responder != nil {
-		return responder
+	vmAccessTokenClaims, vmAccessTokenAuth := controller.vmAccessTokenClaimsFromContext(ctx)
+
+	if !vmAccessTokenAuth {
+		if responder := controller.authorizeAny(ctx, v1.ServiceAccountRoleComputeWrite,
+			v1.ServiceAccountRoleComputeConnect); responder != nil {
+			return responder
+		}
+	} else if !vmAccessTokenClaims.HasScope(vmtempauth.ScopeVMPortForward) {
+		return responder.Code(http.StatusUnauthorized)
 	}
 
 	// Retrieve and parse path and query parameters
@@ -51,6 +58,9 @@ func (controller *Controller) portForwardVM(ctx *gin.Context) responder.Responde
 	vm, responderImpl := controller.waitForVM(waitContext, name)
 	if responderImpl != nil {
 		return responderImpl
+	}
+	if vmAccessTokenAuth && !vmAccessTokenClaims.CanAccessVM(vm.UID) {
+		return responder.JSON(http.StatusForbidden, NewErrorResponse("the VM access token does not allow access to this VM"))
 	}
 
 	// Commence port forwarding

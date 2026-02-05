@@ -13,6 +13,7 @@ import (
 	"github.com/cirruslabs/orchard/internal/controller/rendezvous"
 	storepkg "github.com/cirruslabs/orchard/internal/controller/store"
 	"github.com/cirruslabs/orchard/internal/proxy"
+	"github.com/cirruslabs/orchard/internal/vmtempauth"
 	"github.com/cirruslabs/orchard/pkg/resource/v1"
 	"github.com/cirruslabs/orchard/rpc"
 	"github.com/google/uuid"
@@ -27,15 +28,21 @@ const (
 	//
 	// [1]: https://datatracker.ietf.org/doc/html/rfc4254#section-7.2
 	channelTypeDirectTCPIP = "direct-tcpip"
+
+	permissionPrincipalTypeExt = "orchard-principal-type"
+	permissionVMUIDExt         = "orchard-vm-uid"
+
+	principalTypeVMAccessToken = "vm-access-token"
 )
 
 type SSHServer struct {
-	listener       net.Listener
-	serverConfig   *ssh.ServerConfig
-	store          storepkg.Store
-	connRendezvous *rendezvous.Rendezvous[rendezvous.ResultWithErrorMessage[net.Conn]]
-	workerNotifier *notifier.Notifier
-	logger         *zap.SugaredLogger
+	listener         net.Listener
+	serverConfig     *ssh.ServerConfig
+	store            storepkg.Store
+	connRendezvous   *rendezvous.Rendezvous[rendezvous.ResultWithErrorMessage[net.Conn]]
+	workerNotifier   *notifier.Notifier
+	vmAccessTokenKey []byte
+	logger           *zap.SugaredLogger
 }
 
 func NewSSHServer(
@@ -44,14 +51,16 @@ func NewSSHServer(
 	store storepkg.Store,
 	connRendezvous *rendezvous.Rendezvous[rendezvous.ResultWithErrorMessage[net.Conn]],
 	workerNotifier *notifier.Notifier,
+	vmAccessTokenKey []byte,
 	noClientAuth bool,
 	logger *zap.SugaredLogger,
 ) (*SSHServer, error) {
 	server := &SSHServer{
-		store:          store,
-		connRendezvous: connRendezvous,
-		workerNotifier: workerNotifier,
-		logger:         logger,
+		store:            store,
+		connRendezvous:   connRendezvous,
+		workerNotifier:   workerNotifier,
+		vmAccessTokenKey: vmAccessTokenKey,
+		logger:           logger,
 	}
 
 	listener, err := net.Listen("tcp", address)
@@ -87,6 +96,24 @@ func (server *SSHServer) Address() string {
 }
 
 func (server *SSHServer) passwordCallback(connMetadata ssh.ConnMetadata, password []byte) (*ssh.Permissions, error) {
+	if connMetadata.User() == vmtempauth.SSHUsername {
+		claims, err := vmtempauth.Verify(server.vmAccessTokenKey, string(password), time.Now().UTC())
+		if err != nil {
+			return nil, fmt.Errorf("authentication failed for user %q: invalid VM access token", connMetadata.User())
+		}
+		if !claims.HasScope(vmtempauth.ScopeVMSSHJumpbox) {
+			return nil, fmt.Errorf("authorization failed for user %q: token lacks %q scope",
+				connMetadata.User(), vmtempauth.ScopeVMSSHJumpbox)
+		}
+
+		return &ssh.Permissions{
+			Extensions: map[string]string{
+				permissionPrincipalTypeExt: principalTypeVMAccessToken,
+				permissionVMUIDExt:         claims.VMUID,
+			},
+		}, nil
+	}
+
 	if err := server.store.View(func(txn storepkg.Transaction) error {
 		// Authenticate
 		server.logger.Debugf("authenticating user %q using the password authentication",
@@ -157,7 +184,7 @@ func (server *SSHServer) handleConnection(conn net.Conn) {
 				server.logger.Debugf("handling a new direct TCP/IP channel for user %q connecting from %q",
 					sshConn.User(), sshConn.RemoteAddr().String())
 
-				go server.handleDirectTCPIP(connCtx, newChannel)
+				go server.handleDirectTCPIP(connCtx, sshConn, newChannel)
 			default:
 				message := fmt.Sprintf("unsupported channel type requested: %q", newChannel.ChannelType())
 
@@ -188,7 +215,7 @@ func (server *SSHServer) handleConnection(conn net.Conn) {
 	}
 }
 
-func (server *SSHServer) handleDirectTCPIP(ctx context.Context, newChannel ssh.NewChannel) {
+func (server *SSHServer) handleDirectTCPIP(ctx context.Context, sshConn *ssh.ServerConn, newChannel ssh.NewChannel) {
 	// Unmarshal the payload to determine to which VM the user wants to connect to
 	//
 	// This direct TCP/IP channel's payload is documented
@@ -232,6 +259,20 @@ func (server *SSHServer) handleDirectTCPIP(ctx context.Context, newChannel ssh.N
 		}
 
 		return
+	}
+
+	if sshConn.Permissions != nil &&
+		sshConn.Permissions.Extensions[permissionPrincipalTypeExt] == principalTypeVMAccessToken {
+		tokenVMUID := sshConn.Permissions.Extensions[permissionVMUIDExt]
+		if tokenVMUID == "" || tokenVMUID != vm.UID {
+			message := "authorization failed for requested VM"
+
+			if err := newChannel.Reject(ssh.Prohibited, message); err != nil {
+				server.logger.Warnf("failed to reject the new channel due to VM access token mismatch: %v", err)
+			}
+
+			return
+		}
 	}
 
 	// The user wants to connect to an existing VM, request and wait

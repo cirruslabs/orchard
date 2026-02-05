@@ -7,10 +7,12 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/cirruslabs/orchard/api"
 	storepkg "github.com/cirruslabs/orchard/internal/controller/store"
 	"github.com/cirruslabs/orchard/internal/responder"
+	"github.com/cirruslabs/orchard/internal/vmtempauth"
 	v1pkg "github.com/cirruslabs/orchard/pkg/resource/v1"
 	"github.com/cirruslabs/orchard/rpc"
 	"github.com/deckarep/golang-set/v2"
@@ -24,6 +26,7 @@ import (
 )
 
 const ctxServiceAccountKey = "service-account"
+const ctxVMAccessTokenClaimsKey = "vm-access-token-claims"
 
 var ErrUnauthorized = errors.New("unauthorized")
 
@@ -183,6 +186,9 @@ func (controller *Controller) initAPI() *gin.Engine {
 	v1.POST("/vms/:name/events", func(c *gin.Context) {
 		controller.appendVMEvents(c).Respond(c)
 	})
+	v1.POST("/vms/:name/access-tokens", func(c *gin.Context) {
+		controller.issueVMAccessToken(c).Respond(c)
+	})
 
 	return ginEngine
 }
@@ -215,6 +221,29 @@ func (controller *Controller) fetchServiceAccount(name string, token string) (*v
 }
 
 func (controller *Controller) authenticateMiddleware(c *gin.Context) {
+	authHeader := strings.TrimSpace(c.GetHeader("Authorization"))
+
+	if len(authHeader) >= len("Bearer ") && strings.EqualFold(authHeader[:len("Bearer ")], "Bearer ") {
+		token := strings.TrimSpace(authHeader[len("Bearer "):])
+		if token == "" {
+			responder.Code(http.StatusUnauthorized).Respond(c)
+
+			return
+		}
+
+		claims, err := vmtempauth.Verify(controller.vmAccessTokenKey, token, time.Now().UTC())
+		if err != nil {
+			responder.Code(http.StatusUnauthorized).Respond(c)
+
+			return
+		}
+
+		c.Set(ctxVMAccessTokenClaimsKey, claims)
+		c.Next()
+
+		return
+	}
+
 	// Retrieve presented credentials (if any)
 	user, password, ok := c.Request.BasicAuth()
 	if !ok {
@@ -238,6 +267,34 @@ func (controller *Controller) authenticateMiddleware(c *gin.Context) {
 	c.Set(ctxServiceAccountKey, serviceAccount)
 
 	c.Next()
+}
+
+func (controller *Controller) serviceAccountFromContext(ctx *gin.Context) (*v1pkg.ServiceAccount, bool) {
+	untypeServiceAccount, ok := ctx.Get(ctxServiceAccountKey)
+	if !ok {
+		return nil, false
+	}
+
+	serviceAccount, ok := untypeServiceAccount.(*v1pkg.ServiceAccount)
+	if !ok {
+		return nil, false
+	}
+
+	return serviceAccount, true
+}
+
+func (controller *Controller) vmAccessTokenClaimsFromContext(ctx *gin.Context) (*vmtempauth.Claims, bool) {
+	untypeClaims, ok := ctx.Get(ctxVMAccessTokenClaimsKey)
+	if !ok {
+		return nil, false
+	}
+
+	claims, ok := untypeClaims.(*vmtempauth.Claims)
+	if !ok {
+		return nil, false
+	}
+
+	return claims, true
 }
 
 type AuthorizeMode int
@@ -270,11 +327,10 @@ func (controller *Controller) authorizeBase(
 		return nil
 	}
 
-	serviceAccountUntyped, ok := ctx.Get(ctxServiceAccountKey)
+	serviceAccount, ok := controller.serviceAccountFromContext(ctx)
 	if !ok {
 		return responder.Code(http.StatusUnauthorized)
 	}
-	serviceAccount := serviceAccountUntyped.(*v1pkg.ServiceAccount)
 	serviceAccountRolesSet := mapset.NewSet[v1pkg.ServiceAccountRole](serviceAccount.Roles...)
 
 	var authorized bool

@@ -447,6 +447,32 @@ paths:
           description: VM resource with the given name doesn't exist
         '503':
           description: Failed to resolve the IP address on the worker responsible for the specified VM
+  /vms/{name}/access-tokens:
+    parameters:
+      - in: path
+        name: name
+        required: true
+        schema:
+          type: string
+    post:
+      summary: "Issue a temporary VM access token"
+      tags:
+        - vms
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IssueVMAccessTokenRequest'
+      responses:
+        '200':
+          description: VM access token was successfully issued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VMAccessToken'
+        '404':
+          description: VM resource with the given name doesn't exist
 components:
   schemas:
     Worker:
@@ -693,6 +719,41 @@ components:
         ip:
           type: string
           description: The resolved IP address
+    IssueVMAccessTokenRequest:
+      title: Issue VM Access Token Request
+      type: object
+      properties:
+        ttlSeconds:
+          type: integer
+          format: uint64
+          description: |
+            Requested token lifetime in seconds. Defaults to 86400 (24h) when omitted.
+            Maximum allowed value is 2592000 (30d).
+    VMAccessToken:
+      title: VM Access Token
+      type: object
+      properties:
+        token:
+          type: string
+          description: Signed temporary JWT token
+        tokenType:
+          type: string
+          description: Token type to use in Authorization header
+          example: Bearer
+        expiresAt:
+          type: string
+          format: date-time
+          description: RFC3339 timestamp at which the token expires
+        sshUsername:
+          type: string
+          description: Username to use when authenticating to the built-in SSH server
+          example: token
+        vmName:
+          type: string
+          description: VM name this token was issued for
+        vmUID:
+          type: string
+          description: Immutable VM UID this token is bound to
     Event:
       title: Generic Resource Event
       type: object

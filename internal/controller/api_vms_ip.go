@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/cirruslabs/orchard/internal/responder"
+	"github.com/cirruslabs/orchard/internal/vmtempauth"
 	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
 	"github.com/cirruslabs/orchard/rpc"
 	"github.com/gin-gonic/gin"
@@ -15,9 +16,15 @@ import (
 )
 
 func (controller *Controller) ip(ctx *gin.Context) responder.Responder {
-	if responder := controller.authorizeAny(ctx, v1.ServiceAccountRoleComputeWrite,
-		v1.ServiceAccountRoleComputeConnect); responder != nil {
-		return responder
+	vmAccessTokenClaims, vmAccessTokenAuth := controller.vmAccessTokenClaimsFromContext(ctx)
+
+	if !vmAccessTokenAuth {
+		if responder := controller.authorizeAny(ctx, v1.ServiceAccountRoleComputeWrite,
+			v1.ServiceAccountRoleComputeConnect); responder != nil {
+			return responder
+		}
+	} else if !vmAccessTokenClaims.HasScope(vmtempauth.ScopeVMIP) {
+		return responder.Code(http.StatusUnauthorized)
 	}
 
 	// Retrieve and parse path and query parameters
@@ -35,6 +42,9 @@ func (controller *Controller) ip(ctx *gin.Context) responder.Responder {
 	vm, responderImpl := controller.waitForVM(waitContext, name)
 	if responderImpl != nil {
 		return responderImpl
+	}
+	if vmAccessTokenAuth && !vmAccessTokenClaims.CanAccessVM(vm.UID) {
+		return responder.JSON(http.StatusForbidden, NewErrorResponse("the VM access token does not allow access to this VM"))
 	}
 
 	// Send an IP resolution request and wait for the result

@@ -30,6 +30,12 @@ func WithCredentials(serviceAccountName string, serviceAccountToken string) Opti
 	}
 }
 
+func WithBearerToken(token string) Option {
+	return func(client *Client) {
+		client.bearerToken = token
+	}
+}
+
 func WithDialer(dialer dialer.Dialer) Option {
 	return func(client *Client) {
 		client.dialer = dialer

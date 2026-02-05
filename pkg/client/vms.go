@@ -46,6 +46,10 @@ type EventsPageOptions struct {
 	Cursor string
 }
 
+type IssueAccessTokenOptions struct {
+	TTLSeconds *uint64
+}
+
 func (service *VMsService) Create(ctx context.Context, vm *v1.VM) error {
 	err := service.client.request(ctx, http.MethodPost, "vms",
 		vm, nil, nil)
@@ -170,6 +174,26 @@ func (service *VMsService) IP(ctx context.Context, name string, waitSeconds uint
 	}
 
 	return result.IP, nil
+}
+
+func (service *VMsService) IssueAccessToken(
+	ctx context.Context,
+	name string,
+	options IssueAccessTokenOptions,
+) (*v1.VMAccessToken, error) {
+	request := v1.IssueVMAccessTokenRequest{
+		TTLSeconds: options.TTLSeconds,
+	}
+
+	var token v1.VMAccessToken
+
+	err := service.client.request(ctx, http.MethodPost, fmt.Sprintf("vms/%s/access-tokens", url.PathEscape(name)),
+		request, &token, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return &token, nil
 }
 
 func (service *VMsService) StreamEvents(name string) *EventStreamer {

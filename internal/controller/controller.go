@@ -20,6 +20,7 @@ import (
 	"github.com/cirruslabs/orchard/internal/controller/store/badger"
 	"github.com/cirruslabs/orchard/internal/netconstants"
 	"github.com/cirruslabs/orchard/internal/opentelemetry"
+	"github.com/cirruslabs/orchard/internal/vmtempauth"
 	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
 	"github.com/cirruslabs/orchard/rpc"
 	"github.com/samber/lo"
@@ -67,6 +68,7 @@ type Controller struct {
 	pingInterval         time.Duration
 	prometheusMetrics    bool
 	synthetic            bool
+	vmAccessTokenKey     []byte
 
 	sshListenAddr   string
 	sshSigner       ssh.Signer
@@ -115,6 +117,10 @@ func New(opts ...Option) (*Controller, error) {
 	if controller.logger == nil {
 		controller.logger = zap.NewNop().Sugar()
 	}
+	var err error
+	if controller.vmAccessTokenKey, err = controller.loadOrCreateVMAccessTokenKey(); err != nil {
+		return nil, fmt.Errorf("%w: failed to initialize VM access token key: %v", ErrInitFailed, err)
+	}
 
 	// Instantiate the database
 	store, err := badger.NewBadgerStore(controller.dataDir.DBPath(), controller.disableDBCompression,
@@ -137,7 +143,8 @@ func New(opts ...Option) (*Controller, error) {
 	// Instantiate the SSH server (if configured)
 	if controller.sshListenAddr != "" && controller.sshSigner != nil {
 		controller.sshServer, err = sshserver.NewSSHServer(controller.sshListenAddr, controller.sshSigner,
-			store, controller.connRendezvous, controller.workerNotifier, controller.sshNoClientAuth, controller.logger)
+			store, controller.connRendezvous, controller.workerNotifier, controller.vmAccessTokenKey,
+			controller.sshNoClientAuth, controller.logger)
 		if err != nil {
 			return nil, err
 		}
@@ -195,6 +202,32 @@ func New(opts ...Option) (*Controller, error) {
 	}
 
 	return controller, nil
+}
+
+func (controller *Controller) loadOrCreateVMAccessTokenKey() ([]byte, error) {
+	signingKey, err := controller.dataDir.VMAccessTokenSigningKey()
+	if err == nil {
+		if len(signingKey) != vmtempauth.SigningKeySizeBytes {
+			return nil, fmt.Errorf("%w: expected %d bytes, got %d",
+				vmtempauth.ErrInvalidSigningKey, vmtempauth.SigningKeySizeBytes, len(signingKey))
+		}
+
+		return signingKey, nil
+	}
+	if !errors.Is(err, os.ErrNotExist) {
+		return nil, err
+	}
+
+	signingKey, err = vmtempauth.NewSigningKey()
+	if err != nil {
+		return nil, err
+	}
+
+	if err := controller.dataDir.SetVMAccessTokenSigningKey(signingKey); err != nil {
+		return nil, err
+	}
+
+	return signingKey, nil
 }
 
 func (controller *Controller) ServiceAccounts() ([]v1.ServiceAccount, error) {
