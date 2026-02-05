@@ -299,11 +299,9 @@ func (controller *Controller) listVMs(ctx *gin.Context) responder.Responder {
 		return responder
 	}
 
-	var opts []storepkg.ListOption
+	var filters []v1.Filter
 
 	if filterRaw := ctx.Query("filter"); filterRaw != "" {
-		var filters []v1.Filter
-
 		for _, filterRaw := range strings.Split(filterRaw, ",") {
 			filter, err := v1.NewFilter(filterRaw)
 			if err != nil {
@@ -312,23 +310,53 @@ func (controller *Controller) listVMs(ctx *gin.Context) responder.Responder {
 
 			filters = append(filters, filter)
 		}
-
-		if len(filters) > 1 {
-			return responder.JSON(http.StatusPreconditionFailed, NewErrorResponse("only "+
-				"a single filter is currently supported"))
-		}
-
-		opts = append(opts, storepkg.WithListFilters(filters...))
 	}
 
-	return controller.storeView(func(txn storepkg.Transaction) responder.Responder {
-		vms, err := txn.ListVMs(opts...)
-		if err != nil {
-			return responder.Error(err)
-		}
+	resultCh := controller.single.DoChan("list-vms", func() (interface{}, error) {
+		var vms []v1.VM
 
-		return responder.JSON(http.StatusOK, vms)
+		viewErr := controller.store.View(func(txn storepkg.Transaction) (err error) {
+			vms, err = txn.ListVMs()
+			return
+		})
+
+		return vms, viewErr
 	})
+
+	var computedVMs interface{}
+	var err error
+
+	select {
+	case <-ctx.Done():
+		return responder.Empty()
+	case result := <-resultCh:
+		computedVMs = result.Val
+		err = result.Err
+	}
+
+	if err != nil {
+		return responder.Error(err)
+	}
+
+	allVMs, ok := computedVMs.([]v1.VM)
+	if !ok {
+		controller.logger.Errorf("failed to compute vms: %T", computedVMs)
+		return responder.Code(http.StatusInternalServerError)
+	}
+
+	vms := make([]v1.VM, 0, len(allVMs))
+
+Outer:
+	for _, vm := range allVMs {
+		for _, filter := range filters {
+			if !vm.Match(filter) {
+				continue Outer
+			}
+		}
+		vms = append(vms, vm)
+	}
+
+	return responder.JSON(http.StatusOK, vms)
 }
 
 func (controller *Controller) deleteVM(ctx *gin.Context) responder.Responder {

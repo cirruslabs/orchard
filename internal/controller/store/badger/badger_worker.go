@@ -26,5 +26,5 @@ func (txn *Transaction) DeleteWorker(name string) error {
 }
 
 func (txn *Transaction) ListWorkers() ([]v1.Worker, error) {
-	return genericList[v1.Worker](txn, []byte(SpaceWorkers))
+	return genericList[v1.Worker](txn, SpaceWorkers)
 }
