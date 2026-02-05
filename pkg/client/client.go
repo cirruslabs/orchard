@@ -25,9 +25,22 @@ import (
 	"google.golang.org/grpc/metadata"
 )
 
+type APIError struct {
+	StatusCode int
+}
+
+func (apiError *APIError) Error() string {
+	return "API client encountered an error while attempting"
+}
+
+func (apiError *APIError) Is(target error) bool {
+	_, ok := target.(*APIError)
+	return ok
+}
+
 var (
 	ErrFailed       = errors.New("API client failed")
-	ErrAPI          = errors.New("API client encountered an API error")
+	ErrAPI          = &APIError{}
 	ErrInvalidState = errors.New("invalid state")
 )
 
@@ -212,8 +225,12 @@ func (client *Client) requestWithHeaders(
 	}()
 
 	if response.StatusCode != http.StatusOK {
+		apiError := &APIError{
+			StatusCode: response.StatusCode,
+		}
+
 		return nil, fmt.Errorf("%w to make a request: %d %s%s",
-			ErrAPI, response.StatusCode, http.StatusText(response.StatusCode),
+			apiError, response.StatusCode, http.StatusText(response.StatusCode),
 			detailsFromErrorResponseBody(response.Body))
 	}
 

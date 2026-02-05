@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"slices"
 	"time"
@@ -206,10 +207,21 @@ func (worker *Worker) runNewSession(ctx context.Context) error {
 	}
 
 	// Backward compatibility with for older Orchard Controllers
-	updateFunc := worker.client.VMs().UpdateState
+	updateFuncInner := worker.client.VMs().UpdateState
 
 	if !info.Capabilities.Has(v1.ControllerCapabilityVMStateEndpoint) {
-		updateFunc = worker.client.VMs().Update
+		updateFuncInner = worker.client.VMs().Update
+	}
+
+	// Ignore HTTP 404, because the VM might no longer exist while we're still processing it
+	updateFunc := func(ctx context.Context, vm v1.VM) error {
+		_, err = updateFuncInner(ctx, vm)
+		var apiError *client.APIError
+		if errors.As(err, &apiError) && apiError.StatusCode == http.StatusNotFound {
+			return nil
+		}
+
+		return err
 	}
 
 	for {
@@ -281,7 +293,7 @@ func (worker *Worker) updateWorker(ctx context.Context) error {
 }
 
 //nolint:nestif,gocognit // nested "if" and cognitive complexity is tolerable for now
-func (worker *Worker) syncVMs(ctx context.Context, updateVM func(context.Context, v1.VM) (*v1.VM, error)) error {
+func (worker *Worker) syncVMs(ctx context.Context, updateVM func(context.Context, v1.VM) error) error {
 	allKeys := mapset.NewSet[ondiskname.OnDiskName]()
 
 	remoteVMs, err := worker.client.VMs().FindForWorker(ctx, worker.name)
@@ -350,7 +362,7 @@ func (worker *Worker) syncVMs(ctx context.Context, updateVM func(context.Context
 			if vmResource.StatusMessage != vm.StatusMessage() {
 				vmResource.StatusMessage = vm.StatusMessage()
 
-				if _, err := updateVM(ctx, *vmResource); err != nil {
+				if err := updateVM(ctx, *vmResource); err != nil {
 					return err
 				}
 			}
@@ -368,7 +380,7 @@ func (worker *Worker) syncVMs(ctx context.Context, updateVM func(context.Context
 			vmResource.Status = v1.VMStatusRunning
 			vmResource.StatusMessage = vm.StatusMessage()
 
-			if _, err := updateVM(ctx, *vmResource); err != nil {
+			if err := updateVM(ctx, *vmResource); err != nil {
 				return err
 			}
 		case ActionMonitorRunning:
@@ -422,7 +434,7 @@ func (worker *Worker) syncVMs(ctx context.Context, updateVM func(context.Context
 			}
 
 			if updateNeeded {
-				if _, err := updateVM(ctx, *vmResource); err != nil {
+				if err := updateVM(ctx, *vmResource); err != nil {
 					return err
 				}
 			}
@@ -450,7 +462,7 @@ func (worker *Worker) syncVMs(ctx context.Context, updateVM func(context.Context
 
 			vmResource.Status = v1.VMStatusFailed
 			vmResource.StatusMessage = statusMessage
-			if _, err := updateVM(ctx, *vmResource); err != nil {
+			if err := updateVM(ctx, *vmResource); err != nil {
 				return err
 			}
 		case ActionDelete:
