@@ -25,5 +25,5 @@ func (txn *Transaction) DeleteServiceAccount(name string) error {
 }
 
 func (txn *Transaction) ListServiceAccounts() ([]v1.ServiceAccount, error) {
-	return genericList[v1.ServiceAccount](txn, []byte(SpaceServiceAccounts))
+	return genericList[v1.ServiceAccount](txn, SpaceServiceAccounts)
 }

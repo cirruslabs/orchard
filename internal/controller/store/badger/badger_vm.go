@@ -26,5 +26,5 @@ func (txn *Transaction) DeleteVM(name string) error {
 }
 
 func (txn *Transaction) ListVMs() ([]v1.VM, error) {
-	return genericList[v1.VM](txn, []byte(SpaceVMs))
+	return genericList[v1.VM](txn, SpaceVMs)
 }

@@ -52,7 +52,7 @@ func genericGet[T any, PT interface {
 func genericList[T any, PT interface {
 	SetVersion(uint64)
 	*T
-}](txn *Transaction, prefix []byte) (_ []T, err error) {
+}](txn *Transaction, prefix string) (_ []T, err error) {
 	defer func() {
 		err = mapErr(err)
 	}()
@@ -62,7 +62,7 @@ func genericList[T any, PT interface {
 	result := []T{}
 
 	it := txn.badgerTxn.NewIterator(badger.IteratorOptions{
-		Prefix: prefix,
+		Prefix: []byte(prefix),
 	})
 	defer it.Close()
 
