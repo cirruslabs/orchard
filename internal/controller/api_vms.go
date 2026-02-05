@@ -344,7 +344,7 @@ func (controller *Controller) listVMs(ctx *gin.Context) responder.Responder {
 		return responder.Code(http.StatusInternalServerError)
 	}
 
-	vms := make([]v1.VM, 0, len(allVMs))
+	var vms []v1.VM
 
 Outer:
 	for _, vm := range allVMs {
