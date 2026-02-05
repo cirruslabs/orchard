@@ -344,7 +344,9 @@ func (controller *Controller) listVMs(ctx *gin.Context) responder.Responder {
 		return responder.Code(http.StatusInternalServerError)
 	}
 
-	var vms []v1.VM
+	// Declare an empty, non-nil slice to
+	// return [] when no objects are found
+	vms := []v1.VM{}
 
 Outer:
 	for _, vm := range allVMs {
