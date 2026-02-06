@@ -165,11 +165,6 @@ func runWorker(cmd *cobra.Command, args []string) (err error) {
 			"in the bootstrap token", ErrRunFailed)
 	}
 
-	controllerClient, err := client.New(clientOpts...)
-	if err != nil {
-		return err
-	}
-
 	// Initialize the logger
 	logger, err := createLogger()
 	if err != nil {
@@ -224,6 +219,11 @@ func runWorker(cmd *cobra.Command, args []string) (err error) {
 
 			if workers > 1 {
 				workerOptsLocal = append(workerOptsLocal, worker.WithNameSuffix(fmt.Sprintf("-%d", i+1)))
+			}
+
+			controllerClient, err := client.New(clientOpts...)
+			if err != nil {
+				return err
 			}
 
 			workerInstance, err := worker.New(controllerClient, workerOptsLocal...)
