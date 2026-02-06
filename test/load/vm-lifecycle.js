@@ -110,7 +110,7 @@ async function portForward(vmName) {
 
     check(result, {
         'WebSocket closed normally (1000)': (r) => r.code === 1000,
-        'WebSocket had no errors': (r) => r.error,
+        'WebSocket had no errors': (r) => !r.error,
     });
 
     check(numReceivedBytes, {
