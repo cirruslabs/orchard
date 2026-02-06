@@ -233,9 +233,7 @@ func (worker *Worker) runNewSession(ctx context.Context) error {
 	group.Go(func() error {
 		for {
 			if err := worker.updateWorker(ctx); err != nil {
-				worker.logger.Errorf("failed to update worker resource: %v", err)
-
-				return nil
+				return fmt.Errorf("failed to update worker resource: %w", err)
 			}
 
 			select {
@@ -250,9 +248,7 @@ func (worker *Worker) runNewSession(ctx context.Context) error {
 	group.Go(func() error {
 		for {
 			if err := worker.syncVMs(ctx, updateFunc); err != nil {
-				worker.logger.Warnf("failed to sync VMs: %v", err)
-
-				return nil
+				return fmt.Errorf("failed to sync VMs: %w", err)
 			}
 
 			select {
@@ -265,7 +261,11 @@ func (worker *Worker) runNewSession(ctx context.Context) error {
 		}
 	})
 
-	return group.Wait()
+	if err := group.Wait(); err != nil {
+		worker.logger.Errorf("%v", err)
+	}
+
+	return nil
 }
 
 func (worker *Worker) registerWorker(ctx context.Context) error {
