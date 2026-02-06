@@ -4,7 +4,6 @@ import {WebSocket} from 'k6/experimental/websockets';
 import crypto from 'k6/crypto';
 import encoding from 'k6/encoding';
 import {uuidv4} from 'https://jslib.k6.io/k6-utils/1.6.0/index.js';
-import {expect} from 'https://jslib.k6.io/k6-testing/0.6.1/index.js';
 
 const BASE_URL = __ENV.BASE_URL || 'http://127.0.0.1:6120/v1';
 const WS_BASE_URL = __ENV.WS_BASE_URL || BASE_URL.replace(/^http/, 'ws');
@@ -58,13 +57,9 @@ function createVM(vmName) {
         },
     });
 
-    const ok = check(resp, {
+    check(resp, {
         'VM creation succeeded': (r) => r.status === 200,
     });
-
-    if (!ok) {
-        console.error(`Failed to create a VM: HTTP ${resp.status}`);
-    }
 }
 
 async function portForward(vmName) {
@@ -84,7 +79,7 @@ async function portForward(vmName) {
     let numReceivedBytes = 0;
     const receivedHasher = crypto.createHash('sha256');
 
-    const evt = await new Promise((resolve, reject) => {
+    const result = await new Promise((resolve, reject) => {
         ws.onopen = () => {
             ws.send(sentBytes);
         };
@@ -101,17 +96,31 @@ async function portForward(vmName) {
         };
 
         ws.onerror = (evt) => {
-            reject(new Error(`WebSocket error: ${evt.error}`));
+            resolve({
+                error: evt.error,
+            });
         };
 
         ws.onclose = (evt) => {
-            resolve(evt);
+            resolve({
+                code: evt.code,
+            });
         };
     });
 
-    expect(evt.code).toBe(1000);
-    expect(WS_BYTES).toEqual(numReceivedBytes);
-    expect(sentHash).toEqual(receivedHasher.digest('hex'));
+    check(result, {
+        'WebSocket closed normally (1000)': (r) => r.code === 1000,
+        'WebSocket had no errors': (r) => !r.error,
+    });
+
+    check(numReceivedBytes, {
+        'WebSocket received exactly WS_BYTES back': (r) => WS_BYTES === r,
+    });
+
+    const receivedHash = receivedHasher.digest('hex');
+    check(receivedHash, {
+        'WebSocket received exactly the same data back': (r) => sentHash === receivedHash,
+    });
 }
 
 function deleteVM(vmName) {
@@ -122,13 +131,9 @@ function deleteVM(vmName) {
         }
     });
 
-    const ok = check(resp, {
+    check(resp, {
         'VM deletion succeeded': (r) => r.status === 200,
     });
-
-    if (!ok) {
-        console.error(`Failed to delete a VM: HTTP ${resp.status}`);
-    }
 }
 
 function authHeaders() {
