@@ -349,6 +349,7 @@ func (controller *Controller) listVMs(ctx *gin.Context) responder.Responder {
 	vms := []v1.VM{}
 
 Outer:
+	// Use index-based loop to avoid per-iteration copies of v1.VM
 	for i := range allVMs {
 		for _, filter := range filters {
 			if !allVMs[i].Match(filter) {
