@@ -349,13 +349,13 @@ func (controller *Controller) listVMs(ctx *gin.Context) responder.Responder {
 	vms := []v1.VM{}
 
 Outer:
-	for _, vm := range allVMs {
+	for i := range allVMs {
 		for _, filter := range filters {
-			if !vm.Match(filter) {
+			if !allVMs[i].Match(filter) {
 				continue Outer
 			}
 		}
-		vms = append(vms, vm)
+		vms = append(vms, allVMs[i])
 	}
 
 	return responder.JSON(http.StatusOK, vms)
