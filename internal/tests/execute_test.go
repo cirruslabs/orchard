@@ -19,13 +19,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestVMExec(t *testing.T) {
+func TestVMExecute(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
 	devClient, devController, _ := devcontroller.StartIntegrationTestEnvironment(t)
 
-	vmName := "test-vm-exec-" + uuid.NewString()
+	vmName := "test-vm-execute-" + uuid.NewString()
 
 	err := devClient.VMs().Create(ctx, &v1.VM{
 		Meta: v1.Meta{
@@ -51,17 +51,17 @@ func TestVMExec(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, v1.VMStatusRunning, vm.Status)
 
-	execConn, err := dialExec(ctx, devController.Address(), vmName, "sh", []string{
+	executeConn, err := dialExecute(ctx, devController.Address(), vmName, "sh", []string{
 		"-c",
 		"echo stdout-line; echo stderr-line >&2; IFS= read -r line; echo stdin:$line; exit 7",
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		_ = execConn.Close()
+		_ = executeConn.Close()
 	})
 
-	encoder := execstream.NewEncoder(execConn)
-	decoder := execstream.NewDecoder(execConn)
+	encoder := execstream.NewEncoder(executeConn)
+	decoder := execstream.NewDecoder(executeConn)
 
 	require.NoError(t, execstream.WriteFrame(encoder, &execstream.Frame{
 		Type: execstream.FrameTypeStdin,
@@ -105,7 +105,7 @@ func TestVMExec(t *testing.T) {
 	require.Contains(t, stderr.String(), "stderr-line")
 }
 
-func dialExec(
+func dialExecute(
 	ctx context.Context,
 	controllerAddress string,
 	vmName string,
@@ -121,7 +121,7 @@ func dialExec(
 		return nil, fmt.Errorf("failed to parse controller address: %w", err)
 	}
 
-	endpointURL = endpointURL.JoinPath("v1", "vms", vmName, "exec")
+	endpointURL = endpointURL.JoinPath("v1", "vms", vmName, "execute")
 	if endpointURL.Scheme == "http" {
 		endpointURL.Scheme = "ws"
 	} else {
@@ -144,7 +144,7 @@ func dialExec(
 			_ = resp.Body.Close()
 		}
 
-		return nil, fmt.Errorf("failed to establish exec websocket: %w", err)
+		return nil, fmt.Errorf("failed to establish execute websocket: %w", err)
 	}
 
 	return websocket.NetConn(ctx, wsConn, websocket.MessageText), nil

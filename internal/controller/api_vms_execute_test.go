@@ -21,7 +21,7 @@ func (writer *recordingWriteCloser) Close() error {
 	return nil
 }
 
-func TestStreamExecClientFramesWritesInputAndClosesOnEOFFrame(t *testing.T) {
+func TestStreamExecuteClientFramesWritesInputAndClosesOnEOFFrame(t *testing.T) {
 	var input bytes.Buffer
 	encoder := execstream.NewEncoder(&input)
 
@@ -41,14 +41,14 @@ func TestStreamExecClientFramesWritesInputAndClosesOnEOFFrame(t *testing.T) {
 	stdin := &recordingWriteCloser{}
 	errCh := make(chan error, 1)
 
-	streamExecClientFrames(decoder, stdin, errCh)
+	streamExecuteClientFrames(decoder, stdin, errCh)
 
 	require.NoError(t, <-errCh)
 	require.True(t, stdin.closed)
 	require.Equal(t, "hello", stdin.String())
 }
 
-func TestStreamExecClientFramesUnsupportedType(t *testing.T) {
+func TestStreamExecuteClientFramesUnsupportedType(t *testing.T) {
 	var input bytes.Buffer
 	encoder := execstream.NewEncoder(&input)
 
@@ -61,29 +61,29 @@ func TestStreamExecClientFramesUnsupportedType(t *testing.T) {
 	stdin := &recordingWriteCloser{}
 	errCh := make(chan error, 1)
 
-	streamExecClientFrames(decoder, stdin, errCh)
+	streamExecuteClientFrames(decoder, stdin, errCh)
 
 	require.EqualError(t, <-errCh, "unsupported frame type \"stdout\" received from client")
 	require.False(t, stdin.closed)
 }
 
-func TestStreamExecClientFramesClosesStdinOnDecodeError(t *testing.T) {
+func TestStreamExecuteClientFramesClosesStdinOnDecodeError(t *testing.T) {
 	decoder := execstream.NewDecoder(bytes.NewBuffer(nil))
 	stdin := &recordingWriteCloser{}
 	errCh := make(chan error, 1)
 
-	streamExecClientFrames(decoder, stdin, errCh)
+	streamExecuteClientFrames(decoder, stdin, errCh)
 
 	require.ErrorIs(t, <-errCh, io.EOF)
 	require.True(t, stdin.closed)
 }
 
-func TestStreamExecOutputEmitsFrameAndSignalsDone(t *testing.T) {
+func TestStreamExecuteOutputEmitsFrameAndSignalsDone(t *testing.T) {
 	outputCh := make(chan execstream.Frame, 1)
 	doneCh := make(chan struct{}, 1)
 	errCh := make(chan error, 1)
 
-	streamExecOutput(bytes.NewBufferString("payload"),
+	streamExecuteOutput(bytes.NewBufferString("payload"),
 		execstream.FrameTypeStderr, outputCh, doneCh, errCh)
 
 	select {

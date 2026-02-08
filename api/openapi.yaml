@@ -415,7 +415,7 @@ paths:
           description: VM resource with the given name doesn't exist
         '503':
           description: Failed to establish connection with the worker responsible for the specified VM
-  /vms/{name}/exec:
+  /vms/{name}/execute:
     parameters:
       - in: path
         name: name
@@ -429,8 +429,8 @@ paths:
 
         Frame schema:
 
-        * Client -> Server uses `ExecClientFrame`
-        * Server -> Client uses `ExecServerFrame`
+        * Client -> Server uses `ExecuteClientFrame`
+        * Server -> Client uses `ExecuteServerFrame`
 
         `data` is a base64-encoded byte payload in JSON (`format: byte`).
 
@@ -487,7 +487,7 @@ paths:
           description: |
             WebSocket protocol upgrade succeeded.
 
-            After upgrade, messages follow `ExecClientFrame` and `ExecServerFrame` schemas.
+            After upgrade, messages follow `ExecuteClientFrame` and `ExecuteServerFrame` schemas.
         '400':
           description: Invalid query parameter specified
         '404':
@@ -772,8 +772,8 @@ components:
         ip:
           type: string
           description: The resolved IP address
-    ExecTerminalSize:
-      title: VM Exec terminal size
+    ExecuteTerminalSize:
+      title: VM Execute terminal size
       type: object
       properties:
         rows:
@@ -784,8 +784,8 @@ components:
           type: integer
           minimum: 1
           description: Terminal column count
-    ExecExit:
-      title: VM Exec exit payload
+    ExecuteExit:
+      title: VM Execute exit payload
       type: object
       required:
         - code
@@ -794,8 +794,8 @@ components:
           type: integer
           format: int32
           description: Process exit code
-    ExecClientFrame:
-      title: VM Exec client WebSocket frame
+    ExecuteClientFrame:
+      title: VM Execute client WebSocket frame
       type: object
       required:
         - type
@@ -814,12 +814,12 @@ components:
             Base64-encoded stdin payload for `type=stdin`.
             Empty payload indicates stdin EOF.
         terminal:
-          $ref: '#/components/schemas/ExecTerminalSize'
+          $ref: '#/components/schemas/ExecuteTerminalSize'
       example:
         type: stdin
         data: aGVsbG8K
-    ExecServerFrame:
-      title: VM Exec server WebSocket frame
+    ExecuteServerFrame:
+      title: VM Execute server WebSocket frame
       type: object
       required:
         - type
@@ -833,7 +833,7 @@ components:
           format: byte
           description: Base64-encoded output payload for `type=stdout` and `type=stderr`
         exit:
-          $ref: '#/components/schemas/ExecExit'
+          $ref: '#/components/schemas/ExecuteExit'
         error:
           type: string
           description: Error message for `type=error`
