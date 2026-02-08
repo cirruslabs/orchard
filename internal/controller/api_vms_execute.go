@@ -23,16 +23,16 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-const execSessionRendezvousTimeout = 15 * time.Second
+const executeSessionRendezvousTimeout = 15 * time.Second
 
-type sshExec struct {
+type sshExecution struct {
 	session *ssh.Session
 	stdout  io.Reader
 	stderr  io.Reader
 	stdin   io.WriteCloser
 }
 
-func (controller *Controller) execVM(ctx *gin.Context) responder.Responder {
+func (controller *Controller) executeVM(ctx *gin.Context) responder.Responder {
 	if responder := controller.authorizeAny(ctx, v1.ServiceAccountRoleComputeWrite,
 		v1.ServiceAccountRoleComputeConnect); responder != nil {
 		return responder
@@ -85,7 +85,7 @@ func (controller *Controller) execVM(ctx *gin.Context) responder.Responder {
 		return responder.Code(http.StatusServiceUnavailable)
 	}
 
-	timeoutTimer := time.NewTimer(execSessionRendezvousTimeout)
+	timeoutTimer := time.NewTimer(executeSessionRendezvousTimeout)
 	defer timeoutTimer.Stop()
 
 	select {
@@ -116,7 +116,7 @@ func (controller *Controller) execVM(ctx *gin.Context) responder.Responder {
 			_ = tunnel.Close()
 		}()
 
-		return controller.execVMViaSSHTunnel(ctx, tunnel, ws, vm, command, args)
+		return controller.executeVMViaSSHTunnel(ctx, tunnel, ws, vm, command, args)
 	case <-timeoutTimer.C:
 		return responder.JSON(http.StatusServiceUnavailable, NewErrorResponse(
 			"timed out waiting for worker %s to establish SSH tunnel", vm.Worker))
@@ -125,10 +125,10 @@ func (controller *Controller) execVM(ctx *gin.Context) responder.Responder {
 	}
 }
 
-func (controller *Controller) execVMViaSSHTunnel(ctx context.Context, tunnel net.Conn, ws *websocket.Conn, vm *v1.VM, cmd string, args []string) responder.Responder {
+func (controller *Controller) executeVMViaSSHTunnel(ctx context.Context, tunnel net.Conn, ws *websocket.Conn, vm *v1.VM, cmd string, args []string) responder.Responder {
 	sshClient, err := newSSHClient(tunnel, vm)
 	if err != nil {
-		controller.closeExecWithFrameError(ctx, ws, nil,
+		controller.closeExecuteWithFrameError(ctx, ws, nil,
 			fmt.Sprintf("SSH handshake with the VM failed: %v", err))
 
 		return responder.Empty()
@@ -137,17 +137,17 @@ func (controller *Controller) execVMViaSSHTunnel(ctx context.Context, tunnel net
 		_ = sshClient.Close()
 	}()
 
-	exec, err := startSSHExec(sshClient, cmd, args)
+	execution, err := startSSHExecution(sshClient, cmd, args)
 	if err != nil {
-		controller.closeExecWithFrameError(ctx, ws, nil, err.Error())
+		controller.closeExecuteWithFrameError(ctx, ws, nil, err.Error())
 
 		return responder.Empty()
 	}
 	defer func() {
-		_ = exec.session.Close()
+		_ = execution.session.Close()
 	}()
 
-	return controller.pumpExecFrames(ctx, ws, exec)
+	return controller.pumpExecuteFrames(ctx, ws, execution)
 }
 
 func newSSHClient(conn net.Conn, vm *v1.VM) (*ssh.Client, error) {
@@ -175,7 +175,7 @@ func newSSHClient(conn net.Conn, vm *v1.VM) (*ssh.Client, error) {
 	return ssh.NewClient(sshConn, chans, reqs), nil
 }
 
-func startSSHExec(client *ssh.Client, cmd string, args []string) (*sshExec, error) {
+func startSSHExecution(client *ssh.Client, cmd string, args []string) (*sshExecution, error) {
 	session, err := client.NewSession()
 	if err != nil {
 		return nil, fmt.Errorf("failed to open SSH session: %v", err)
@@ -209,7 +209,7 @@ func startSSHExec(client *ssh.Client, cmd string, args []string) (*sshExec, erro
 		return nil, fmt.Errorf("failed to start SSH command: %v", err)
 	}
 
-	return &sshExec{
+	return &sshExecution{
 		session: session,
 		stdout:  stdoutPipe,
 		stderr:  stderrPipe,
@@ -217,10 +217,10 @@ func startSSHExec(client *ssh.Client, cmd string, args []string) (*sshExec, erro
 	}, nil
 }
 
-func (controller *Controller) pumpExecFrames(
+func (controller *Controller) pumpExecuteFrames(
 	ctx context.Context,
 	ws *websocket.Conn,
-	exec *sshExec,
+	execution *sshExecution,
 ) responder.Responder {
 	wsNetConn := websocket.NetConn(ctx, ws, websocket.MessageText)
 	defer func() {
@@ -237,10 +237,10 @@ func (controller *Controller) pumpExecFrames(
 	exitCh := make(chan int32, 1)
 	exitErrCh := make(chan error, 1)
 
-	go streamExecOutput(exec.stdout, execstream.FrameTypeStdout, outCh, outDoneCh, outErrCh)
-	go streamExecOutput(exec.stderr, execstream.FrameTypeStderr, outCh, outDoneCh, outErrCh)
-	go streamExecClientFrames(decoder, exec.stdin, stdinErrCh)
-	go waitForSSHExecExit(exec.session, exitCh, exitErrCh)
+	go streamExecuteOutput(execution.stdout, execstream.FrameTypeStdout, outCh, outDoneCh, outErrCh)
+	go streamExecuteOutput(execution.stderr, execstream.FrameTypeStderr, outCh, outDoneCh, outErrCh)
+	go streamExecuteClientFrames(decoder, execution.stdin, stdinErrCh)
+	go waitForSSHExecutionExit(execution.session, exitCh, exitErrCh)
 
 	pingTicker := time.NewTicker(controller.pingInterval)
 	defer pingTicker.Stop()
@@ -254,8 +254,8 @@ func (controller *Controller) pumpExecFrames(
 			for len(outCh) > 0 {
 				frame := <-outCh
 				if err := execstream.WriteFrame(encoder, &frame); err != nil {
-					return controller.wsError(ws, websocket.StatusInternalError, "exec session",
-						"failed to stream exec output to the client", err)
+					return controller.wsError(ws, websocket.StatusInternalError, "execute session",
+						"failed to stream execute output to the client", err)
 				}
 			}
 
@@ -263,13 +263,13 @@ func (controller *Controller) pumpExecFrames(
 				Type: execstream.FrameTypeExit,
 				Exit: &execstream.Exit{Code: exitCode},
 			}); err != nil {
-				return controller.wsError(ws, websocket.StatusInternalError, "exec session",
-					"failed to send exec exit status to the client", err)
+				return controller.wsError(ws, websocket.StatusInternalError, "execute session",
+					"failed to send execute exit status to the client", err)
 			}
 
 			if err := ws.Close(websocket.StatusNormalClosure,
 				fmt.Sprintf("command exited with code %d", exitCode)); err != nil {
-				controller.logger.Warnf("exec session: failed to close WebSocket connection: %v", err)
+				controller.logger.Warnf("execute session: failed to close WebSocket connection: %v", err)
 			}
 
 			return responder.Empty()
@@ -278,8 +278,8 @@ func (controller *Controller) pumpExecFrames(
 		select {
 		case frame := <-outCh:
 			if err := execstream.WriteFrame(encoder, &frame); err != nil {
-				return controller.wsError(ws, websocket.StatusInternalError, "exec session",
-					"failed to stream exec output to the client", err)
+				return controller.wsError(ws, websocket.StatusInternalError, "execute session",
+					"failed to stream execute output to the client", err)
 			}
 		case <-outDoneCh:
 			readersDone++
@@ -288,7 +288,7 @@ func (controller *Controller) pumpExecFrames(
 				continue
 			}
 
-			controller.closeExecWithFrameError(ctx, ws, encoder,
+			controller.closeExecuteWithFrameError(ctx, ws, encoder,
 				fmt.Sprintf("failed while streaming command output: %v", err))
 
 			return responder.Empty()
@@ -302,7 +302,7 @@ func (controller *Controller) pumpExecFrames(
 				return responder.Empty()
 			}
 
-			controller.closeExecWithFrameError(ctx, ws, encoder,
+			controller.closeExecuteWithFrameError(ctx, ws, encoder,
 				fmt.Sprintf("failed while reading command stdin stream: %v", err))
 
 			return responder.Empty()
@@ -310,7 +310,7 @@ func (controller *Controller) pumpExecFrames(
 			exitObserved = true
 			exitCode = code
 		case err := <-exitErrCh:
-			controller.closeExecWithFrameError(ctx, ws, encoder,
+			controller.closeExecuteWithFrameError(ctx, ws, encoder,
 				fmt.Sprintf("failed while waiting for command completion: %v", err))
 
 			return responder.Empty()
@@ -318,7 +318,7 @@ func (controller *Controller) pumpExecFrames(
 			pingCtx, pingCtxCancel := context.WithTimeout(ctx, 5*time.Second)
 
 			if err := ws.Ping(pingCtx); err != nil {
-				controller.logger.Warnf("exec session: failed to ping the client, "+
+				controller.logger.Warnf("execute session: failed to ping the client, "+
 					"connection might time out: %v", err)
 			}
 
@@ -329,7 +329,7 @@ func (controller *Controller) pumpExecFrames(
 	}
 }
 
-func waitForSSHExecExit(sshSession *ssh.Session, exitCodeCh chan<- int32, exitErrCh chan<- error) {
+func waitForSSHExecutionExit(sshSession *ssh.Session, exitCodeCh chan<- int32, exitErrCh chan<- error) {
 	if err := sshSession.Wait(); err != nil {
 		var exitError *ssh.ExitError
 		if errors.As(err, &exitError) {
@@ -346,7 +346,7 @@ func waitForSSHExecExit(sshSession *ssh.Session, exitCodeCh chan<- int32, exitEr
 	exitCodeCh <- 0
 }
 
-func streamExecClientFrames(
+func streamExecuteClientFrames(
 	decoder *json.Decoder,
 	stdin io.WriteCloser,
 	errCh chan<- error,
@@ -409,7 +409,7 @@ func streamExecClientFrames(
 	}
 }
 
-func streamExecOutput(
+func streamExecuteOutput(
 	reader io.Reader,
 	frameType execstream.FrameType,
 	outputCh chan<- execstream.Frame,
@@ -463,7 +463,7 @@ func shellQuoteArg(arg string) string {
 	return "'" + strings.ReplaceAll(arg, "'", "'\\''") + "'"
 }
 
-func (controller *Controller) closeExecWithFrameError(
+func (controller *Controller) closeExecuteWithFrameError(
 	ctx context.Context,
 	wsConn *websocket.Conn,
 	encoder *json.Encoder,
@@ -474,11 +474,11 @@ func (controller *Controller) closeExecWithFrameError(
 			Type:  execstream.FrameTypeError,
 			Error: message,
 		}); err != nil {
-			controller.logger.Warnf("exec session: failed to send error frame: %v", err)
+			controller.logger.Warnf("execute session: failed to send error frame: %v", err)
 		}
 	}
 
 	if err := wsConn.Close(websocket.StatusInternalError, message); err != nil {
-		controller.logger.Warnf("exec session: failed to close WebSocket connection: %v", err)
+		controller.logger.Warnf("execute session: failed to close WebSocket connection: %v", err)
 	}
 }
