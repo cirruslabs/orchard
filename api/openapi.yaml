@@ -415,6 +415,85 @@ paths:
           description: VM resource with the given name doesn't exist
         '503':
           description: Failed to establish connection with the worker responsible for the specified VM
+  /vms/{name}/exec:
+    parameters:
+      - in: path
+        name: name
+        required: true
+        schema:
+          type: string
+    get:
+      summary: "Execute a command inside a VM using WebSocket protocol"
+      description: |
+        Upgrades to a WebSocket connection and exchanges JSON text frames.
+
+        Frame schema:
+
+        * Client -> Server uses `ExecClientFrame`
+        * Server -> Client uses `ExecServerFrame`
+
+        `data` is a base64-encoded byte payload in JSON (`format: byte`).
+
+        Client-side end of stdin is signaled by sending a `stdin` frame with an empty `data` payload.
+
+        Example client frame:
+        `{"type":"stdin","data":"aGVsbG8K"}`
+
+        Example server frames:
+        `{"type":"stdout","data":"aGVsbG8K"}`
+        `{"type":"exit","exit":{"code":0}}`
+      tags:
+        - vms
+      parameters:
+        - in: query
+          name: command
+          description: Command to execute in the guest
+          schema:
+            type: string
+          required: true
+        - in: query
+          name: arg
+          description: Command argument, can be provided multiple times
+          style: form
+          explode: true
+          schema:
+            type: array
+            items:
+              type: string
+          required: false
+        - in: query
+          name: wait
+          description: Duration in seconds to wait for the VM to transition into "running" state if not already running.
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 65535
+            default: 10
+          required: false
+        - in: header
+          name: Connection
+          description: WebSocket protocol required header
+          required: true
+          schema:
+            type: string
+        - in: header
+          name: Upgrade
+          description: WebSocket protocol required header
+          required: true
+          schema:
+            type: string
+      responses:
+        '101':
+          description: |
+            WebSocket protocol upgrade succeeded.
+
+            After upgrade, messages follow `ExecClientFrame` and `ExecServerFrame` schemas.
+        '400':
+          description: Invalid query parameter specified
+        '404':
+          description: VM resource with the given name doesn't exist
+        '503':
+          description: Failed to establish SSH session to the specified VM
   /vms/{name}/ip:
     parameters:
       - in: path
@@ -693,6 +772,74 @@ components:
         ip:
           type: string
           description: The resolved IP address
+    ExecTerminalSize:
+      title: VM Exec terminal size
+      type: object
+      properties:
+        rows:
+          type: integer
+          minimum: 1
+          description: Terminal row count
+        cols:
+          type: integer
+          minimum: 1
+          description: Terminal column count
+    ExecExit:
+      title: VM Exec exit payload
+      type: object
+      required:
+        - code
+      properties:
+        code:
+          type: integer
+          format: int32
+          description: Process exit code
+    ExecClientFrame:
+      title: VM Exec client WebSocket frame
+      type: object
+      required:
+        - type
+      properties:
+        type:
+          type: string
+          enum: [ stdin, resize ]
+          description: |
+            Frame type sent by the client.
+            `stdin` sends process input bytes.
+            `resize` is accepted but ignored by the current SSH-backed implementation.
+        data:
+          type: string
+          format: byte
+          description: |
+            Base64-encoded stdin payload for `type=stdin`.
+            Empty payload indicates stdin EOF.
+        terminal:
+          $ref: '#/components/schemas/ExecTerminalSize'
+      example:
+        type: stdin
+        data: aGVsbG8K
+    ExecServerFrame:
+      title: VM Exec server WebSocket frame
+      type: object
+      required:
+        - type
+      properties:
+        type:
+          type: string
+          enum: [ stdout, stderr, exit, error ]
+          description: Frame type sent by the server
+        data:
+          type: string
+          format: byte
+          description: Base64-encoded output payload for `type=stdout` and `type=stderr`
+        exit:
+          $ref: '#/components/schemas/ExecExit'
+        error:
+          type: string
+          description: Error message for `type=error`
+      example:
+        type: stdout
+        data: aGVsbG8K
     Event:
       title: Generic Resource Event
       type: object
