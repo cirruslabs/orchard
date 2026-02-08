@@ -3,8 +3,11 @@ package controller
 
 import (
 	"bytes"
+	"context"
+	"errors"
 	"io"
 	"testing"
+	"time"
 
 	"github.com/cirruslabs/orchard/internal/execstream"
 	"github.com/stretchr/testify/require"
@@ -21,7 +24,7 @@ func (writer *recordingWriteCloser) Close() error {
 	return nil
 }
 
-func TestStreamExecuteClientFramesWritesInputAndClosesOnEOFFrame(t *testing.T) {
+func TestConsumeClientInputFramesWritesInputAndClosesOnEOFFrame(t *testing.T) {
 	var input bytes.Buffer
 	encoder := execstream.NewEncoder(&input)
 
@@ -41,14 +44,14 @@ func TestStreamExecuteClientFramesWritesInputAndClosesOnEOFFrame(t *testing.T) {
 	stdin := &recordingWriteCloser{}
 	errCh := make(chan error, 1)
 
-	streamExecuteClientFrames(decoder, stdin, errCh)
+	consumeClientInputFrames(decoder, stdin, errCh)
 
 	require.NoError(t, <-errCh)
 	require.True(t, stdin.closed)
 	require.Equal(t, "hello", stdin.String())
 }
 
-func TestStreamExecuteClientFramesUnsupportedType(t *testing.T) {
+func TestConsumeClientInputFramesUnsupportedType(t *testing.T) {
 	var input bytes.Buffer
 	encoder := execstream.NewEncoder(&input)
 
@@ -61,33 +64,33 @@ func TestStreamExecuteClientFramesUnsupportedType(t *testing.T) {
 	stdin := &recordingWriteCloser{}
 	errCh := make(chan error, 1)
 
-	streamExecuteClientFrames(decoder, stdin, errCh)
+	consumeClientInputFrames(decoder, stdin, errCh)
 
 	require.EqualError(t, <-errCh, "unsupported frame type \"stdout\" received from client")
 	require.False(t, stdin.closed)
 }
 
-func TestStreamExecuteClientFramesClosesStdinOnDecodeError(t *testing.T) {
+func TestConsumeClientInputFramesClosesStdinOnDecodeError(t *testing.T) {
 	decoder := execstream.NewDecoder(bytes.NewBuffer(nil))
 	stdin := &recordingWriteCloser{}
 	errCh := make(chan error, 1)
 
-	streamExecuteClientFrames(decoder, stdin, errCh)
+	consumeClientInputFrames(decoder, stdin, errCh)
 
 	require.ErrorIs(t, <-errCh, io.EOF)
 	require.True(t, stdin.closed)
 }
 
-func TestStreamExecuteOutputEmitsFrameAndSignalsDone(t *testing.T) {
-	outputCh := make(chan execstream.Frame, 1)
-	doneCh := make(chan struct{}, 1)
-	errCh := make(chan error, 1)
+func TestForwardSSHOutputFramesEmitsFrameAndSignalsDone(t *testing.T) {
+	outputFrameCh := make(chan execstream.Frame, 1)
+	outputDoneCh := make(chan struct{}, 1)
+	outputErrCh := make(chan error, 1)
 
-	streamExecuteOutput(bytes.NewBufferString("payload"),
-		execstream.FrameTypeStderr, outputCh, doneCh, errCh)
+	forwardSSHOutputFrames(context.Background(), bytes.NewBufferString("payload"),
+		execstream.FrameTypeStderr, outputFrameCh, outputDoneCh, outputErrCh)
 
 	select {
-	case frame := <-outputCh:
+	case frame := <-outputFrameCh:
 		require.Equal(t, execstream.FrameTypeStderr, frame.Type)
 		require.Equal(t, []byte("payload"), frame.Data)
 	default:
@@ -95,16 +98,66 @@ func TestStreamExecuteOutputEmitsFrameAndSignalsDone(t *testing.T) {
 	}
 
 	select {
-	case <-doneCh:
+	case <-outputDoneCh:
 	default:
 		t.Fatal("expected done signal")
 	}
 
 	select {
-	case err := <-errCh:
+	case err := <-outputErrCh:
 		t.Fatalf("unexpected error: %v", err)
 	default:
 	}
+}
+
+func TestForwardSSHOutputFramesStopsWhenContextCancelledWhileOutputChannelIsBlocked(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	outputFrameCh := make(chan execstream.Frame, 1)
+	outputFrameCh <- execstream.Frame{
+		Type: execstream.FrameTypeStdout,
+		Data: []byte("occupied"),
+	}
+
+	outputDoneCh := make(chan struct{}, 1)
+	outputErrCh := make(chan error, 1)
+
+	finished := make(chan struct{})
+	go func() {
+		forwardSSHOutputFrames(ctx, bytes.NewBufferString("payload"),
+			execstream.FrameTypeStdout, outputFrameCh, outputDoneCh, outputErrCh)
+		close(finished)
+	}()
+
+	select {
+	case <-finished:
+		t.Fatal("forwardSSHOutputFrames unexpectedly returned before context cancellation")
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	cancel()
+
+	select {
+	case <-finished:
+	case <-time.After(time.Second):
+		t.Fatal("forwardSSHOutputFrames did not return after context cancellation")
+	}
+
+	select {
+	case <-outputDoneCh:
+	default:
+		t.Fatal("expected done signal")
+	}
+}
+
+func TestFirstExecuteOutputErrorReturnsFirstNonNilError(t *testing.T) {
+	outputErrCh := make(chan error, 3)
+	outputErrCh <- nil
+	outputErrCh <- errors.New("first error")
+	outputErrCh <- errors.New("second error")
+
+	require.EqualError(t, firstExecuteOutputError(outputErrCh), "first error")
 }
 
 func TestBuildSSHCommandQuotesArguments(t *testing.T) {
