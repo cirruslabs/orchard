@@ -6,11 +6,16 @@ import (
 	"context"
 	"errors"
 	"io"
+	"net"
 	"testing"
 	"time"
 
+	"github.com/cirruslabs/orchard/internal/controller/notifier"
+	"github.com/cirruslabs/orchard/internal/controller/rendezvous"
 	"github.com/cirruslabs/orchard/internal/execstream"
+	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 type recordingWriteCloser struct {
@@ -164,4 +169,84 @@ func TestBuildSSHCommandQuotesArguments(t *testing.T) {
 	result := buildSSHCommand("echo", []string{"hello world", "a'b", ""})
 
 	require.Equal(t, "'echo' 'hello world' 'a'\\''b' ''", result)
+}
+
+func TestEstablishExecuteSSHTunnelKeepsProxyContextAliveUntilTunnelClosed(t *testing.T) {
+	controller := &Controller{
+		logger:         zap.NewNop().Sugar(),
+		workerNotifier: notifier.NewNotifier(zap.NewNop().Sugar()),
+		connRendezvous: rendezvous.New[rendezvous.ResultWithErrorMessage[net.Conn]](),
+	}
+
+	workerCh, cancelWorker := controller.workerNotifier.Register(context.Background(), "worker-1")
+	defer cancelWorker()
+
+	proxyCtxCh := make(chan context.Context, 1)
+	workerErrCh := make(chan error, 1)
+
+	go func() {
+		msg := <-workerCh
+
+		action := msg.GetPortForwardAction()
+		if action == nil {
+			workerErrCh <- errors.New("expected port forward action")
+			return
+		}
+
+		tunnelConn, workerConn := net.Pipe()
+		proxyCtx, err := controller.connRendezvous.Respond(action.Session, rendezvous.ResultWithErrorMessage[net.Conn]{
+			Result: tunnelConn,
+		})
+		if err != nil {
+			_ = tunnelConn.Close()
+			_ = workerConn.Close()
+			workerErrCh <- err
+			return
+		}
+
+		go func() {
+			<-proxyCtx.Done()
+			_ = workerConn.Close()
+		}()
+
+		proxyCtxCh <- proxyCtx
+	}()
+
+	tunnel, responderImpl := controller.establishExecuteSSHTunnel(context.Background(), &v1.VM{
+		Worker: "worker-1",
+		UID:    "vm-uid",
+	})
+	require.Nil(t, responderImpl)
+
+	var proxyCtx context.Context
+
+	select {
+	case err := <-workerErrCh:
+		require.NoError(t, err)
+	case proxyCtx = <-proxyCtxCh:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for tunnel rendezvous response")
+	}
+
+	require.NotNil(t, proxyCtx)
+
+	select {
+	case <-proxyCtx.Done():
+		t.Fatal("proxy context canceled before tunnel close")
+	default:
+	}
+
+	require.NoError(t, tunnel.Close())
+
+	select {
+	case <-proxyCtx.Done():
+	case <-time.After(time.Second):
+		t.Fatal("proxy context was not canceled after tunnel close")
+	}
+
+	select {
+	case err := <-workerErrCh:
+		require.NoError(t, err)
+	default:
+	}
 }

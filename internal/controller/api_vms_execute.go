@@ -116,16 +116,16 @@ func (controller *Controller) establishExecuteSSHTunnel(
 	ctx context.Context,
 	vm *v1.VM,
 ) (net.Conn, responder.Responder) {
-	tunnelCtx, tunnelCtxCancel := context.WithTimeout(ctx, executeSessionRendezvousTimeout)
-	defer tunnelCtxCancel()
+	tunnelWaitCtx, tunnelWaitCtxCancel := context.WithTimeout(ctx, executeSessionRendezvousTimeout)
+	defer tunnelWaitCtxCancel()
 
-	rendezvousCtx, rendezvousCtxCancel := context.WithCancel(tunnelCtx)
+	rendezvousCtx, rendezvousCtxCancel := context.WithCancel(ctx)
 
 	session := uuid.New().String()
 	connCh, cancelRequest := controller.connRendezvous.Request(rendezvousCtx, session)
 	defer cancelRequest()
 
-	err := controller.workerNotifier.Notify(tunnelCtx, vm.Worker, &rpc.WatchInstruction{
+	err := controller.workerNotifier.Notify(tunnelWaitCtx, vm.Worker, &rpc.WatchInstruction{
 		Action: &rpc.WatchInstruction_PortForwardAction{
 			PortForwardAction: &rpc.WatchInstruction_PortForward{
 				Session: session,
@@ -159,15 +159,15 @@ func (controller *Controller) establishExecuteSSHTunnel(
 		}
 
 		return netconncancel.New(rendezvousResp.Result, rendezvousCtxCancel), nil
-	case <-tunnelCtx.Done():
+	case <-tunnelWaitCtx.Done():
 		rendezvousCtxCancel()
 
-		if errors.Is(tunnelCtx.Err(), context.DeadlineExceeded) {
+		if errors.Is(tunnelWaitCtx.Err(), context.DeadlineExceeded) {
 			return nil, responder.JSON(http.StatusServiceUnavailable, NewErrorResponse(
 				"timed out waiting for worker %s to establish SSH tunnel", vm.Worker))
 		}
 
-		return nil, responder.Error(ctx.Err())
+		return nil, responder.Error(tunnelWaitCtx.Err())
 	}
 }
 
