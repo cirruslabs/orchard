@@ -206,7 +206,7 @@ func (controller *Controller) waitForVM(ctx context.Context, name string) (*v1.V
 
 func (controller *Controller) portForwardConnection(
 	ctx context.Context,
-	notifyContext context.Context,
+	waitContext context.Context,
 	workerName string,
 	vmUID string,
 	port uint32,
@@ -223,7 +223,7 @@ func (controller *Controller) portForwardConnection(
 	}
 
 	// Send request to a worker to initiate a port forwarding connection back to us
-	err := controller.workerNotifier.Notify(notifyContext, workerName, &rpc.WatchInstruction{
+	err := controller.workerNotifier.Notify(waitContext, workerName, &rpc.WatchInstruction{
 		Action: &rpc.WatchInstruction_PortForwardAction{
 			PortForwardAction: &rpc.WatchInstruction_PortForward{
 				Session: session,
@@ -250,9 +250,9 @@ func (controller *Controller) portForwardConnection(
 		}
 
 		return rendezvousResponse.Result, cancel, nil
-	case <-ctx.Done():
+	case <-waitContext.Done():
 		cancel()
 
-		return nil, nil, ctx.Err()
+		return nil, nil, waitContext.Err()
 	}
 }
