@@ -415,6 +415,77 @@ paths:
           description: VM resource with the given name doesn't exist
         '503':
           description: Failed to establish connection with the worker responsible for the specified VM
+  /vms/{name}/exec:
+    parameters:
+      - in: path
+        name: name
+        required: true
+        schema:
+          type: string
+    get:
+      summary: "Execute a command inside a VM using WebSocket protocol"
+      tags:
+        - vms
+      parameters:
+        - in: query
+          name: command
+          description: Command to execute
+          schema:
+            type: string
+            minLength: 1
+          required: true
+        - in: query
+          name: stdin
+          description: |
+            Whether to allocate an interactive standard input for the command
+            
+            When enabled, make sure to close the standard input by sending a `ExecClientFrameStdin`
+            frame with an empty data. Otherwise the command might never terminate waiting for the
+            standard input to end.
+          schema:
+            type: boolean
+            default: false
+          required: false
+        - in: query
+          name: wait
+          description: Duration in seconds for the VM to become available if it's not available already
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 65535
+            default: 10
+          required: false
+        - in: header
+          name: Connection
+          description: WebSocket protocol required header
+          required: true
+          schema:
+            type: string
+        - in: header
+          name: Upgrade
+          description: WebSocket protocol required header
+          required: true
+          schema:
+            type: string
+      responses:
+        '101':
+          description: |
+            The connection has been upgraded to WebSocket. Messages exchanged after upgrade:
+
+            * Orchard Client → Orchard Controller: `ExecClientFrame`
+            * Orchard Controller → Orchard Client : `ExecControllerFrame`
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/ExecClientFrame'
+                  - $ref: '#/components/schemas/ExecControllerFrame'
+        '400':
+          description: Invalid parameters were supplied
+        '404':
+          description: VM resource with the given name doesn't exist
+        '503':
+          description: Controller failed to establish a connection with the VM
   /vms/{name}/ip:
     parameters:
       - in: path
@@ -693,6 +764,110 @@ components:
         ip:
           type: string
           description: The resolved IP address
+    ExecClientFrame:
+      description: WebSocket frame from Orchard Client to the Orchard Controller
+      oneOf:
+        - $ref: '#/components/schemas/ExecClientFrameStdin'
+      discriminator:
+        propertyName: type
+        mapping:
+          stdin: '#/components/schemas/ExecClientFrameStdin'
+    ExecClientFrameStdin:
+      description: Send bytes to the process standard input
+      type: object
+      required: [ type, data ]
+      properties:
+        type:
+          type: string
+          enum: [ stdin ]
+        data:
+          type: string
+          format: byte
+          description: |
+            Base64-encoded standard input bytes to the process
+            
+            Empty payload indicates EOF and causes standard input to be closed.
+      example:
+        type: stdin
+        data: aGVsbG8K
+    ExecControllerFrame:
+      description: WebSocket frame from Orchard Controller to the Orchard Client
+      oneOf:
+        - $ref: '#/components/schemas/ExecControllerFrameStdout'
+        - $ref: '#/components/schemas/ExecControllerFrameStderr'
+        - $ref: '#/components/schemas/ExecControllerFrameExit'
+        - $ref: '#/components/schemas/ExecControllerFrameError'
+      discriminator:
+        propertyName: type
+        mapping:
+          stdout: '#/components/schemas/ExecControllerFrameStdout'
+          stderr: '#/components/schemas/ExecControllerFrameStderr'
+          exit: '#/components/schemas/ExecControllerFrameExit'
+          error: '#/components/schemas/ExecControllerFrameError'
+    ExecControllerFrameStdout:
+      description: Standard output from the process
+      type: object
+      required: [ type, data ]
+      properties:
+        type:
+          type: string
+          enum: [ stdout ]
+        data:
+          type: string
+          format: byte
+          description: Base64-encoded standard output bytes from the process
+      example:
+        type: stdout
+        data: aGVsbG8K
+    ExecControllerFrameStderr:
+      description: Standard error from the process
+      type: object
+      required: [ type, data ]
+      properties:
+        type:
+          type: string
+          enum: [ stderr ]
+        data:
+          type: string
+          format: byte
+          description: Base64-encoded standard error bytes from the process
+      example:
+        type: stderr
+        data: aGVsbG8K
+    ExecControllerFrameExit:
+      description: Process termination details
+      type: object
+      required: [ type, exit ]
+      properties:
+        type:
+          type: string
+          enum: [ exit ]
+        exit:
+          type: object
+          required: [ code ]
+          properties:
+            code:
+              type: integer
+              format: int32
+              description: Process exit code
+      example:
+        type: exit
+        exit:
+          code: 0
+    ExecControllerFrameError:
+      description: Error message encountered while running the process
+      type: object
+      required: [ type, error ]
+      properties:
+        type:
+          type: string
+          enum: [ error ]
+        error:
+          type: string
+          description: Error message text
+      example:
+        type: error
+        error: Failed to establish SSH connection to a VM
     Event:
       title: Generic Resource Event
       type: object

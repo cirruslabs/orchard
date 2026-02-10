@@ -111,6 +111,22 @@ func (vm *VM) Match(filter Filter) bool {
 	}
 }
 
+func (vm *VM) SSHUsername() string {
+	if vm.Username != "" {
+		return vm.Username
+	}
+
+	return "admin"
+}
+
+func (vm *VM) SSHPassword() string {
+	if vm.Password != "" {
+		return vm.Password
+	}
+
+	return "admin"
+}
+
 func (vm *VM) IsScheduled() bool {
 	if ConditionExists(vm.Conditions, ConditionTypeScheduled) {
 		return ConditionIsTrue(vm.Conditions, ConditionTypeScheduled)
