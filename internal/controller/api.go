@@ -30,6 +30,10 @@ var ErrUnauthorized = errors.New("unauthorized")
 func (controller *Controller) initAPI() *gin.Engine {
 	ginEngine := gin.New()
 
+	// Enable Gin's context fallback to make (*gin.Context).Done() work
+	// and to avoid calling the (*gin.Context).Request.Context().Done()
+	ginEngine.ContextWithFallback = true
+
 	var group *gin.RouterGroup
 
 	if controller.apiPrefix != "" {
