@@ -20,12 +20,12 @@ const (
 type Frame struct {
 	Type  FrameType `json:"type"`
 	Data  []byte    `json:"data,omitempty"`
-	Exit  Exit      `json:"exit,omitempty"`
+	Exit  *Exit     `json:"exit,omitempty"`
 	Error string    `json:"error,omitempty"`
 }
 
 type Exit struct {
-	Code int32 `json:"code,omitempty"`
+	Code int32 `json:"code"`
 }
 
 func WriteFrame(ctx context.Context, wsConn *websocket.Conn, frame *Frame) error {

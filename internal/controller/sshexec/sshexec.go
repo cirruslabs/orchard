@@ -130,7 +130,7 @@ func (exec *Exec) Run(
 	// Post an exit event
 	exitFrame := &execstream.Frame{
 		Type: execstream.FrameTypeExit,
-		Exit: execstream.Exit{
+		Exit: &execstream.Exit{
 			Code: 0,
 		},
 	}
