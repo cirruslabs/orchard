@@ -286,6 +286,19 @@ func (client *Client) wsRequest(
 	path string,
 	params map[string]string,
 ) (net.Conn, error) {
+	wsConn, err := client.wsRequestRaw(ctx, path, params)
+	if err != nil {
+		return nil, err
+	}
+
+	return websocket.NetConn(ctx, wsConn, websocket.MessageBinary), nil
+}
+
+func (client *Client) wsRequestRaw(
+	ctx context.Context,
+	path string,
+	params map[string]string,
+) (*websocket.Conn, error) {
 	endpointURL := client.formatPath(path)
 
 	// Adapt HTTP scheme to WebSocket scheme
@@ -321,7 +334,7 @@ func (client *Client) wsRequest(
 		return nil, err
 	}
 
-	return websocket.NetConn(ctx, conn, websocket.MessageBinary), nil
+	return conn, nil
 }
 
 func (client *Client) formatPath(path string) *url.URL {

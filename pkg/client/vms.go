@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/cirruslabs/orchard/pkg/resource/v1"
+	"github.com/coder/websocket"
 )
 
 type VMsService struct {
@@ -153,6 +154,21 @@ func (service *VMsService) PortForward(
 		map[string]string{
 			"port": strconv.FormatUint(uint64(port), 10),
 			"wait": strconv.FormatUint(uint64(waitSeconds), 10),
+		})
+}
+
+func (service *VMsService) Exec(
+	ctx context.Context,
+	name string,
+	command string,
+	stdin bool,
+	waitSeconds uint16,
+) (*websocket.Conn, error) {
+	return service.client.wsRequestRaw(ctx, fmt.Sprintf("vms/%s/exec", url.PathEscape(name)),
+		map[string]string{
+			"command": command,
+			"stdin":   strconv.FormatBool(stdin),
+			"wait":    strconv.FormatUint(uint64(waitSeconds), 10),
 		})
 }
 

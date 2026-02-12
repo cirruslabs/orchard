@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"strconv"
 	"time"
@@ -44,10 +45,11 @@ func (controller *Controller) portForwardVM(ctx *gin.Context) responder.Responde
 	if err != nil {
 		return responder.Code(http.StatusBadRequest)
 	}
+
+	// Look-up the VM
 	waitContext, waitContextCancel := context.WithTimeout(ctx, time.Duration(wait)*time.Second)
 	defer waitContextCancel()
 
-	// Look-up the VM
 	vm, responderImpl := controller.waitForVM(waitContext, name)
 	if responderImpl != nil {
 		return responderImpl
@@ -199,5 +201,58 @@ func (controller *Controller) waitForVM(ctx context.Context, name string) (*v1.V
 			// try again
 			continue
 		}
+	}
+}
+
+func (controller *Controller) portForwardConnection(
+	ctx context.Context,
+	waitContext context.Context,
+	workerName string,
+	vmUID string,
+	port uint32,
+) (net.Conn, context.CancelFunc, error) {
+	// Create a rendezvous connection point
+	rendezvousCtx, rendezvousCtxCancel := context.WithCancel(ctx)
+
+	session := uuid.New().String()
+	boomerangConnCh, boomerangConnCancel := controller.connRendezvous.Request(rendezvousCtx, session)
+
+	cancel := func() {
+		boomerangConnCancel()
+		rendezvousCtxCancel()
+	}
+
+	// Send request to a worker to initiate a port forwarding connection back to us
+	err := controller.workerNotifier.Notify(waitContext, workerName, &rpc.WatchInstruction{
+		Action: &rpc.WatchInstruction_PortForwardAction{
+			PortForwardAction: &rpc.WatchInstruction_PortForward{
+				Session: session,
+				VmUid:   vmUID,
+				Port:    port,
+			},
+		},
+	})
+	if err != nil {
+		cancel()
+
+		return nil, nil, fmt.Errorf("failed to request port forwarding from the worker %s: %v",
+			workerName, err)
+	}
+
+	// Wait for the worker to respond
+	select {
+	case rendezvousResponse := <-boomerangConnCh:
+		if rendezvousResponse.ErrorMessage != "" {
+			cancel()
+
+			return nil, nil, fmt.Errorf("failed to establish port forwarding session on the worker: %s",
+				rendezvousResponse.ErrorMessage)
+		}
+
+		return rendezvousResponse.Result, cancel, nil
+	case <-waitContext.Done():
+		cancel()
+
+		return nil, nil, waitContext.Err()
 	}
 }
