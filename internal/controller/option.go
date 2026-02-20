@@ -78,12 +78,6 @@ func WithPingInterval(pingInterval time.Duration) Option {
 	}
 }
 
-func WithPrometheusMetrics() Option {
-	return func(controller *Controller) {
-		controller.prometheusMetrics = true
-	}
-}
-
 func WithSynthetic() Option {
 	return func(controller *Controller) {
 		controller.synthetic = true

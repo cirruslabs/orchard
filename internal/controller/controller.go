@@ -66,7 +66,6 @@ type Controller struct {
 	experimentalRPCV2    bool
 	disableDBCompression bool
 	pingInterval         time.Duration
-	prometheusMetrics    bool
 	synthetic            bool
 
 	sshListenAddr   string
@@ -133,7 +132,7 @@ func New(opts ...Option) (*Controller, error) {
 
 	// Instantiate the scheduler
 	controller.scheduler, err = scheduler.NewScheduler(store, controller.workerNotifier,
-		controller.workerOfflineTimeout, controller.prometheusMetrics, controller.logger)
+		controller.workerOfflineTimeout, controller.logger)
 	if err != nil {
 		return nil, err
 	}
