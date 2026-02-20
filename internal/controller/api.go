@@ -17,8 +17,8 @@ import (
 	ginzap "github.com/gin-contrib/zap"
 	"github.com/gin-gonic/gin"
 	"github.com/go-openapi/runtime/middleware"
-	"github.com/penglongli/gin-metrics/ginmetrics"
 	"github.com/samber/lo"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/metadata"
 )
@@ -45,12 +45,9 @@ func (controller *Controller) initAPI() *gin.Engine {
 	group.Use(
 		ginzap.Ginzap(controller.logger.Desugar(), "", true),
 		ginzap.RecoveryWithZap(controller.logger.Desugar(), true),
+		// Expose metrics
+		otelgin.Middleware(""),
 	)
-
-	// expose metrics
-	monitor := ginmetrics.GetMonitor()
-	monitor.SetMetricPath("/metrics")
-	monitor.Use(group)
 
 	// v1 API
 	v1 := group.Group("/v1")

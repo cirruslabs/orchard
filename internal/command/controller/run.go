@@ -33,7 +33,6 @@ var sshNoClientAuth bool
 var experimentalRPCV2 bool
 var noExperimentalRPCV2 bool
 var experimentalPingInterval time.Duration
-var deprecatedPrometheusMetrics bool
 var experimentalDisableDBCompression bool
 var workerOfflineTimeout time.Duration
 var synthetic bool
@@ -82,8 +81,6 @@ func newRunCommand() *cobra.Command {
 		"interval between WebSocket PING's sent by the controller to workers and clients, "+
 			"useful when facing intermediate load balancers/proxies that have timeouts "+
 			"smaller than the controller's default 30 second interval")
-	cmd.Flags().BoolVar(&deprecatedPrometheusMetrics, "deprecated-prometheus-metrics", false,
-		"enable Prometheus metrics, which will soon be deprecated in favor of OpenTelemetry")
 	cmd.Flags().BoolVar(&experimentalDisableDBCompression, "experimental-disable-db-compression", false,
 		"disable database compression, which might reduce RAM usage in some scenarios")
 	cmd.Flags().DurationVar(&workerOfflineTimeout, "worker-offline-timeout", 3*time.Minute,
@@ -208,10 +205,6 @@ func runController(cmd *cobra.Command, args []string) (err error) {
 		}
 
 		controllerOpts = append(controllerOpts, controller.WithPingInterval(experimentalPingInterval))
-	}
-
-	if deprecatedPrometheusMetrics {
-		controllerOpts = append(controllerOpts, controller.WithPrometheusMetrics())
 	}
 
 	if experimentalDisableDBCompression {
