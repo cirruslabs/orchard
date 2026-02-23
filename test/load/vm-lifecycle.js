@@ -1,6 +1,6 @@
 import {check} from 'k6';
 import http from 'k6/http';
-import {WebSocket} from 'k6/experimental/websockets';
+import {WebSocket} from 'k6/websockets';
 import crypto from 'k6/crypto';
 import encoding from 'k6/encoding';
 import {uuidv4} from 'https://jslib.k6.io/k6-utils/1.6.0/index.js';
@@ -74,7 +74,7 @@ async function portForward(vmName) {
     });
     ws.binaryType = 'arraybuffer';
 
-    const sentBytes = new Uint8Array(crypto.randomBytes(WS_BYTES));
+    const sentBytes = crypto.randomBytes(WS_BYTES);
     const sentHash = crypto.sha256(sentBytes, 'hex');
     let numReceivedBytes = 0;
     const receivedHasher = crypto.createHash('sha256');
