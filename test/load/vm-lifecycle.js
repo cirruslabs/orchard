@@ -1,6 +1,6 @@
 import {check} from 'k6';
 import http from 'k6/http';
-import {WebSocket} from 'k6/experimental/websockets';
+import {WebSocket} from 'k6/websockets';
 import crypto from 'k6/crypto';
 import encoding from 'k6/encoding';
 import {uuidv4} from 'https://jslib.k6.io/k6-utils/1.6.0/index.js';
