@@ -16,8 +16,7 @@ import (
 	"github.com/cirruslabs/orchard/pkg/resource/v1"
 	"github.com/cirruslabs/orchard/rpc"
 	mapset "github.com/deckarep/golang-set/v2"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 	"go.uber.org/zap"
 )
@@ -33,34 +32,22 @@ var (
 	ErrWorkerSchedulingSkipped = errors.New("scheduling skipped for worker")
 )
 
-var (
-	schedulerLoopIterationStat = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "orchard_scheduler_loop_iteration_total",
-	})
-	workersStat = promauto.NewGaugeVec(prometheus.GaugeOpts{
-		Name: "orchard_workers",
-	}, []string{"worker_name", "status"})
-	vmsStat = promauto.NewGaugeVec(prometheus.GaugeOpts{
-		Name: "orchard_vms",
-	}, []string{"status"})
-)
-
 type Scheduler struct {
 	store                storepkg.Store
 	notifier             *notifier.Notifier
 	workerOfflineTimeout time.Duration
 	logger               *zap.SugaredLogger
 	schedulingRequested  chan bool
-	prometheusMetrics    bool
 
 	schedulingTimeHistogram metric.Float64Histogram
+	workerStatusGauge       metric.Int64ObservableGauge
+	vmStatusGauge           metric.Int64ObservableGauge
 }
 
 func NewScheduler(
 	store storepkg.Store,
 	notifier *notifier.Notifier,
 	workerOfflineTimeout time.Duration,
-	prometheusMetrics bool,
 	logger *zap.SugaredLogger,
 ) (*Scheduler, error) {
 	scheduler := &Scheduler{
@@ -69,11 +56,26 @@ func NewScheduler(
 		workerOfflineTimeout: workerOfflineTimeout,
 		logger:               logger,
 		schedulingRequested:  make(chan bool, 1),
-		prometheusMetrics:    prometheusMetrics,
 	}
 
 	// Metrics
 	var err error
+
+	scheduler.workerStatusGauge, err = opentelemetry.DefaultMeter.Int64ObservableGauge(
+		"org.cirruslabs.orchard.controller.scheduler.worker_status",
+		metric.WithInt64Callback(scheduler.observeWorkerStatus),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	scheduler.vmStatusGauge, err = opentelemetry.DefaultMeter.Int64ObservableGauge(
+		"org.cirruslabs.orchard.controller.scheduler.vm_status",
+		metric.WithInt64Callback(scheduler.observeVMStatus),
+	)
+	if err != nil {
+		return nil, err
+	}
 
 	scheduler.schedulingTimeHistogram, err = opentelemetry.DefaultMeter.
 		Float64Histogram("org.cirruslabs.orchard.controller.scheduling_time")
@@ -93,7 +95,7 @@ func (scheduler *Scheduler) Run() {
 		}
 
 		healthCheckingLoopIterationStart := time.Now()
-		numWorkersHealth, numVMsHealth, err := scheduler.healthCheckingLoopIteration()
+		numVMsHealth, err := scheduler.healthCheckingLoopIteration()
 		healthCheckingLoopIterationEnd := time.Now()
 		if err != nil {
 			scheduler.logger.Errorf("Failed to health-check VMs: %v", err)
@@ -103,36 +105,62 @@ func (scheduler *Scheduler) Run() {
 		numWorkersScheduling, numVMsScheduling, err := scheduler.schedulingLoopIteration()
 		schedulingLoopIterationEnd := time.Now()
 
-		scheduler.logger.Debugf("Health checking loop iteration for %d workers and %d VMs took %v, "+
+		scheduler.logger.Debugf("Health checking loop iteration for %d VMs took %v, "+
 			"scheduling loop iteration for %d workers and %d VMs took %v",
-			numWorkersHealth, numVMsHealth,
-			healthCheckingLoopIterationEnd.Sub(healthCheckingLoopIterationStart),
+			numVMsHealth, healthCheckingLoopIterationEnd.Sub(healthCheckingLoopIterationStart),
 			numWorkersScheduling, numVMsScheduling,
 			schedulingLoopIterationEnd.Sub(schedulingLoopIterationStart))
 
 		if err != nil {
 			scheduler.logger.Errorf("Failed to schedule VMs: %v", err)
 		}
-
-		if scheduler.prometheusMetrics {
-			schedulerLoopIterationStat.Inc()
-		}
 	}
 }
 
-func (scheduler *Scheduler) reportStats(workers []v1.Worker, vms []v1.VM) {
-	for _, worker := range workers {
-		if worker.Offline(scheduler.workerOfflineTimeout) {
-			workersStat.With(map[string]string{"worker_name": worker.Name, "status": "online"}).Set(0)
-			workersStat.With(map[string]string{"worker_name": worker.Name, "status": "offline"}).Set(1)
-		} else {
-			workersStat.With(map[string]string{"worker_name": worker.Name, "status": "online"}).Set(1)
-			workersStat.With(map[string]string{"worker_name": worker.Name, "status": "offline"}).Set(0)
+func (scheduler *Scheduler) observeWorkerStatus(_ context.Context, observer metric.Int64Observer) error {
+	return scheduler.store.View(func(txn storepkg.Transaction) error {
+		workers, err := txn.ListWorkers()
+		if err != nil {
+			return err
 		}
-	}
-	for _, vm := range vms {
-		vmsStat.With(map[string]string{"status": string(vm.Status)}).Inc()
-	}
+
+		for _, worker := range workers {
+			var online, offline int64
+
+			if worker.Offline(scheduler.workerOfflineTimeout) {
+				offline = 1
+			} else {
+				online = 1
+			}
+
+			observer.Observe(online, metric.WithAttributes(attribute.String("worker", worker.Name),
+				attribute.String("status", "online")))
+			observer.Observe(offline, metric.WithAttributes(attribute.String("worker", worker.Name),
+				attribute.String("status", "offline")))
+		}
+
+		return nil
+	})
+}
+
+func (scheduler *Scheduler) observeVMStatus(_ context.Context, observer metric.Int64Observer) error {
+	return scheduler.store.View(func(txn storepkg.Transaction) error {
+		vms, err := txn.ListVMs()
+		if err != nil {
+			return err
+		}
+
+		vmStatusCounts := map[v1.VMStatus]int64{}
+		for _, vm := range vms {
+			vmStatusCounts[vm.Status]++
+		}
+
+		for status, count := range vmStatusCounts {
+			observer.Observe(count, metric.WithAttributes(attribute.String("status", status.String())))
+		}
+
+		return nil
+	})
 }
 
 func (scheduler *Scheduler) RequestScheduling() {
@@ -405,9 +433,9 @@ func ProcessVMs(vms []v1.VM) ([]v1.VM, WorkerInfos) {
 	return unscheduledVMs, workerToResources
 }
 
-func (scheduler *Scheduler) healthCheckingLoopIteration() (int, int, error) {
+func (scheduler *Scheduler) healthCheckingLoopIteration() (int, error) {
 	// Stats for the caller
-	var numWorkers, numVMs int
+	var numVMs int
 
 	// Get a lagging view of VMs
 	var vms []v1.VM
@@ -421,20 +449,9 @@ func (scheduler *Scheduler) healthCheckingLoopIteration() (int, int, error) {
 		}
 		numVMs = len(vms)
 
-		// Update metrics
-		if scheduler.prometheusMetrics {
-			workers, err := txn.ListWorkers()
-			if err != nil {
-				return err
-			}
-			numWorkers = len(workers)
-
-			scheduler.reportStats(workers, vms)
-		}
-
 		return nil
 	}); err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 
 	// Process each VM in a lagging list of VMs in an individual
@@ -468,11 +485,11 @@ func (scheduler *Scheduler) healthCheckingLoopIteration() (int, int, error) {
 
 			return scheduler.healthCheckVM(txn, *currentVM)
 		}); err != nil {
-			return 0, 0, err
+			return 0, err
 		}
 	}
 
-	return numWorkers, numVMs, nil
+	return numVMs, nil
 }
 
 func (scheduler *Scheduler) healthCheckVM(txn storepkg.Transaction, vm v1.VM) error {
