@@ -2,7 +2,7 @@
 
 > [!IMPORTANT]
 >
-> **macOS 15 (Sequoia)**
+> **macOS 15 (Sequoia) or later**
 >
 > The  [newly introduced "Local Network" permission](https://developer.apple.com/documentation/technotes/tn3179-understanding-local-network-privacy) in macOS Sequoia requires accepting a GUI pop-up on each host machine that runs the Orchard Worker.
 >
