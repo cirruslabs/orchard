@@ -6,13 +6,22 @@
 >
 > The  [newly introduced "Local Network" permission](https://developer.apple.com/documentation/technotes/tn3179-understanding-local-network-privacy) in macOS Sequoia requires accepting a GUI pop-up on each host machine that runs the Orchard Worker.
 >
-> To work around this, upgrade your workers to Orchard 0.32.0 or newer and invoke the `orchard worker run` as `root` with an additional `--user` command-line argument, which takes a name of your regular, non-privileged user on the host machine.
+> To work around this, there are two options. The first one is to invoke the `orchard worker run` as `root` with an additional `--user` command-line argument, which takes a name of your regular, non-privileged user on the host machine.
 >
 > This will cause the Orchard Worker to start a small `orchard localnetworkhelper` process in the background and then drop the privileges to the specified user.
 >
 >The helper process is privileged and needed to establish network connections on behalf of the Orchard Worker without triggering a GUI pop-up.
 >
 >This approach is more secure than simply running `orchard worker run` as `root`, because only a small part of Orchard Worker runs privileged and the only functionality that this part has is establishing new connections.
+>
+> The second workaround is to [set local the network privacy preferences](https://developer.apple.com/documentation/technotes/tn3179-understanding-local-network-privacy#macOS-considerations) so that all [IPv4 private address space](https://datatracker.ietf.org/doc/html/rfc1918#section-3) that could potentially be used for VMs is excluded:
+>
+> ```shell
+> sudo defaults write com.apple.network.local-network AllowedEthernetLocalNetworkAddresses -array "10.0.0.0/8" "172.16.0.0/12" "192.168.0.0/16"
+> sudo defaults write com.apple.network.local-network AllowedWiFiLocalNetworkAddresses -array "10.0.0.0/8" "172.16.0.0/12" "192.168.0.0/16"
+> ```
+>
+> ...and then reboot.
 
 <img src="https://github.com/cirruslabs/orchard/raw/main/docs/OrchardSocial.png"/>
 
