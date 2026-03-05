@@ -37,3 +37,20 @@ func (cmap *ConcurrentMap[T]) Delete(key string) {
 
 	delete(cmap.nonConcurrentMap, key)
 }
+
+func (cmap *ConcurrentMap[T]) DeleteIf(key string, predicate func(T) bool) bool {
+	cmap.mtx.Lock()
+	defer cmap.mtx.Unlock()
+
+	value, ok := cmap.nonConcurrentMap[key]
+	if !ok {
+		return false
+	}
+	if !predicate(value) {
+		return false
+	}
+
+	delete(cmap.nonConcurrentMap, key)
+
+	return true
+}

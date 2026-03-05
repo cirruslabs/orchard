@@ -31,16 +31,19 @@ func NewNotifier(logger *zap.SugaredLogger) *Notifier {
 func (watcher *Notifier) Register(ctx context.Context, worker string) (chan *rpc.WatchInstruction, func()) {
 	subCtx, cancel := context.WithCancel(ctx)
 	workerCh := make(chan *rpc.WatchInstruction)
-
-	watcher.logger.Debugf("registering worker %s", worker)
-	watcher.workers.Store(worker, &WorkerSlot{
+	slot := &WorkerSlot{
 		ctx: subCtx,
 		ch:  workerCh,
-	})
+	}
+
+	watcher.logger.Debugf("registering worker %s", worker)
+	watcher.workers.Store(worker, slot)
 
 	return workerCh, func() {
 		watcher.logger.Debugf("deleting worker %s", worker)
-		watcher.workers.Delete(worker)
+		watcher.workers.DeleteIf(worker, func(current *WorkerSlot) bool {
+			return current == slot
+		})
 		cancel()
 	}
 }

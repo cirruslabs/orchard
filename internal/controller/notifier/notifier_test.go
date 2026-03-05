@@ -47,3 +47,36 @@ func TestNotifier(t *testing.T) {
 
 	wg.Wait()
 }
+
+func TestNotifierReRegisterKeepsNewestSlot(t *testing.T) {
+	ctx := context.Background()
+	watcher := notifier.NewNotifier(zap.NewNop().Sugar())
+
+	const worker = "worker-a"
+
+	_, staleCancel := watcher.Register(ctx, worker)
+	newestCh, newestCancel := watcher.Register(ctx, worker)
+	defer newestCancel()
+
+	// Simulate stale connection cleanup arriving after the worker has already re-registered.
+	staleCancel()
+
+	notifyCtx, notifyCancel := context.WithTimeout(ctx, 300*time.Millisecond)
+	defer notifyCancel()
+
+	notifyErrCh := make(chan error, 1)
+	go func() {
+		notifyErrCh <- watcher.Notify(notifyCtx, worker, nil)
+	}()
+
+	select {
+	case <-newestCh:
+	case err := <-notifyErrCh:
+		require.NoError(t, err)
+		t.Fatal("notify returned before delivering message to newest registration")
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for notify delivery")
+	}
+
+	require.NoError(t, <-notifyErrCh)
+}
