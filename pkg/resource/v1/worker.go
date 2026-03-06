@@ -24,6 +24,12 @@ type Worker struct {
 	// when it doesn't explicitly request a specific amount.
 	DefaultMemory uint64 `json:"defaultMemory,omitempty"`
 
+	// Arch defines worker's hardware architecture.
+	Arch Architecture `json:"arch,omitempty"`
+
+	// Runtime defines a runtime provided by this worker.
+	Runtime Runtime `json:"runtime,omitempty"`
+
 	Meta
 }
 

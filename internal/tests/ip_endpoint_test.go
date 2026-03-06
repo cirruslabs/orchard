@@ -3,15 +3,19 @@ package tests_test
 import (
 	"context"
 	"net"
+	"runtime"
 	"testing"
 	"time"
 
-	"github.com/cirruslabs/orchard/internal/imageconstant"
+	"github.com/avast/retry-go/v5"
 	"github.com/cirruslabs/orchard/internal/tests/devcontroller"
+	"github.com/cirruslabs/orchard/internal/tests/platformdependent"
 	"github.com/cirruslabs/orchard/internal/tests/wait"
 	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 func TestIPEndpoint(t *testing.T) {
@@ -19,16 +23,7 @@ func TestIPEndpoint(t *testing.T) {
 	devClient, _, _ := devcontroller.StartIntegrationTestEnvironment(t)
 
 	// Create a VM to which we'll connect via Controller's SSH server
-	err := devClient.VMs().Create(context.Background(), &v1.VM{
-		Meta: v1.Meta{
-			Name: "test-vm",
-		},
-		Image:    imageconstant.DefaultMacosImage,
-		CPU:      4,
-		Memory:   8 * 1024,
-		Headless: true,
-		Status:   v1.VMStatusPending,
-	})
+	err := devClient.VMs().Create(context.Background(), platformdependent.VM("test-vm"))
 	require.NoError(t, err)
 
 	// Wait for the VM to start
@@ -44,21 +39,30 @@ func TestIPEndpoint(t *testing.T) {
 	require.NoError(t, err)
 
 	// Connect to the VM over SSH to make sure the provided IP is valid
-	sshClient, err := ssh.Dial("tcp", ip+":22", &ssh.ClientConfig{
-		User: "admin",
-		Auth: []ssh.AuthMethod{
-			ssh.Password("admin"),
-		},
-		HostKeyCallback: func(hostname string, remote net.Addr, key ssh.PublicKey) error {
-			return nil
-		},
+	sshClient, err := retry.NewWithData[*ssh.Client](
+		retry.Context(t.Context()),
+		retry.DelayType(retry.FixedDelay),
+		retry.Delay(time.Second),
+		retry.Attempts(0),
+	).Do(func() (*ssh.Client, error) {
+		return ssh.Dial("tcp", ip+":22", &ssh.ClientConfig{
+			User: "admin",
+			Auth: []ssh.AuthMethod{
+				ssh.Password("admin"),
+			},
+			HostKeyCallback: func(hostname string, remote net.Addr, key ssh.PublicKey) error {
+				return nil
+			},
+		})
 	})
 	require.NoError(t, err)
+	defer sshClient.Close()
 
 	sshSession, err := sshClient.NewSession()
 	require.NoError(t, err)
+	defer sshSession.Close()
 
 	output, err := sshSession.CombinedOutput("uname -a")
 	require.NoError(t, err)
-	require.Contains(t, string(output), "Darwin")
+	require.Contains(t, string(output), cases.Title(language.English).String(runtime.GOOS))
 }

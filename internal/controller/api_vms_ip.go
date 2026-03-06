@@ -2,17 +2,21 @@ package controller
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
 	"time"
 
+	"github.com/avast/retry-go/v5"
 	"github.com/cirruslabs/orchard/internal/responder"
 	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
 	"github.com/cirruslabs/orchard/rpc"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
+
+var errIPRequest = errors.New("failed to request VM's IP")
 
 func (controller *Controller) ip(ctx *gin.Context) responder.Responder {
 	if responder := controller.authorizeAny(ctx, v1.ServiceAccountRoleComputeWrite,
@@ -38,40 +42,68 @@ func (controller *Controller) ip(ctx *gin.Context) responder.Responder {
 	}
 
 	// Send an IP resolution request and wait for the result
+	ip, err := retry.NewWithData[string](
+		retry.Context(waitContext),
+		retry.DelayType(retry.FixedDelay),
+		retry.Delay(time.Second),
+		retry.Attempts(0),
+		retry.LastErrorOnly(true),
+	).Do(func() (string, error) {
+		return controller.vmIP(ctx, waitContext, vm.Worker, vm.UID)
+	})
+	if err != nil {
+		if errors.Is(err, errIPRequest) {
+			controller.logger.Warnf("failed to request VM's IP from the worker %s: %v",
+				vm.Worker, err)
+
+			return responder.Code(http.StatusServiceUnavailable)
+		}
+
+		return responder.Error(err)
+	}
+
+	result := struct {
+		IP string `json:"ip"`
+	}{
+		IP: ip,
+	}
+
+	return responder.JSON(http.StatusOK, &result)
+}
+
+func (controller *Controller) vmIP(
+	ctx context.Context,
+	waitContext context.Context,
+	workerName string,
+	vmUID string,
+) (string, error) {
+	// Send an IP resolution request and wait for the result.
 	session := uuid.New().String()
 	boomerangConnCh, cancel := controller.ipRendezvous.Request(ctx, session)
 	defer cancel()
 
-	err = controller.workerNotifier.Notify(waitContext, vm.Worker, &rpc.WatchInstruction{
+	err := controller.workerNotifier.Notify(waitContext, workerName, &rpc.WatchInstruction{
 		Action: &rpc.WatchInstruction_ResolveIpAction{
 			ResolveIpAction: &rpc.WatchInstruction_ResolveIP{
 				Session: session,
-				VmUid:   vm.UID,
+				VmUid:   vmUID,
 			},
 		},
 	})
 	if err != nil {
-		controller.logger.Warnf("failed to request VM's IP from the worker %s: %v",
-			vm.Worker, err)
-
-		return responder.Code(http.StatusServiceUnavailable)
+		return "", fmt.Errorf("%w: failed to request VM's IP from the worker %s: %v",
+			errIPRequest, workerName, err)
 	}
 
 	select {
 	case rendezvousResponse := <-boomerangConnCh:
 		if rendezvousResponse.ErrorMessage != "" {
-			return responder.Error(fmt.Errorf("VM's IP resolution on the worker %s failed: %s",
-				vm.Worker, rendezvousResponse.ErrorMessage))
+			return "", fmt.Errorf("VM's IP resolution on the worker %s failed: %s",
+				workerName, rendezvousResponse.ErrorMessage)
 		}
 
-		result := struct {
-			IP string `json:"ip"`
-		}{
-			IP: rendezvousResponse.Result,
-		}
-
-		return responder.JSON(http.StatusOK, &result)
-	case <-ctx.Done():
-		return responder.Error(ctx.Err())
+		return rendezvousResponse.Result, nil
+	case <-waitContext.Done():
+		return "", waitContext.Err()
 	}
 }

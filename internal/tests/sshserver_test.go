@@ -5,18 +5,22 @@ import (
 	"crypto/subtle"
 	"fmt"
 	"net"
+	"runtime"
 	"testing"
 	"time"
 
+	"github.com/avast/retry-go/v5"
 	"github.com/cirruslabs/orchard/internal/controller"
-	"github.com/cirruslabs/orchard/internal/imageconstant"
 	"github.com/cirruslabs/orchard/internal/tests/devcontroller"
+	"github.com/cirruslabs/orchard/internal/tests/platformdependent"
 	"github.com/cirruslabs/orchard/internal/tests/wait"
 	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ed25519"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 func TestSSHServer(t *testing.T) {
@@ -39,16 +43,7 @@ func TestSSHServer(t *testing.T) {
 	)
 
 	// Create a VM to which we'll connect via Controller's SSH server
-	err = devClient.VMs().Create(context.Background(), &v1.VM{
-		Meta: v1.Meta{
-			Name: "test-vm",
-		},
-		Image:    imageconstant.DefaultMacosImage,
-		CPU:      4,
-		Memory:   8 * 1024,
-		Headless: true,
-		Status:   v1.VMStatusPending,
-	})
+	err = devClient.VMs().Create(context.Background(), platformdependent.VM("test-vm"))
 	require.NoError(t, err)
 
 	// Wait for the VM to start
@@ -88,8 +83,16 @@ func TestSSHServer(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
+	defer sshClientController.Close()
 
-	netConnVM, err := sshClientController.Dial("tcp", "test-vm:22")
+	netConnVM, err := retry.NewWithData[net.Conn](
+		retry.Context(t.Context()),
+		retry.DelayType(retry.FixedDelay),
+		retry.Delay(time.Second),
+		retry.Attempts(0),
+	).Do(func() (net.Conn, error) {
+		return sshClientController.Dial("tcp", "test-vm:22")
+	})
 	require.NoError(t, err)
 
 	sshConnVM, sshChansVM, sshReqsVM, err := ssh.NewClientConn(netConnVM, "test-vm:22", &ssh.ClientConfig{
@@ -104,11 +107,13 @@ func TestSSHServer(t *testing.T) {
 	require.NoError(t, err)
 
 	sshClientVM := ssh.NewClient(sshConnVM, sshChansVM, sshReqsVM)
+	defer sshClientVM.Close()
 
 	sshSessVM, err := sshClientVM.NewSession()
 	require.NoError(t, err)
+	defer sshSessVM.Close()
 
 	unameBytes, err := sshSessVM.Output("uname -a")
 	require.NoError(t, err)
-	require.Contains(t, string(unameBytes), "Darwin")
+	require.Contains(t, string(unameBytes), cases.Title(language.English).String(runtime.GOOS))
 }

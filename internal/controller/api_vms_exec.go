@@ -6,10 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"strconv"
 	"time"
 
+	"github.com/avast/retry-go/v5"
 	"github.com/cirruslabs/orchard/internal/controller/sshexec"
 	"github.com/cirruslabs/orchard/internal/execstream"
 	"github.com/cirruslabs/orchard/internal/responder"
@@ -51,12 +53,19 @@ func (controller *Controller) execVM(ctx *gin.Context) responder.Responder {
 	}
 
 	// Establish a port-forwarding connection to a VM's SSH port
-	portForwardConn, portForwardCancel, err := controller.portForwardConnection(ctx, waitContext,
-		vm.Worker, vm.UID, 22)
+	portForwardConn, err := retry.NewWithData[net.Conn](
+		retry.Context(waitContext),
+		retry.DelayType(retry.FixedDelay),
+		retry.Delay(time.Second),
+		retry.Attempts(0),
+		retry.LastErrorOnly(true),
+	).Do(func() (net.Conn, error) {
+		return controller.portForwardConnection(ctx, waitContext, vm.Worker, vm.UID, 22)
+	})
 	if err != nil {
 		return responder.JSON(http.StatusServiceUnavailable, NewErrorResponse("%v", err))
 	}
-	defer portForwardCancel()
+	defer portForwardConn.Close()
 
 	// Establish an SSH connection to a VM
 	exec, err := sshexec.New(portForwardConn, vm.SSHUsername(), vm.SSHPassword(), stdin)

@@ -558,6 +558,32 @@ components:
       title: Virtual Machine Specification
       type: object
       properties:
+        os:
+          type: string
+          description: |
+            Operating system used by a VM.
+
+            Set to `linux` to work around the Apple's limitation of 2 macOS VMs per host.
+
+            This field cannot be changed after the VM is created.
+          default: darwin
+          enum: [ darwin, linux ]
+        arch:
+          type: string
+          description: |
+            Hardware architecture to use for a VM.
+
+            This field cannot be changed after the VM is created.
+          default: arm64
+          enum: [ arm64, amd64 ]
+        runtime:
+          type: string
+          description: |
+            Runtime to use for a VM.
+
+            This field cannot be changed after the VM is created.
+          default: tart
+          enum: [ tart, vetu ]
         image:
           type: string
           description: VM image for this VM
@@ -709,20 +735,20 @@ components:
             
             When set to `stopped` or `suspended`, the VM does not consume any `resources`
             and can serve as a source for creating new Orchard VMs on the same worker. See
-            `tartName` for more details.
+            `localName` for more details.
             
             Note that you can only transition into `stopped` or `suspended` only once
             at the moment.
           default: running
           enum: [ running, stopped, suspended ]
-        tartName:
+        localName:
           type: string
           description: |
-            Name of the Tart VM backing this VM resource.
+            Name of the local VM backing this VM resource.
             
-            `tartName` is specific to a worker, whereas `name` is cluster-wide.
+            `localName` is specific to a worker, whereas `name` is cluster-wide.
             
-            `tartName` is useful in combination with `powerState` for creating stopped or suspended VMs
+            `localName` is useful in combination with `powerState` for creating stopped or suspended VMs
             that can be used to start or resume new VMs on the same worker.
             
             However, with great power comes great responsibility. You need to make sure:
@@ -735,6 +761,12 @@ components:
             new MAC addresses automatically, which will stop them from booting,
             since the suspend‑resume machinery expects the same MAC address
           readOnly: true
+        tartName:
+          type: string
+          description: |
+            Deprecated alias for `localName`.
+          readOnly: true
+          deprecated: true
     VMState:
       title: Virtual Machine State
       type: object

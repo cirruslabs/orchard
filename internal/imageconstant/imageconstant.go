@@ -1,3 +1,6 @@
 package imageconstant
 
-const DefaultMacosImage = "ghcr.io/cirruslabs/macos-tahoe-base:latest"
+const (
+	DefaultMacosImage = "ghcr.io/cirruslabs/macos-tahoe-base:latest"
+	DefaultLinuxImage = "ghcr.io/cirruslabs/ubuntu-runner-amd64:latest"
+)

@@ -273,6 +273,7 @@ NextVM:
 
 			if worker.Offline(scheduler.workerOfflineTimeout) ||
 				worker.SchedulingPaused ||
+				!compatibleArchAndRuntime(unscheduledVM, worker) ||
 				!resourcesRemaining.CanFit(unscheduledVM.Resources) ||
 				!worker.Labels.Contains(unscheduledVM.Labels) {
 				continue NextWorker
@@ -325,6 +326,10 @@ NextVM:
 
 				if currentWorker.Offline(scheduler.workerOfflineTimeout) ||
 					currentWorker.SchedulingPaused {
+					return ErrWorkerSchedulingSkipped
+				}
+
+				if !compatibleArchAndRuntime(unscheduledVM, *currentWorker) {
 					return ErrWorkerSchedulingSkipped
 				}
 
@@ -433,6 +438,10 @@ func ProcessVMs(vms []v1.VM) ([]v1.VM, WorkerInfos) {
 	return unscheduledVMs, workerToResources
 }
 
+func compatibleArchAndRuntime(vm v1.VM, worker v1.Worker) bool {
+	return vm.Arch == worker.Arch && vm.Runtime == worker.Runtime
+}
+
 func (scheduler *Scheduler) healthCheckingLoopIteration() (int, error) {
 	// Stats for the caller
 	var numVMs int
@@ -515,7 +524,9 @@ func (scheduler *Scheduler) healthCheckVM(txn storepkg.Transaction, vm v1.VM) er
 		vm.ScheduledAt = time.Time{}
 		vm.StartedAt = time.Time{}
 		vm.PowerState = v1.PowerStateRunning
-		vm.TartName = ondiskname.New(vm.Name, vm.UID, vm.RestartCount).String()
+		vm.LocalName = ondiskname.New(vm.Name, vm.UID, vm.RestartCount).String()
+		//nolint:staticcheck // yes, this is deprecated, but we still maintain it for backward compatibility
+		vm.TartName = vm.LocalName
 		vm.Conditions = []v1.Condition{
 			{
 				Type:  v1.ConditionTypeScheduled,

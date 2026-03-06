@@ -8,8 +8,8 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/cirruslabs/orchard/internal/imageconstant"
 	"github.com/cirruslabs/orchard/internal/tests/devcontroller"
+	"github.com/cirruslabs/orchard/internal/tests/platformdependent"
 	"github.com/cirruslabs/orchard/pkg/client"
 	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
 	"github.com/stretchr/testify/require"
@@ -22,14 +22,8 @@ func TestListVMEventsPagination(t *testing.T) {
 	)
 
 	ctx := context.Background()
-	vm := v1.VM{
-		Meta:     v1.Meta{Name: "test-vm"},
-		Image:    imageconstant.DefaultMacosImage,
-		CPU:      1,
-		Memory:   1024,
-		Headless: true,
-	}
-	require.NoError(t, devClient.VMs().Create(ctx, &vm))
+	vm := platformdependent.VM("test-vm")
+	require.NoError(t, devClient.VMs().Create(ctx, vm))
 
 	events := []v1.Event{
 		{Kind: v1.EventKindLogLine, Timestamp: 1, Payload: "one"},
