@@ -89,6 +89,9 @@ func (controller *Controller) portForward(
 
 		return responder.Error(err)
 	}
+	defer func() {
+		_ = rendezvousConn.Close()
+	}()
 
 	// Worker will asynchronously start port forwarding, so we wait
 	wsConn, err := websocket.Accept(ctx.Writer, ctx.Request, &websocket.AcceptOptions{
