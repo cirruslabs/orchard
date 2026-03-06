@@ -2,6 +2,7 @@ package worker
 
 import (
 	"github.com/cirruslabs/orchard/internal/dialer"
+	"github.com/cirruslabs/orchard/internal/worker/runtime"
 	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
 	"go.uber.org/zap"
 )
@@ -47,7 +48,7 @@ func WithDialer(dialer dialer.Dialer) Option {
 
 func WithSynthetic() Option {
 	return func(worker *Worker) {
-		worker.synthetic = true
+		worker.runtime = runtime.NewSynthetic()
 	}
 }
 

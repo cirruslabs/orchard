@@ -1,4 +1,4 @@
-package tart
+package vetu
 
 import (
 	"context"
@@ -75,7 +75,7 @@ func NewVM(
 
 			pullStartedAt := time.Now()
 
-			_, _, err := Tart(vm.ctx, vm.logger, "pull", vm.resource.Image)
+			_, _, err := Vetu(vm.ctx, vm.logger, "pull", vm.resource.Image)
 			if err != nil {
 				select {
 				case <-vm.ctx.Done():
@@ -139,7 +139,7 @@ func (vm *VM) id() string {
 func (vm *VM) cloneAndConfigure(ctx context.Context) error {
 	vm.SetStatusMessage("cloning VM...")
 
-	_, _, err := Tart(ctx, vm.logger, "clone", vm.resource.Image, vm.id())
+	_, _, err := Vetu(ctx, vm.logger, "clone", vm.resource.Image, vm.id())
 	if err != nil {
 		return err
 	}
@@ -147,7 +147,7 @@ func (vm *VM) cloneAndConfigure(ctx context.Context) error {
 	vm.ConditionsSet().Remove(v1.ConditionTypeCloning)
 
 	// Image FQN feature, see https://github.com/cirruslabs/orchard/issues/164
-	fqnRaw, _, err := Tart(ctx, vm.logger, "fqn", vm.resource.Image)
+	fqnRaw, _, err := Vetu(ctx, vm.logger, "fqn", vm.resource.Image)
 	if err == nil {
 		fqn := strings.TrimSpace(fqnRaw)
 		vm.imageFQN.Store(&fqn)
@@ -163,7 +163,7 @@ func (vm *VM) cloneAndConfigure(ctx context.Context) error {
 	}
 
 	if memory != 0 {
-		_, _, err = Tart(ctx, vm.logger, "set", "--memory",
+		_, _, err = Vetu(ctx, vm.logger, "set", "--memory",
 			strconv.FormatUint(memory, 10), vm.id())
 		if err != nil {
 			return err
@@ -178,7 +178,7 @@ func (vm *VM) cloneAndConfigure(ctx context.Context) error {
 	}
 
 	if cpu != 0 {
-		_, _, err = Tart(ctx, vm.logger, "set", "--cpu",
+		_, _, err = Vetu(ctx, vm.logger, "set", "--cpu",
 			strconv.FormatUint(cpu, 10), vm.id())
 		if err != nil {
 			return err
@@ -186,78 +186,8 @@ func (vm *VM) cloneAndConfigure(ctx context.Context) error {
 	}
 
 	if diskSize := vm.resource.DiskSize; diskSize != 0 {
-		_, _, err = Tart(ctx, vm.logger, "set", "--disk-size",
+		_, _, err = Vetu(ctx, vm.logger, "set", "--disk-size",
 			strconv.FormatUint(diskSize, 10), vm.id())
-		if err != nil {
-			return err
-		}
-	}
-
-	// Randomize VM's MAC-address, this is important when using shared (NAT) networking
-	// with full /var/db/dhcpd_leases file (e.g. 256 entries) having an expired entry
-	// for a MAC address used by some OCI image, for example:
-	//
-	// {
-	//	name=adminsVlMachine
-	//	ip_address=192.168.64.2
-	//	hw_address=1,11:11:11:11:11:11
-	//	identifier=1,11:11:11:11:11:11
-	//	lease=0x1234
-	//}
-	//
-	// The next VM to start with a MAC address 22:22:22:22:22:22 will assume that
-	// 192.168.64.2 is free (because its lease expired a long time ago) and will
-	// add a new entry using its MAC address and 192.168.64.2 to the
-	// /var/db/dhcpd_leases and won't delete the old entry:
-	//
-	// {
-	//	name=adminsVlMachine
-	//	ip_address=192.168.64.2
-	//	hw_address=1,11:11:11:11:11:11
-	//	identifier=1,11:11:11:11:11:11
-	//	lease=0x1234
-	// }
-	// {
-	//	name=adminsVlMachine
-	//	ip_address=192.168.64.2
-	//	hw_address=1,22:22:22:22:22:22
-	//	identifier=1,22:22:22:22:22:22
-	//	lease=0x67ade532
-	// }
-	//
-	// Afterward, when an OCI VM with MAC address 11:11:11:11:11:11 is cloned and run,
-	// it will re-use the 192.168.64.2 entry instead of creating a new one, even through
-	// its lease had already expired. The resulting /var/db/dhcpd_leases will look like this:
-	//
-	// {
-	//	name=adminsVlMachine
-	//	ip_address=192.168.64.2
-	//	hw_address=1,11:11:11:11:11:11
-	//	identifier=1,11:11:11:11:11:11
-	//	lease=0x67ade5c6
-	// }
-	// {
-	//	name=adminsVlMachine
-	//	ip_address=192.168.64.2
-	//	hw_address=1,22:22:22:22:22:22
-	//	identifier=1,22:22:22:22:22:22
-	//	lease=0x67ade532
-	// }
-	//
-	// As a result, you will see two VMs with different MAC address using an identical
-	// IP address 192.168.64.2.
-	//
-	// Another scenarion when this is important is when using bridged networking
-	// to avoid collisions when cloning from an OCI image on multiple hosts[1].
-	//
-	// [1]: https://github.com/cirruslabs/orchard/issues/181
-	_, _, err = Tart(ctx, vm.logger, "set", "--random-mac", vm.id())
-	if err != nil {
-		return err
-	}
-
-	if vm.resource.RandomSerial {
-		_, _, err = Tart(ctx, vm.logger, "set", "--random-serial", vm.id())
 		if err != nil {
 			return err
 		}
@@ -270,7 +200,7 @@ func (vm *VM) run(ctx context.Context, eventStreamer *client.EventStreamer) {
 	defer vm.ConditionsSet().RemoveAll(v1.ConditionTypeRunning, v1.ConditionTypeSuspending, v1.ConditionTypeStopping)
 
 	// Launch the startup script goroutine as close as possible
-	// to the VM startup (below) to avoid "tart ip" timing out
+	// to the VM startup (below) to avoid "vetu ip" timing out
 	if vm.resource.StartupScript != nil {
 		vm.SetStatusMessage("VM started, running startup script...")
 
@@ -282,37 +212,8 @@ func (vm *VM) run(ctx context.Context, eventStreamer *client.EventStreamer) {
 
 	var runArgs = []string{"run"}
 
-	if vm.resource.NetSoftnetDeprecated || vm.resource.NetSoftnet {
-		runArgs = append(runArgs, "--net-softnet")
-	}
-	if len(vm.resource.NetSoftnetAllow) != 0 {
-		runArgs = append(runArgs, "--net-softnet-allow", strings.Join(vm.resource.NetSoftnetAllow, ","))
-	}
-	if len(vm.resource.NetSoftnetBlock) != 0 {
-		runArgs = append(runArgs, "--net-softnet-block", strings.Join(vm.resource.NetSoftnetBlock, ","))
-	}
-	if vm.resource.NetBridged != "" {
-		runArgs = append(runArgs, fmt.Sprintf("--net-bridged=%s", vm.resource.NetBridged))
-	}
-
-	if vm.resource.Headless {
-		runArgs = append(runArgs, "--no-graphics")
-	}
-
-	if vm.resource.Nested {
-		runArgs = append(runArgs, "--nested")
-	}
-
-	if vm.resource.Suspendable {
-		runArgs = append(runArgs, "--suspendable")
-	}
-
-	for _, hostDir := range vm.resource.HostDirs {
-		runArgs = append(runArgs, fmt.Sprintf("--dir=%s", hostDir.String()))
-	}
-
 	runArgs = append(runArgs, vm.id())
-	_, _, err := Tart(ctx, vm.logger, runArgs...)
+	_, _, err := Vetu(ctx, vm.logger, runArgs...)
 	if err != nil {
 		select {
 		case <-vm.ctx.Done():
@@ -335,25 +236,11 @@ func (vm *VM) run(ctx context.Context, eventStreamer *client.EventStreamer) {
 }
 
 func (vm *VM) IP(ctx context.Context) (string, error) {
-	// Bridged networking is problematic, so try with
-	// the agent resolver first using a small timeout
-	if vm.resource.NetBridged != "" {
-		stdout, _, err := Tart(ctx, vm.logger, "ip", "--wait", "5",
-			"--resolver", "agent", vm.id())
-		if err == nil {
-			return strings.TrimSpace(stdout), nil
-		}
-	}
-
 	args := []string{"ip", "--wait", "60"}
-
-	if vm.resource.NetBridged != "" {
-		args = append(args, "--resolver", "arp")
-	}
 
 	args = append(args, vm.id())
 
-	stdout, _, err := Tart(ctx, vm.logger, args...)
+	stdout, _, err := Vetu(ctx, vm.logger, args...)
 	if err != nil {
 		return "", err
 	}
@@ -364,31 +251,7 @@ func (vm *VM) IP(ctx context.Context) (string, error) {
 func (vm *VM) Suspend() <-chan error {
 	errCh := make(chan error, 1)
 
-	select {
-	case <-vm.ctx.Done():
-		// VM is already suspended/stopped
-		errCh <- nil
-
-		return errCh
-	default:
-		// VM is still running
-	}
-
-	vm.SetStatusMessage("Suspending VM")
-	vm.ConditionsSet().Add(v1.ConditionTypeSuspending)
-
-	go func() {
-		_, _, err := Tart(context.Background(), zap.NewNop().Sugar(), "suspend", vm.id())
-		if err != nil {
-			err := fmt.Errorf("failed to suspend VM: %w", err)
-			vm.SetErr(err)
-			errCh <- err
-
-			return
-		}
-
-		errCh <- nil
-	}()
+	errCh <- fmt.Errorf("suspending Vetu VMs is not supported at the moment")
 
 	return errCh
 }
@@ -411,9 +274,9 @@ func (vm *VM) Stop() <-chan error {
 
 	go func() {
 		// Try to gracefully terminate the VM
-		_, _, _ = Tart(context.Background(), zap.NewNop().Sugar(), "stop", "--timeout", "5", vm.id())
+		_, _, _ = Vetu(context.Background(), zap.NewNop().Sugar(), "stop", "--timeout", "5", vm.id())
 
-		// Terminate the VM goroutine ("tart pull", "tart clone", "tart run", etc.) via the context
+		// Terminate the VM goroutine ("vetu pull", "vetu clone", "vetu run", etc.) via the context
 		vm.cancel()
 		vm.wg.Wait()
 
@@ -441,8 +304,8 @@ func (vm *VM) Start(eventStreamer *client.EventStreamer) {
 }
 
 func (vm *VM) Delete() error {
-	// Cancel all currently running Tart invocations
-	// (e.g. "tart clone", "tart run", etc.)
+	// Cancel all currently running Vetu invocations
+	// (e.g. "vetu clone", "vetu run", etc.)
 	vm.cancel()
 
 	if vm.ConditionsSet().Contains(v1.ConditionTypeCloning) {
@@ -450,7 +313,7 @@ func (vm *VM) Delete() error {
 		return nil
 	}
 
-	_, _, err := Tart(context.Background(), vm.logger, "delete", vm.id())
+	_, _, err := Vetu(context.Background(), vm.logger, "delete", vm.id())
 	if err != nil {
 		return fmt.Errorf("%w: failed to delete VM: %v", base.ErrVMFailed, err)
 	}

@@ -30,6 +30,14 @@ func (controller *Controller) createWorker(ctx *gin.Context) responder.Responder
 			NewErrorResponse("worker name %v", err))
 	}
 
+	// Provide platform defaults
+	if worker.Arch == "" {
+		worker.Arch = v1.ArchitectureARM64
+	}
+	if worker.Runtime == "" {
+		worker.Runtime = v1.RuntimeTart
+	}
+
 	currentTime := time.Now()
 	if worker.LastSeen.IsZero() {
 		worker.LastSeen = currentTime
@@ -97,6 +105,8 @@ func (controller *Controller) createWorker(ctx *gin.Context) responder.Responder
 				"from a different machine ID, delete this worker first to be able to re-create it"))
 		}
 
+		dbWorker.Arch = worker.Arch
+		dbWorker.Runtime = worker.Runtime
 		dbWorker.LastSeen = worker.LastSeen
 		dbWorker.Resources = worker.Resources
 		dbWorker.Labels = worker.Labels

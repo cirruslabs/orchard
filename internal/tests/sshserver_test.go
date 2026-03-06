@@ -5,18 +5,21 @@ import (
 	"crypto/subtle"
 	"fmt"
 	"net"
+	"runtime"
 	"testing"
 	"time"
 
 	"github.com/cirruslabs/orchard/internal/controller"
-	"github.com/cirruslabs/orchard/internal/imageconstant"
 	"github.com/cirruslabs/orchard/internal/tests/devcontroller"
+	"github.com/cirruslabs/orchard/internal/tests/platformdependent"
 	"github.com/cirruslabs/orchard/internal/tests/wait"
 	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ed25519"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 func TestSSHServer(t *testing.T) {
@@ -39,16 +42,7 @@ func TestSSHServer(t *testing.T) {
 	)
 
 	// Create a VM to which we'll connect via Controller's SSH server
-	err = devClient.VMs().Create(context.Background(), &v1.VM{
-		Meta: v1.Meta{
-			Name: "test-vm",
-		},
-		Image:    imageconstant.DefaultMacosImage,
-		CPU:      4,
-		Memory:   8 * 1024,
-		Headless: true,
-		Status:   v1.VMStatusPending,
-	})
+	err = devClient.VMs().Create(context.Background(), platformdependent.VM("test-vm"))
 	require.NoError(t, err)
 
 	// Wait for the VM to start
@@ -110,5 +104,5 @@ func TestSSHServer(t *testing.T) {
 
 	unameBytes, err := sshSessVM.Output("uname -a")
 	require.NoError(t, err)
-	require.Contains(t, string(unameBytes), "Darwin")
+	require.Contains(t, string(unameBytes), cases.Title(language.English).String(runtime.GOOS))
 }

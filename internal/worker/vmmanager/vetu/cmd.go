@@ -1,4 +1,4 @@
-package tart
+package vetu
 
 import (
 	"context"
@@ -8,12 +8,12 @@ import (
 	"go.uber.org/zap"
 )
 
-const tartCommandName = "tart"
+const vetuCommandName = "vetu"
 
-func Tart(ctx context.Context, logger *zap.SugaredLogger, args ...string) (string, string, error) {
-	return base.Cmd(ctx, logger, tartCommandName, args...)
+func Vetu(ctx context.Context, logger *zap.SugaredLogger, args ...string) (string, string, error) {
+	return base.Cmd(ctx, logger, vetuCommandName, args...)
 }
 
 func List(ctx context.Context, logger *zap.SugaredLogger) ([]vmmanager.VMInfo, error) {
-	return base.List(ctx, logger, tartCommandName)
+	return base.List(ctx, logger, vetuCommandName)
 }

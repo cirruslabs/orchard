@@ -43,13 +43,16 @@ func (controller *Controller) createVM(ctx *gin.Context) responder.Responder {
 		return responder.JSON(http.StatusPreconditionFailed, NewErrorResponse("VM image is empty"))
 	}
 
+	// Provide defaults
 	vm.Status = v1.VMStatusPending
 	vm.CreatedAt = time.Now()
 	vm.RestartedAt = time.Time{}
 	vm.RestartCount = 0
 	vm.UID = uuid.New().String()
 	vm.PowerState = v1.PowerStateRunning
-	vm.TartName = ondiskname.New(vm.Name, vm.UID, vm.RestartCount).String()
+	vm.LocalName = ondiskname.New(vm.Name, vm.UID, vm.RestartCount).String()
+	//nolint:staticcheck // yes, this is deprecated, but we still maintain it for backward compatibility
+	vm.TartName = vm.LocalName
 	vm.Generation = 0
 	vm.ObservedGeneration = 0
 	vm.Conditions = []v1.Condition{
@@ -59,6 +62,17 @@ func (controller *Controller) createVM(ctx *gin.Context) responder.Responder {
 		},
 	}
 
+	// Provide platform defaults
+	if vm.OS == "" {
+		vm.OS = v1.OSDarwin
+	}
+	if vm.Arch == "" {
+		vm.Arch = v1.ArchitectureARM64
+	}
+	if vm.Runtime == "" {
+		vm.Runtime = v1.RuntimeTart
+	}
+
 	// Softnet-specific logic: automatically enable Softnet when NetSoftnetAllow or NetSoftnetBlock are set
 	// and propagate deprecated and non-deprecated boolean fields into each other
 	if vm.NetSoftnetDeprecated || vm.NetSoftnet || len(vm.NetSoftnetAllow) != 0 || len(vm.NetSoftnetBlock) != 0 {
@@ -66,12 +80,17 @@ func (controller *Controller) createVM(ctx *gin.Context) responder.Responder {
 		vm.NetSoftnet = true
 	}
 
-	// Provide resource defaults
-	if vm.Resources == nil {
-		vm.Resources = make(v1.Resources)
-	}
-	if _, ok := vm.Resources[v1.ResourceTartVMs]; !ok {
-		vm.Resources[v1.ResourceTartVMs] = 1
+	// Apple limits the number of macOS VMs to 2,
+	// so we need to provide a resource default
+	// (if not otherwise overridden by the user)
+	// to avoid a case when more than 2 VMs run
+	if vm.OS == v1.OSDarwin && vm.Runtime == v1.RuntimeTart {
+		if vm.Resources == nil {
+			vm.Resources = make(v1.Resources)
+		}
+		if _, ok := vm.Resources[v1.ResourceTartVMs]; !ok {
+			vm.Resources[v1.ResourceTartVMs] = 1
+		}
 	}
 
 	// Validate image pull policy and provide a default value if it's missing
@@ -146,6 +165,12 @@ func (controller *Controller) updateVMSpec(ctx *gin.Context) responder.Responder
 		if dbVM.TerminalState() {
 			return responder.JSON(http.StatusPreconditionFailed,
 				NewErrorResponse("cannot update VM in a terminal state"))
+		}
+
+		// Platform sanity checks
+		if dbVM.OS != userVM.OS || dbVM.Arch != userVM.Arch || dbVM.Runtime != userVM.Runtime {
+			return responder.JSON(http.StatusPreconditionFailed, NewErrorResponse("\"os\", \"arch\" "+
+				"and \"runtime\" fields cannot be modified"))
 		}
 
 		// Softnet-specific logic: automatically enable Softnet when NetSoftnetAllow or NetSoftnetBlock are set

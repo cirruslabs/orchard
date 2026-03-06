@@ -192,12 +192,90 @@ func New(opts ...Option) (*Controller, error) {
 			ErrInitFailed, err)
 	}
 
+	// Migrate VMs that were created before platform fields were introduced
+	if err := controller.vmsEnsurePlatformDefaults(); err != nil {
+		return nil, fmt.Errorf("%w: failed to migrate VM platform defaults: %v", ErrInitFailed, err)
+	}
+
+	// Migrate workers that were created before platform fields were introduced
+	if err := controller.workersEnsurePlatformDefaults(); err != nil {
+		return nil, fmt.Errorf("%w: failed to migrate VM platform defaults: %v", ErrInitFailed, err)
+	}
+
 	// Metrics
 	if err := controller.initializeMetrics(); err != nil {
 		return nil, err
 	}
 
 	return controller, nil
+}
+
+func (controller *Controller) vmsEnsurePlatformDefaults() error {
+	return controller.store.Update(func(txn storepkg.Transaction) error {
+		vms, err := txn.ListVMs()
+		if err != nil {
+			return err
+		}
+
+		for _, vm := range vms {
+			updated := false
+
+			if vm.OS == "" {
+				vm.OS = v1.OSDarwin
+				updated = true
+			}
+			if vm.Arch == "" {
+				vm.Arch = v1.ArchitectureARM64
+				updated = true
+			}
+			if vm.Runtime == "" {
+				vm.Runtime = v1.RuntimeTart
+				updated = true
+			}
+
+			if !updated {
+				continue
+			}
+
+			if err := txn.SetVM(vm); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
+}
+
+func (controller *Controller) workersEnsurePlatformDefaults() error {
+	return controller.store.Update(func(txn storepkg.Transaction) error {
+		workers, err := txn.ListWorkers()
+		if err != nil {
+			return err
+		}
+
+		for _, worker := range workers {
+			updated := false
+
+			if worker.Arch == "" {
+				worker.Arch = v1.ArchitectureARM64
+				updated = true
+			}
+			if worker.Runtime == "" {
+				worker.Runtime = v1.RuntimeTart
+				updated = true
+			}
+
+			if !updated {
+				continue
+			}
+
+			if err := txn.SetWorker(worker); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
 }
 
 func (controller *Controller) ServiceAccounts() ([]v1.ServiceAccount, error) {

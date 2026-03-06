@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/cirruslabs/orchard/internal/execstream"
-	"github.com/cirruslabs/orchard/internal/imageconstant"
 	"github.com/cirruslabs/orchard/internal/tests/devcontroller"
+	"github.com/cirruslabs/orchard/internal/tests/platformdependent"
 	"github.com/cirruslabs/orchard/internal/tests/wait"
 	"github.com/cirruslabs/orchard/pkg/client"
 	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
@@ -137,13 +137,7 @@ func prepareForExec(t *testing.T) (*client.Client, string) {
 
 	vmName := "test-vm-exec-" + uuid.NewString()
 
-	err := devClient.VMs().Create(t.Context(), &v1.VM{
-		Meta: v1.Meta{
-			Name: vmName,
-		},
-		Image:    imageconstant.DefaultMacosImage,
-		Headless: true,
-	})
+	err := devClient.VMs().Create(t.Context(), platformdependent.VM(vmName))
 	require.NoError(t, err)
 
 	require.True(t, wait.Wait(2*time.Minute, func() bool {

@@ -1,6 +1,8 @@
 package v1
 
 import (
+	"encoding/json"
+	"fmt"
 	"time"
 )
 
@@ -136,6 +138,24 @@ func (vm *VM) IsScheduled() bool {
 }
 
 type VMSpec struct {
+	// OS defines the operating system used by a VM.
+	//
+	// Previously only Darwin was supported,
+	// so this field defaults to that when not set.
+	OS OS `json:"os,omitempty"`
+
+	// Arch defines the hardware architecture to use for a VM.
+	//
+	// Previously, only Tart on arm64 was supported,
+	// so this field defaults to that when not set.
+	Arch Architecture `json:"arch,omitempty"`
+
+	// Runtime defines the runtime to use for a VM.
+	//
+	// Previously, only Tart on arm64 was supported,
+	// so this field defaults to that when not set.
+	Runtime Runtime `json:"runtime,omitempty"`
+
 	NetSoftnetDeprecated bool       `json:"net-softnet,omitempty"`
 	NetSoftnet           bool       `json:"netSoftnet,omitempty"`
 	NetSoftnetAllow      []string   `json:"netSoftnetAllow,omitempty"`
@@ -145,6 +165,9 @@ type VMSpec struct {
 }
 
 type VMSpecReadOnly struct {
+	LocalName string `json:"localName,omitempty"`
+
+	// Deprecated: use LocalName instead.
 	TartName string `json:"tartName,omitempty"`
 }
 
@@ -154,6 +177,111 @@ type VMState struct {
 	ObservedGeneration uint64 `json:"observedGeneration"`
 
 	Conditions []Condition `json:"conditions,omitempty"`
+}
+
+type OS string
+
+const (
+	OSDarwin OS = "darwin"
+	OSLinux  OS = "linux"
+)
+
+func NewOSFromString(osRaw string) (OS, error) {
+	switch osRaw {
+	case "", string(OSDarwin):
+		return OSDarwin, nil
+	case string(OSLinux):
+		return OSLinux, nil
+	default:
+		return "", fmt.Errorf("unsupported OS: %q", osRaw)
+	}
+}
+
+func (os *OS) UnmarshalJSON(data []byte) error {
+	var osRaw string
+
+	if err := json.Unmarshal(data, &osRaw); err != nil {
+		return err
+	}
+
+	parsedOS, err := NewOSFromString(osRaw)
+	if err != nil {
+		return err
+	}
+
+	*os = parsedOS
+
+	return nil
+}
+
+type Architecture string
+
+const (
+	ArchitectureARM64 Architecture = "arm64"
+	ArchitectureAMD64 Architecture = "amd64"
+)
+
+func NewArchitectureFromString(rawArch string) (Architecture, error) {
+	switch rawArch {
+	case "", string(ArchitectureARM64):
+		return ArchitectureARM64, nil
+	case string(ArchitectureAMD64):
+		return ArchitectureAMD64, nil
+	default:
+		return "", fmt.Errorf("unsupported architecture: %q", rawArch)
+	}
+}
+
+func (arch *Architecture) UnmarshalJSON(data []byte) error {
+	var rawArch string
+
+	if err := json.Unmarshal(data, &rawArch); err != nil {
+		return err
+	}
+
+	parsedArch, err := NewArchitectureFromString(rawArch)
+	if err != nil {
+		return err
+	}
+
+	*arch = parsedArch
+
+	return nil
+}
+
+type Runtime string
+
+const (
+	RuntimeTart Runtime = "tart"
+	RuntimeVetu Runtime = "vetu"
+)
+
+func NewRuntimeFromString(rawRuntime string) (Runtime, error) {
+	switch rawRuntime {
+	case "", string(RuntimeTart):
+		return RuntimeTart, nil
+	case string(RuntimeVetu):
+		return RuntimeVetu, nil
+	default:
+		return "", fmt.Errorf("unsupported runtime: %q", rawRuntime)
+	}
+}
+
+func (runtime *Runtime) UnmarshalJSON(data []byte) error {
+	var rawRuntime string
+
+	if err := json.Unmarshal(data, &rawRuntime); err != nil {
+		return err
+	}
+
+	parsedRuntime, err := NewRuntimeFromString(rawRuntime)
+	if err != nil {
+		return err
+	}
+
+	*runtime = parsedRuntime
+
+	return nil
 }
 
 type PowerState string
