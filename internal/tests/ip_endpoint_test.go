@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/avast/retry-go/v5"
 	"github.com/cirruslabs/orchard/internal/tests/devcontroller"
 	"github.com/cirruslabs/orchard/internal/tests/platformdependent"
 	"github.com/cirruslabs/orchard/internal/tests/wait"
@@ -38,19 +39,28 @@ func TestIPEndpoint(t *testing.T) {
 	require.NoError(t, err)
 
 	// Connect to the VM over SSH to make sure the provided IP is valid
-	sshClient, err := ssh.Dial("tcp", ip+":22", &ssh.ClientConfig{
-		User: "admin",
-		Auth: []ssh.AuthMethod{
-			ssh.Password("admin"),
-		},
-		HostKeyCallback: func(hostname string, remote net.Addr, key ssh.PublicKey) error {
-			return nil
-		},
+	sshClient, err := retry.NewWithData[*ssh.Client](
+		retry.Context(t.Context()),
+		retry.DelayType(retry.FixedDelay),
+		retry.Delay(time.Second),
+		retry.Attempts(0),
+	).Do(func() (*ssh.Client, error) {
+		return ssh.Dial("tcp", ip+":22", &ssh.ClientConfig{
+			User: "admin",
+			Auth: []ssh.AuthMethod{
+				ssh.Password("admin"),
+			},
+			HostKeyCallback: func(hostname string, remote net.Addr, key ssh.PublicKey) error {
+				return nil
+			},
+		})
 	})
 	require.NoError(t, err)
+	defer sshClient.Close()
 
 	sshSession, err := sshClient.NewSession()
 	require.NoError(t, err)
+	defer sshSession.Close()
 
 	output, err := sshSession.CombinedOutput("uname -a")
 	require.NoError(t, err)

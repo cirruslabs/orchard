@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/avast/retry-go/v5"
 	"github.com/cirruslabs/orchard/internal/controller"
 	"github.com/cirruslabs/orchard/internal/tests/devcontroller"
 	"github.com/cirruslabs/orchard/internal/tests/platformdependent"
@@ -82,8 +83,16 @@ func TestSSHServer(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
+	defer sshClientController.Close()
 
-	netConnVM, err := sshClientController.Dial("tcp", "test-vm:22")
+	netConnVM, err := retry.NewWithData[net.Conn](
+		retry.Context(t.Context()),
+		retry.DelayType(retry.FixedDelay),
+		retry.Delay(time.Second),
+		retry.Attempts(0),
+	).Do(func() (net.Conn, error) {
+		return sshClientController.Dial("tcp", "test-vm:22")
+	})
 	require.NoError(t, err)
 
 	sshConnVM, sshChansVM, sshReqsVM, err := ssh.NewClientConn(netConnVM, "test-vm:22", &ssh.ClientConfig{
@@ -98,9 +107,11 @@ func TestSSHServer(t *testing.T) {
 	require.NoError(t, err)
 
 	sshClientVM := ssh.NewClient(sshConnVM, sshChansVM, sshReqsVM)
+	defer sshClientVM.Close()
 
 	sshSessVM, err := sshClientVM.NewSession()
 	require.NoError(t, err)
+	defer sshSessVM.Close()
 
 	unameBytes, err := sshSessVM.Output("uname -a")
 	require.NoError(t, err)
