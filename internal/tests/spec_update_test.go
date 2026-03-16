@@ -3,6 +3,7 @@ package tests
 import (
 	"context"
 	"fmt"
+	"runtime"
 	"testing"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/cirruslabs/orchard/internal/tests/devcontroller"
 	"github.com/cirruslabs/orchard/internal/tests/wait"
 	"github.com/cirruslabs/orchard/internal/worker/ondiskname"
+	"github.com/cirruslabs/orchard/internal/worker/vmmanager"
 	"github.com/cirruslabs/orchard/internal/worker/vmmanager/tart"
 	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
 	"github.com/samber/lo"
@@ -19,6 +21,10 @@ import (
 )
 
 func TestSpecUpdateSoftnet(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("Softnet is only supported on macOS with Tart")
+	}
+
 	devClient, _, _ := devcontroller.StartIntegrationTestEnvironment(t)
 
 	// Create a VM
@@ -82,6 +88,10 @@ func TestSpecUpdateSoftnet(t *testing.T) {
 }
 
 func TestSpecUpdateSoftnetSuspendable(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("Softnet is only supported on macOS with Tart")
+	}
+
 	devClient, _, _ := devcontroller.StartIntegrationTestEnvironment(t)
 
 	// Create a suspendable VM with Softnet enabled
@@ -150,6 +160,10 @@ func TestSpecUpdateSoftnetSuspendable(t *testing.T) {
 }
 
 func TestSpecUpdatePowerStateSuspend(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("VM suspension is only supported on macOS with Tart")
+	}
+
 	devClient, _, _ := devcontroller.StartIntegrationTestEnvironment(t)
 
 	// Create a suspendable VM with Softnet enabled
@@ -212,8 +226,8 @@ func TestSpecUpdatePowerStateSuspend(t *testing.T) {
 	// Ensure that the VM is present and is suspended
 	tartVMs, err := tart.List(t.Context(), zap.NewNop().Sugar())
 	require.NoError(t, err)
-	require.Contains(t, tartVMs, tart.VMInfo{
-		Name:    vm.TartName,
+	require.Contains(t, tartVMs, vmmanager.VMInfo{
+		Name:    vm.LocalName,
 		Source:  "local",
 		State:   "suspended",
 		Running: false,
@@ -221,6 +235,10 @@ func TestSpecUpdatePowerStateSuspend(t *testing.T) {
 }
 
 func TestSpecUpdatePowerStateStopped(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("VM suspension and Softnet is only supported on macOS with Tart")
+	}
+
 	devClient, _, _ := devcontroller.StartIntegrationTestEnvironment(t)
 
 	// Create a suspendable VM with Softnet enabled
@@ -283,8 +301,8 @@ func TestSpecUpdatePowerStateStopped(t *testing.T) {
 	// Ensure that the VM is present and is suspended
 	tartVMs, err := tart.List(t.Context(), zap.NewNop().Sugar())
 	require.NoError(t, err)
-	require.Contains(t, tartVMs, tart.VMInfo{
-		Name:    vm.TartName,
+	require.Contains(t, tartVMs, vmmanager.VMInfo{
+		Name:    vm.LocalName,
 		Source:  "local",
 		State:   "stopped",
 		Running: false,

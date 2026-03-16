@@ -5,8 +5,8 @@ task:
       name: dev-mini
     resources:
       tart-vms: 2
-  pull_script:
-    - tart pull ghcr.io/cirruslabs/macos-sonoma-base:latest
+  pre_pull_script:
+    - tart pull ghcr.io/cirruslabs/macos-tahoe-base:latest
   test_script:
     - go test -ldflags="-B gobuildid" -v -count=1 ./...
   always:

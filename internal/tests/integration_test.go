@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -14,9 +15,10 @@ import (
 	"github.com/cirruslabs/orchard/internal/controller"
 	"github.com/cirruslabs/orchard/internal/imageconstant"
 	"github.com/cirruslabs/orchard/internal/tests/devcontroller"
+	"github.com/cirruslabs/orchard/internal/tests/platformdependent"
 	"github.com/cirruslabs/orchard/internal/tests/wait"
 	"github.com/cirruslabs/orchard/internal/worker/ondiskname"
-	"github.com/cirruslabs/orchard/internal/worker/vmmanager/tart"
+	"github.com/cirruslabs/orchard/internal/worker/vmmanager"
 	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -24,6 +26,8 @@ import (
 	"go.uber.org/zap"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/exp/slices"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 func TestSingleVM(t *testing.T) {
@@ -34,20 +38,14 @@ func TestSingleVM(t *testing.T) {
 		t.Fatal(err)
 	}
 	assert.Equal(t, 1, len(workers))
-	err = devClient.VMs().Create(context.Background(), &v1.VM{
-		Meta: v1.Meta{
-			Name: "test-vm",
-		},
-		Image:    imageconstant.DefaultMacosImage,
-		CPU:      4,
-		Memory:   8 * 1024,
-		Headless: true,
-		Status:   v1.VMStatusPending,
-		StartupScript: &v1.VMScript{
-			ScriptContent: "echo \"Hello, $FOO!\"\nfor i in $(seq 1 1000); do echo \"$i\"; done",
-			Env:           map[string]string{"FOO": "Bar"},
-		},
-	})
+
+	vm := platformdependent.VM("test-vm")
+	vm.StartupScript = &v1.VMScript{
+		ScriptContent: "echo \"Hello, $FOO!\"\nfor i in $(seq 1 1000); do echo \"$i\"; done",
+		Env:           map[string]string{"FOO": "Bar"},
+	}
+
+	err = devClient.VMs().Create(context.Background(), vm)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -82,7 +80,7 @@ func TestSingleVM(t *testing.T) {
 	assert.Contains(t, strings.Join(logLines, "\n"), strings.Join(expectedLogs, "\n"))
 
 	// Ensure that the VM exists on disk before deleting it
-	require.True(t, hasVMByPredicate(t, func(info tart.VMInfo) bool {
+	require.True(t, hasVMByPredicate(t, func(info vmmanager.VMInfo) bool {
 		return strings.Contains(info.Name, runningVM.UID)
 	}, nil))
 
@@ -93,7 +91,7 @@ func TestSingleVM(t *testing.T) {
 	assert.True(t, wait.Wait(2*time.Minute, func() bool {
 		t.Logf("Waiting for the VM to be garbage collected...")
 
-		return !hasVMByPredicate(t, func(info tart.VMInfo) bool {
+		return !hasVMByPredicate(t, func(info vmmanager.VMInfo) bool {
 			return strings.Contains(info.Name, runningVM.UID)
 		}, nil)
 	}), "VM was not garbage collected in a timely manner")
@@ -107,19 +105,13 @@ func TestFailedStartupScript(t *testing.T) {
 		t.Fatal(err)
 	}
 	assert.Equal(t, 1, len(workers))
-	err = devClient.VMs().Create(context.Background(), &v1.VM{
-		Meta: v1.Meta{
-			Name: "test-vm",
-		},
-		Image:    imageconstant.DefaultMacosImage,
-		CPU:      4,
-		Memory:   8 * 1024,
-		Headless: true,
-		Status:   v1.VMStatusPending,
-		StartupScript: &v1.VMScript{
-			ScriptContent: "exit 123",
-		},
-	})
+
+	vm := platformdependent.VM("test-vm")
+	vm.StartupScript = &v1.VMScript{
+		ScriptContent: "set +e && exit 123",
+	}
+
+	err = devClient.VMs().Create(context.Background(), vm)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -145,15 +137,7 @@ func TestPortForwarding(t *testing.T) {
 	devClient, _, _ := devcontroller.StartIntegrationTestEnvironment(t)
 
 	// Create a generic macOS VM
-	err := devClient.VMs().Create(ctx, &v1.VM{
-		Meta: v1.Meta{
-			Name: "test-vm",
-		},
-		Image:    imageconstant.DefaultMacosImage,
-		CPU:      4,
-		Memory:   8 * 1024,
-		Headless: true,
-	})
+	err := devClient.VMs().Create(ctx, platformdependent.VM("test-vm"))
 	require.NoError(t, err)
 
 	// Establish port forwarding to VMs SSH port
@@ -185,9 +169,9 @@ func TestPortForwarding(t *testing.T) {
 	sshSession, err := sshClient.NewSession()
 	require.NoError(t, err)
 
-	unameOutput, err := sshSession.Output("uname -mo")
+	unameOutput, err := sshSession.Output("uname -a")
 	require.NoError(t, err)
-	require.Contains(t, string(unameOutput), "Darwin arm64")
+	require.Contains(t, string(unameOutput), cases.Title(language.English).String(runtime.GOOS))
 }
 
 // TestSchedulerHealthCheckingNonExistentWorker ensures that scheduler
@@ -202,6 +186,12 @@ func TestSchedulerHealthCheckingNonExistentWorker(t *testing.T) {
 		dummyWorkerName = "dummy-worker"
 		dummyVMName     = "dummy-vm"
 	)
+
+	// Prepare a dummy VM
+	vm := platformdependent.VM(dummyVMName)
+	vm.Resources = map[string]uint64{
+		"unique-resource": 1,
+	}
 
 	// Create a dummy worker that won't update it's LastSeen
 	// timestamp, which will result in scheduler failing VMs
@@ -220,22 +210,13 @@ func TestSchedulerHealthCheckingNonExistentWorker(t *testing.T) {
 			v1.ResourceTartVMs: 1,
 			"unique-resource":  1,
 		},
+		Arch:    vm.Arch,
+		Runtime: vm.Runtime,
 	})
 	require.NoError(t, err)
 
 	// Create a dummy VM
-	err = devClient.VMs().Create(context.Background(), &v1.VM{
-		Meta: v1.Meta{
-			Name: dummyVMName,
-		},
-		Image:    imageconstant.DefaultMacosImage,
-		CPU:      4,
-		Memory:   8 * 1024,
-		Headless: true,
-		Resources: map[string]uint64{
-			"unique-resource": 1,
-		},
-	})
+	err = devClient.VMs().Create(context.Background(), vm)
 	require.NoError(t, err)
 
 	// Wait for the dummy VM to get scheduled to a dummy worker
@@ -263,7 +244,7 @@ func TestSchedulerHealthCheckingNonExistentWorker(t *testing.T) {
 	}), "VM was not marked as failed in time")
 
 	// Double check VM's status and status message
-	vm, err := devClient.VMs().Get(context.Background(), dummyVMName)
+	vm, err = devClient.VMs().Get(context.Background(), dummyVMName)
 	require.NoError(t, err)
 	require.Equal(t, v1.VMStatusFailed, vm.Status)
 	require.Equal(t, "VM is assigned to a worker that doesn't exist anymore", vm.StatusMessage)
@@ -285,6 +266,12 @@ func TestSchedulerHealthCheckingOfflineWorker(t *testing.T) {
 		dummyVMName     = "dummy-vm"
 	)
 
+	// Prepare a dummy VM that will be assigned to our dummy worker
+	vm := platformdependent.VM(dummyVMName)
+	vm.Resources = map[string]uint64{
+		"unique-resource": 1,
+	}
+
 	// Create a dummy worker that will be eventually marked as offline
 	// because we won't update the LastSeen field
 	_, err := devClient.Workers().Create(ctx, v1.Worker{
@@ -297,22 +284,13 @@ func TestSchedulerHealthCheckingOfflineWorker(t *testing.T) {
 			v1.ResourceTartVMs: 1,
 			"unique-resource":  1,
 		},
+		Arch:    vm.Arch,
+		Runtime: vm.Runtime,
 	})
 	require.NoError(t, err)
 
-	// Create a dummy VM that will be assigned to our dummy worker
-	err = devClient.VMs().Create(context.Background(), &v1.VM{
-		Meta: v1.Meta{
-			Name: dummyVMName,
-		},
-		Image:    imageconstant.DefaultMacosImage,
-		CPU:      4,
-		Memory:   8 * 1024,
-		Headless: true,
-		Resources: map[string]uint64{
-			"unique-resource": 1,
-		},
-	})
+	// Create a dummy VM
+	err = devClient.VMs().Create(context.Background(), vm)
 	require.NoError(t, err)
 
 	// Wait for the VM to be marked as failed
@@ -337,15 +315,12 @@ func TestSchedulerHealthCheckingOfflineWorker(t *testing.T) {
 // and are not present in the API anymore are garbage-collected by the Orchard Worker
 // at startup.
 func TestVMGarbageCollection(t *testing.T) {
-	ctx := context.Background()
-
 	logger, err := zap.NewDevelopment()
 	require.NoError(t, err)
 
 	// Create on-disk Tart VM that looks like it's managed by Orchard
 	vmName := ondiskname.New("test", uuid.New().String(), 0).String()
-	_, _, err = tart.Tart(ctx, logger.Sugar(), "clone",
-		imageconstant.DefaultMacosImage, vmName)
+	err = platformdependent.CloneDefaultImage(t.Context(), logger.Sugar(), vmName)
 	require.NoError(t, err)
 
 	// Make sure that this VM exists
@@ -363,6 +338,10 @@ func TestVMGarbageCollection(t *testing.T) {
 }
 
 func TestHostDirs(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("HostDirs is only supported on macOS with Tart")
+	}
+
 	devClient, _, _ := devcontroller.StartIntegrationTestEnvironment(t)
 
 	dirToMount := t.TempDir()
@@ -431,6 +410,10 @@ func TestHostDirs(t *testing.T) {
 }
 
 func TestHostDirsInvalidPolicy(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("HostDirs is only supported on macOS with Tart")
+	}
+
 	devClient, _, _ := devcontroller.StartIntegrationTestEnvironment(t)
 
 	dirToMount := t.TempDir()
@@ -468,17 +451,17 @@ func TestHostDirsInvalidPolicy(t *testing.T) {
 }
 
 func hasVM(t *testing.T, name string, logger *zap.Logger) bool {
-	return hasVMByPredicate(t, func(vmInfo tart.VMInfo) bool {
+	return hasVMByPredicate(t, func(vmInfo vmmanager.VMInfo) bool {
 		return vmInfo.Name == name
 	}, logger)
 }
 
-func hasVMByPredicate(t *testing.T, predicate func(tart.VMInfo) bool, logger *zap.Logger) bool {
+func hasVMByPredicate(t *testing.T, predicate func(vmmanager.VMInfo) bool, logger *zap.Logger) bool {
 	if logger == nil {
 		logger = zap.Must(zap.NewDevelopment())
 	}
 
-	vmInfos, err := tart.List(context.Background(), logger.Sugar())
+	vmInfos, err := platformdependent.ListVMs(context.Background(), logger.Sugar())
 	require.NoError(t, err)
 
 	return slices.ContainsFunc(vmInfos, predicate)

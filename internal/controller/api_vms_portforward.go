@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/avast/retry-go/v5"
 	storepkg "github.com/cirruslabs/orchard/internal/controller/store"
 	"github.com/cirruslabs/orchard/internal/netconncancel"
 	"github.com/cirruslabs/orchard/internal/proxy"
@@ -21,6 +22,8 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
+
+var errPortForwardRequest = errors.New("failed to request port forwarding")
 
 func (controller *Controller) portForwardVM(ctx *gin.Context) responder.Responder {
 	if responder := controller.authorizeAny(ctx, v1.ServiceAccountRoleComputeWrite,
@@ -67,105 +70,92 @@ func (controller *Controller) portForward(
 	port uint32,
 ) responder.Responder {
 	// Request and wait for a connection with a worker
-	rendezvousCtx, rendezvousCtxCancel := context.WithCancel(ctx)
-	defer rendezvousCtxCancel()
-
-	session := uuid.New().String()
-
-	boomerangConnCh, cancel := controller.connRendezvous.Request(rendezvousCtx, session)
-	defer cancel()
-
-	// Send request to worker to initiate port forwarding connection back to us
-	err := controller.workerNotifier.Notify(notifyContext, workerName, &rpc.WatchInstruction{
-		Action: &rpc.WatchInstruction_PortForwardAction{
-			PortForwardAction: &rpc.WatchInstruction_PortForward{
-				Session: session,
-				VmUid:   vmUID,
-				Port:    port,
-			},
-		},
+	rendezvousConn, err := retry.NewWithData[net.Conn](
+		retry.Context(notifyContext),
+		retry.DelayType(retry.FixedDelay),
+		retry.Delay(time.Second),
+		retry.Attempts(0),
+		retry.LastErrorOnly(true),
+	).Do(func() (net.Conn, error) {
+		return controller.portForwardConnection(ctx, notifyContext, workerName, vmUID, port)
 	})
 	if err != nil {
-		controller.logger.Warnf("failed to request port forwarding from the worker %s: %v",
-			workerName, err)
+		if errors.Is(err, errPortForwardRequest) {
+			controller.logger.Warnf("failed to request port forwarding from the worker %s: %v",
+				workerName, err)
 
-		return responder.Code(http.StatusServiceUnavailable)
+			return responder.Code(http.StatusServiceUnavailable)
+		}
+
+		return responder.Error(err)
 	}
+	defer func() {
+		_ = rendezvousConn.Close()
+	}()
 
 	// Worker will asynchronously start port forwarding, so we wait
-	select {
-	case rendezvousResponse := <-boomerangConnCh:
-		if rendezvousResponse.ErrorMessage != "" {
-			return responder.Error(fmt.Errorf("failed to establish port forwarding session on the worker: %s",
-				rendezvousResponse.ErrorMessage))
-		}
+	wsConn, err := websocket.Accept(ctx.Writer, ctx.Request, &websocket.AcceptOptions{
+		OriginPatterns: []string{"*"},
+	})
+	if err != nil {
+		return responder.Error(err)
+	}
+	defer func() {
+		// Ensure that we always close the accepted WebSocket connection,
+		// otherwise resource leak is possible[1]
+		//
+		// [1]: https://github.com/coder/websocket/issues/445#issuecomment-2053792044
+		_ = wsConn.CloseNow()
+	}()
 
-		wsConn, err := websocket.Accept(ctx.Writer, ctx.Request, &websocket.AcceptOptions{
-			OriginPatterns: []string{"*"},
-		})
-		if err != nil {
-			return responder.Error(err)
-		}
-		defer func() {
-			// Ensure that we always close the accepted WebSocket connection,
-			// otherwise resource leak is possible[1]
-			//
-			// [1]: https://github.com/coder/websocket/issues/445#issuecomment-2053792044
-			_ = wsConn.CloseNow()
-		}()
+	expectedMsgType := websocket.MessageBinary
 
-		expectedMsgType := websocket.MessageBinary
+	// Backwards compatibility with older Orchard clients
+	// using "golang.org/x/net/websocket" package
+	if ctx.Request.Header.Get("User-Agent") == "" {
+		expectedMsgType = websocket.MessageText
+	}
 
-		// Backwards compatibility with older Orchard clients
-		// using "golang.org/x/net/websocket" package
-		if ctx.Request.Header.Get("User-Agent") == "" {
-			expectedMsgType = websocket.MessageText
-		}
+	proxyConnectionsErrCh := make(chan error, 1)
+	wsConnAsNetConn := websocket.NetConn(ctx, wsConn, expectedMsgType)
 
-		proxyConnectionsErrCh := make(chan error, 1)
-		wsConnAsNetConn := websocket.NetConn(ctx, wsConn, expectedMsgType)
-		fromWorkerConnectionWithCancel := netconncancel.New(rendezvousResponse.Result, rendezvousCtxCancel)
+	go func() {
+		proxyConnectionsErrCh <- proxy.Connections(wsConnAsNetConn, rendezvousConn)
+	}()
 
-		go func() {
-			proxyConnectionsErrCh <- proxy.Connections(wsConnAsNetConn, fromWorkerConnectionWithCancel)
-		}()
+	for {
+		select {
+		case err := <-proxyConnectionsErrCh:
+			if err != nil {
+				var websocketCloseError websocket.CloseError
 
-		for {
-			select {
-			case err := <-proxyConnectionsErrCh:
-				if err != nil {
-					var websocketCloseError websocket.CloseError
-
-					// Normal closure from the user
-					if errors.As(err, &websocketCloseError) && websocketCloseError.Code == websocket.StatusNormalClosure {
-						return responder.Empty()
-					}
-
-					if errors.Is(err, context.Canceled) {
-						return responder.Empty()
-					}
-
-					if status, ok := status.FromError(err); ok && status.Code() == codes.Canceled {
-						return responder.Empty()
-					}
-
-					controller.logger.Warnf("port forwarding: failed to proxy connections: %v", err)
+				// Normal closure from the user
+				if errors.As(err, &websocketCloseError) && websocketCloseError.Code == websocket.StatusNormalClosure {
+					return responder.Empty()
 				}
 
-				return responder.Empty()
-			case <-time.After(controller.pingInterval):
-				pingCtx, pingCtxCancel := context.WithTimeout(ctx, 5*time.Second)
-
-				if err := wsConn.Ping(pingCtx); err != nil {
-					controller.logger.Warnf("port forwarding: failed to ping the client, "+
-						"connection might time out: %v", err)
+				if errors.Is(err, context.Canceled) {
+					return responder.Empty()
 				}
 
-				pingCtxCancel()
+				if status, ok := status.FromError(err); ok && status.Code() == codes.Canceled {
+					return responder.Empty()
+				}
+
+				controller.logger.Warnf("port forwarding: failed to proxy connections: %v", err)
 			}
+
+			return responder.Empty()
+		case <-time.After(controller.pingInterval):
+			pingCtx, pingCtxCancel := context.WithTimeout(ctx, 5*time.Second)
+
+			if err := wsConn.Ping(pingCtx); err != nil {
+				controller.logger.Warnf("port forwarding: failed to ping the client, "+
+					"connection might time out: %v", err)
+			}
+
+			pingCtxCancel()
 		}
-	case <-ctx.Done():
-		return responder.Error(ctx.Err())
 	}
 }
 
@@ -210,7 +200,7 @@ func (controller *Controller) portForwardConnection(
 	workerName string,
 	vmUID string,
 	port uint32,
-) (net.Conn, context.CancelFunc, error) {
+) (net.Conn, error) {
 	// Create a rendezvous connection point
 	rendezvousCtx, rendezvousCtxCancel := context.WithCancel(ctx)
 
@@ -235,8 +225,8 @@ func (controller *Controller) portForwardConnection(
 	if err != nil {
 		cancel()
 
-		return nil, nil, fmt.Errorf("failed to request port forwarding from the worker %s: %v",
-			workerName, err)
+		return nil, fmt.Errorf("%w: failed to request port forwarding from the worker %s: %v",
+			errPortForwardRequest, workerName, err)
 	}
 
 	// Wait for the worker to respond
@@ -245,14 +235,14 @@ func (controller *Controller) portForwardConnection(
 		if rendezvousResponse.ErrorMessage != "" {
 			cancel()
 
-			return nil, nil, fmt.Errorf("failed to establish port forwarding session on the worker: %s",
+			return nil, fmt.Errorf("failed to establish port forwarding session on the worker: %s",
 				rendezvousResponse.ErrorMessage)
 		}
 
-		return rendezvousResponse.Result, cancel, nil
+		return netconncancel.New(rendezvousResponse.Result, cancel), nil
 	case <-waitContext.Done():
 		cancel()
 
-		return nil, nil, waitContext.Err()
+		return nil, waitContext.Err()
 	}
 }

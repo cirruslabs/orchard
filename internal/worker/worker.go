@@ -9,15 +9,16 @@ import (
 	"slices"
 	"time"
 
+	goruntime "runtime"
+
 	"github.com/avast/retry-go/v4"
 	"github.com/cirruslabs/orchard/internal/dialer"
 	"github.com/cirruslabs/orchard/internal/opentelemetry"
 	"github.com/cirruslabs/orchard/internal/worker/dhcpleasetime"
 	"github.com/cirruslabs/orchard/internal/worker/ondiskname"
 	"github.com/cirruslabs/orchard/internal/worker/platform"
+	"github.com/cirruslabs/orchard/internal/worker/runtime"
 	"github.com/cirruslabs/orchard/internal/worker/vmmanager"
-	"github.com/cirruslabs/orchard/internal/worker/vmmanager/synthetic"
-	"github.com/cirruslabs/orchard/internal/worker/vmmanager/tart"
 	"github.com/cirruslabs/orchard/pkg/client"
 	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
 	"github.com/cirruslabs/orchard/rpc"
@@ -54,7 +55,7 @@ type Worker struct {
 	defaultCPU    uint64
 	defaultMemory uint64
 
-	synthetic bool
+	runtime runtime.Runtime
 
 	vmPullTimeHistogram metric.Float64Histogram
 
@@ -90,8 +91,18 @@ func New(client *client.Client, opts ...Option) (*Worker, error) {
 		worker.name += worker.nameSuffix
 	}
 
-	defaultResources := v1.Resources{
-		v1.ResourceTartVMs: 2,
+	if worker.runtime == nil {
+		if goruntime.GOOS == "linux" {
+			worker.runtime = runtime.NewVetu()
+		} else {
+			worker.runtime = runtime.NewTart()
+		}
+	}
+
+	defaultResources := v1.Resources{}
+
+	if worker.runtime.ID() == v1.RuntimeTart {
+		defaultResources[v1.ResourceTartVMs] = 2
 	}
 
 	// Determine the number of the host's logical CPU cores
@@ -130,7 +141,7 @@ func New(client *client.Client, opts ...Option) (*Worker, error) {
 }
 
 func (worker *Worker) Run(ctx context.Context) error {
-	if !worker.synthetic {
+	if worker.runtime.ID() == v1.RuntimeTart {
 		if err := dhcpleasetime.Check(); err != nil {
 			worker.logger.Warnf("%v", err)
 		}
@@ -278,6 +289,8 @@ func (worker *Worker) registerWorker(ctx context.Context) error {
 		Meta: v1.Meta{
 			Name: worker.name,
 		},
+		Arch:          v1.Architecture(goruntime.GOARCH),
+		Runtime:       worker.runtime.ID(),
 		Resources:     worker.resources,
 		Labels:        worker.labels,
 		LastSeen:      time.Now(),
@@ -502,7 +515,7 @@ func (worker *Worker) syncVMs(ctx context.Context, updateVM func(context.Context
 
 //nolint:nestif,gocognit // complexity is tolerable for now
 func (worker *Worker) syncOnDiskVMs(ctx context.Context) error {
-	if worker.synthetic {
+	if worker.runtime.Synthetic() {
 		// There's no on-disk VMs when using synthetic VMs
 		return nil
 	}
@@ -518,7 +531,7 @@ func (worker *Worker) syncOnDiskVMs(ctx context.Context) error {
 
 	worker.logger.Infof("syncing on-disk VMs...")
 
-	vmInfos, err := tart.List(ctx, worker.logger)
+	vmInfos, err := worker.runtime.ListVMs(ctx, worker.logger)
 	if err != nil {
 		return err
 	}
@@ -543,13 +556,13 @@ func (worker *Worker) syncOnDiskVMs(ctx context.Context) error {
 			// On-disk VM doesn't exist on the controller nor in the Worker's VM manager,
 			// stop it (if applicable) and delete it
 			if vmInfo.Running {
-				_, _, err := tart.Tart(ctx, worker.logger, "stop", vmInfo.Name)
+				_, _, err := worker.runtime.Cmd(ctx, worker.logger, "stop", vmInfo.Name)
 				if err != nil {
 					worker.logger.Warnf("failed to stop")
 				}
 			}
 
-			_, _, err := tart.Tart(ctx, worker.logger, "delete", vmInfo.Name)
+			_, _, err := worker.runtime.Cmd(ctx, worker.logger, "delete", vmInfo.Name)
 			if err != nil {
 				return err
 			}
@@ -558,7 +571,7 @@ func (worker *Worker) syncOnDiskVMs(ctx context.Context) error {
 			// but we've lost track of it, so shut it down (if applicable)
 			// and report the error (if not failed yet)
 			if vmInfo.Running {
-				_, _, err := tart.Tart(ctx, worker.logger, "stop", vmInfo.Name)
+				_, _, err := worker.runtime.Cmd(ctx, worker.logger, "stop", vmInfo.Name)
 				if err != nil {
 					worker.logger.Warnf("failed to stop")
 				}
@@ -584,14 +597,7 @@ func (worker *Worker) deleteVM(vm vmmanager.VM) error {
 func (worker *Worker) createVM(odn ondiskname.OnDiskName, vmResource v1.VM) {
 	eventStreamer := worker.client.VMs().StreamEvents(vmResource.Name)
 
-	var vm vmmanager.VM
-
-	if worker.synthetic {
-		vm = synthetic.NewVM(vmResource, eventStreamer, worker.vmPullTimeHistogram, worker.logger)
-	} else {
-		vm = tart.NewVM(vmResource, eventStreamer, worker.vmPullTimeHistogram,
-			worker.dialer, worker.logger)
-	}
+	vm := worker.runtime.NewVM(vmResource, eventStreamer, worker.vmPullTimeHistogram, worker.dialer, worker.logger)
 
 	worker.vmm.Put(odn, vm)
 }

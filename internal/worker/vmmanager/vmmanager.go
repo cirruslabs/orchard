@@ -26,6 +26,13 @@ type VM interface {
 	Delete() error
 }
 
+type VMInfo struct {
+	Name    string
+	Source  string
+	State   string
+	Running bool
+}
+
 type VMManager struct {
 	vms *xsync.Map[ondiskname.OnDiskName, VM]
 }
