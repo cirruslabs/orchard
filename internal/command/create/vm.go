@@ -16,6 +16,9 @@ import (
 var ErrVMFailed = errors.New("failed to create VM")
 
 var image string
+var vmOSRaw string
+var vmArchRaw string
+var vmRuntimeRaw string
 var cpu uint64
 var memory uint64
 var diskSize uint64
@@ -45,6 +48,14 @@ func newCreateVMCommand() *cobra.Command {
 	}
 
 	command.Flags().StringVar(&image, "image", imageconstant.DefaultMacosImage, "image to use")
+	command.Flags().StringVar(&vmOSRaw, "os", string(v1.OSDarwin), fmt.Sprintf("operating system of this "+
+		"VM: %q or %q; set to \"linux\" to work around the Apple's limitation of 2 macOS VMs per host when using "+
+		"\"tart\" runtime", v1.OSDarwin, v1.OSLinux))
+	command.Flags().StringVar(&vmArchRaw, "arch", string(v1.ArchitectureARM64), fmt.Sprintf("architecture "+
+		"of this VM: %q or %q; ensures the VM is scheduled on an architecture-compatible machine in mixed-architecture "+
+		"clusters", v1.ArchitectureARM64, v1.ArchitectureAMD64))
+	command.Flags().StringVar(&vmRuntimeRaw, "runtime", string(v1.RuntimeTart), fmt.Sprintf("runtime to use "+
+		"for this VM: %q or %q; ensures the VM is scheduled on a runtime-compatible node", v1.RuntimeTart, v1.RuntimeVetu))
 	command.Flags().Uint64Var(&cpu, "cpu", 4, "number of CPUs to use")
 	command.Flags().Uint64Var(&memory, "memory", 8*1024, "megabytes of memory to use")
 	command.Flags().Uint64Var(&diskSize, "disk-size", 0, "resize the VMs disk to the specified size in GB "+
@@ -100,6 +111,21 @@ func runCreateVM(cmd *cobra.Command, args []string) error {
 	// Convert arguments
 	var hostDirs []v1.HostDir
 
+	vmOS, err := v1.NewOSFromString(vmOSRaw)
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrVMFailed, err)
+	}
+
+	vmArch, err := v1.NewArchitectureFromString(vmArchRaw)
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrVMFailed, err)
+	}
+
+	vmRuntime, err := v1.NewRuntimeFromString(vmRuntimeRaw)
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrVMFailed, err)
+	}
+
 	for _, hostDirRaw := range hostDirsRaw {
 		hostDir, err := v1.NewHostDirFromString(hostDirRaw)
 		if err != nil {
@@ -118,6 +144,9 @@ func runCreateVM(cmd *cobra.Command, args []string) error {
 		Memory:   memory,
 		DiskSize: diskSize,
 		VMSpec: v1.VMSpec{
+			OS:                   vmOS,
+			Arch:                 vmArch,
+			Runtime:              vmRuntime,
 			NetSoftnetDeprecated: netSoftnet,
 			NetSoftnet:           netSoftnet,
 			NetSoftnetAllow:      netSoftnetAllow,
@@ -135,8 +164,6 @@ func runCreateVM(cmd *cobra.Command, args []string) error {
 	}
 
 	// Convert resources
-	var err error
-
 	vm.Resources, err = v1.NewResourcesFromStringToString(resources)
 	if err != nil {
 		return fmt.Errorf("%w: %v", ErrVMFailed, err)
