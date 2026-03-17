@@ -137,6 +137,33 @@ func (vm *VM) IsScheduled() bool {
 	}
 }
 
+func (vm *VM) Validate() error {
+	unsupportedFieldError := func(field string) error {
+		return fmt.Errorf("runtime %q does not support field %q", vm.Runtime, field)
+	}
+
+	switch vm.Runtime {
+	case RuntimeVetu:
+		if vm.NetSoftnetDeprecated || vm.NetSoftnet {
+			return unsupportedFieldError("netSoftnet")
+		}
+		if len(vm.NetSoftnetAllow) != 0 {
+			return unsupportedFieldError("netSoftnetAllow")
+		}
+		if len(vm.NetSoftnetBlock) != 0 {
+			return unsupportedFieldError("netSoftnetBlock")
+		}
+		if len(vm.HostDirs) != 0 {
+			return unsupportedFieldError("hostDirs")
+		}
+		if vm.Suspendable {
+			return unsupportedFieldError("suspendable")
+		}
+	}
+
+	return nil
+}
+
 type VMSpec struct {
 	// OS defines the operating system used by a VM.
 	//

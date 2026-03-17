@@ -73,6 +73,10 @@ func (controller *Controller) createVM(ctx *gin.Context) responder.Responder {
 		vm.Runtime = v1.RuntimeTart
 	}
 
+	if err := vm.Validate(); err != nil {
+		return responder.JSON(http.StatusPreconditionFailed, NewErrorResponse("%v", err))
+	}
+
 	// Softnet-specific logic: automatically enable Softnet when NetSoftnetAllow or NetSoftnetBlock are set
 	// and propagate deprecated and non-deprecated boolean fields into each other
 	if vm.NetSoftnetDeprecated || vm.NetSoftnet || len(vm.NetSoftnetAllow) != 0 || len(vm.NetSoftnetBlock) != 0 {
@@ -171,6 +175,10 @@ func (controller *Controller) updateVMSpec(ctx *gin.Context) responder.Responder
 		if dbVM.OS != userVM.OS || dbVM.Arch != userVM.Arch || dbVM.Runtime != userVM.Runtime {
 			return responder.JSON(http.StatusPreconditionFailed, NewErrorResponse("\"os\", \"arch\" "+
 				"and \"runtime\" fields cannot be modified"))
+		}
+
+		if err := userVM.Validate(); err != nil {
+			return responder.JSON(http.StatusPreconditionFailed, NewErrorResponse("%v", err))
 		}
 
 		// Softnet-specific logic: automatically enable Softnet when NetSoftnetAllow or NetSoftnetBlock are set
