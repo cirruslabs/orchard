@@ -163,6 +163,10 @@ func runCreateVM(cmd *cobra.Command, args []string) error {
 		HostDirs:     hostDirs,
 	}
 
+	if err := vm.Validate(); err != nil {
+		return fmt.Errorf("%w: %v", ErrVMFailed, err)
+	}
+
 	// Convert resources
 	vm.Resources, err = v1.NewResourcesFromStringToString(resources)
 	if err != nil {
