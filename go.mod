@@ -13,7 +13,7 @@ require (
 	github.com/deckarep/golang-set/v2 v2.8.0
 	github.com/dgraph-io/badger/v3 v3.2103.5
 	github.com/dustin/go-humanize v1.0.1
-	github.com/gin-contrib/zap v1.1.6
+	github.com/gin-contrib/zap v1.1.7
 	github.com/gin-gonic/gin v1.12.0
 	github.com/go-openapi/runtime v0.29.3
 	github.com/gofrs/flock v0.13.0
@@ -22,7 +22,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gosuri/uitable v0.0.4
 	github.com/hashicorp/go-multierror v1.1.1
-	github.com/hashicorp/go-version v1.8.0
+	github.com/hashicorp/go-version v1.9.0
 	github.com/manifoldco/promptui v0.9.0
 	github.com/mitchellh/go-grpc-net-conn v0.0.0-20200427190222-eb030e4876f0
 	github.com/pkg/errors v0.9.1
