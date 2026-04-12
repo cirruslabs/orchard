@@ -8,7 +8,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 	"time"
 
@@ -39,12 +38,6 @@ var (
 	ErrAdminTaskFailed = errors.New("controller administrative task failed")
 )
 
-const (
-	maxWorkersPerDefaultLicense  = 4
-	maxWorkersPerGoldLicense     = 20
-	maxWorkersPerPlatinumLicense = 200
-)
-
 type Controller struct {
 	dataDir              *DataDir
 	listenAddr           string
@@ -62,7 +55,6 @@ type Controller struct {
 	ipRendezvous         *rendezvous.Rendezvous[rendezvous.ResultWithErrorMessage[string]]
 	enableSwaggerDocs    bool
 	workerOfflineTimeout time.Duration
-	maxWorkersPerLicense uint
 	experimentalRPCV2    bool
 	disableDBCompression bool
 	pingInterval         time.Duration
@@ -83,7 +75,6 @@ func New(opts ...Option) (*Controller, error) {
 		connRendezvous:       rendezvous.New[rendezvous.ResultWithErrorMessage[net.Conn]](),
 		ipRendezvous:         rendezvous.New[rendezvous.ResultWithErrorMessage[string]](),
 		workerOfflineTimeout: 3 * time.Minute,
-		maxWorkersPerLicense: maxWorkersPerDefaultLicense,
 		pingInterval:         30 * time.Second,
 		single:               singleflight.Group{},
 	}
@@ -91,20 +82,6 @@ func New(opts ...Option) (*Controller, error) {
 	// Apply options
 	for _, opt := range opts {
 		opt(controller)
-	}
-
-	// Apply environment variables
-	orchardLicenseTier, ok := os.LookupEnv("ORCHARD_LICENSE_TIER")
-	if ok {
-		switch orchardLicenseTier {
-		case "gold":
-			controller.maxWorkersPerLicense = maxWorkersPerGoldLicense
-		case "platinum":
-			controller.maxWorkersPerLicense = maxWorkersPerPlatinumLicense
-		default:
-			return nil, fmt.Errorf("%w: invalid ORCHARD_LICENSE_TIER value: %q",
-				ErrInitFailed, orchardLicenseTier)
-		}
 	}
 
 	// Apply defaults

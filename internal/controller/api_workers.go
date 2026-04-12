@@ -44,40 +44,6 @@ func (controller *Controller) createWorker(ctx *gin.Context) responder.Responder
 	}
 	worker.CreatedAt = currentTime
 
-	// License capacity check
-	if err := controller.storeView(func(txn storepkg.Transaction) responder.Responder {
-		_, err := txn.GetWorker(worker.Name)
-		if err != nil && !errors.Is(err, storepkg.ErrNotFound) {
-			controller.logger.Errorf("failed to check if the worker "+
-				"with name %q exists in the DB: %v", worker.Name, err)
-
-			return responder.Code(http.StatusInternalServerError)
-		}
-		if err == nil {
-			// We will be re-creating a worker with
-			// the same name, no capacity change
-			return nil
-		}
-
-		// We will be adding a new worker, check if the license capacity allows that
-		workers, err := txn.ListWorkers()
-		if err != nil {
-			controller.logger.Errorf("failed to count the number of workers in the DB: %v", err)
-
-			return responder.Code(http.StatusInternalServerError)
-		}
-
-		if !controller.synthetic && uint(len(workers)+1) > controller.maxWorkersPerLicense {
-			return responder.JSON(http.StatusConflict, NewErrorResponse("cannot register a new worker "+
-				"because the license capacity of %d workers has been reached, "+
-				"consider upgrading at https://tart.run/licensing/", controller.maxWorkersPerLicense))
-		}
-
-		return nil
-	}); err != nil {
-		return err
-	}
-
 	return controller.storeUpdate(func(txn storepkg.Transaction) responder.Responder {
 		// In case there already exist a worker with the same name,
 		// update it (to avoid overwriting things like SchedulingPaused)
