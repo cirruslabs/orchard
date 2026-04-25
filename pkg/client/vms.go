@@ -157,6 +157,12 @@ func (service *VMsService) PortForward(
 		})
 }
 
+type ExecOptions struct {
+	Interactive bool
+	WaitSeconds uint16
+	Env         map[string]string
+}
+
 func (service *VMsService) Exec(
 	ctx context.Context,
 	name string,
@@ -164,12 +170,30 @@ func (service *VMsService) Exec(
 	stdin bool,
 	waitSeconds uint16,
 ) (*websocket.Conn, error) {
+	return service.ExecWithOptions(ctx, name, command, ExecOptions{
+		Interactive: stdin,
+		WaitSeconds: waitSeconds,
+	})
+}
+
+func (service *VMsService) ExecWithOptions(
+	ctx context.Context,
+	name string,
+	command string,
+	options ExecOptions,
+) (*websocket.Conn, error) {
+	params := map[string]string{
+		"command":     command,
+		"interactive": strconv.FormatBool(options.Interactive),
+		"wait":        strconv.FormatUint(uint64(options.WaitSeconds), 10),
+	}
+
+	for key, value := range options.Env {
+		params[fmt.Sprintf("env[%s]", key)] = value
+	}
+
 	return service.client.wsRequestRaw(ctx, fmt.Sprintf("vms/%s/exec", url.PathEscape(name)),
-		map[string]string{
-			"command": command,
-			"stdin":   strconv.FormatBool(stdin),
-			"wait":    strconv.FormatUint(uint64(waitSeconds), 10),
-		})
+		params)
 }
 
 func (service *VMsService) IP(ctx context.Context, name string, waitSeconds uint16) (string, error) {

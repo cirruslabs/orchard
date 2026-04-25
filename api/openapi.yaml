@@ -435,7 +435,7 @@ paths:
             minLength: 1
           required: true
         - in: query
-          name: stdin
+          name: interactive
           description: |
             Whether to allocate an interactive standard input for the command
             
@@ -445,6 +445,30 @@ paths:
           schema:
             type: boolean
             default: false
+          required: false
+        - in: query
+          name: stdin
+          deprecated: true
+          description: |
+            Deprecated alias for `interactive`.
+            
+            If both `interactive` and `stdin` are provided, their values must match.
+          schema:
+            type: boolean
+            default: false
+          required: false
+        - in: query
+          name: env
+          description: |
+            Environment variables to expose to the command.
+            
+            Use deep object query syntax, for example `env[FOO]=bar&env[BAZ]=qux`.
+          style: deepObject
+          explode: true
+          schema:
+            type: object
+            additionalProperties:
+              type: string
           required: false
         - in: query
           name: wait

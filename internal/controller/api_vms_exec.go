@@ -35,7 +35,15 @@ func (controller *Controller) execVM(ctx *gin.Context) responder.Responder {
 			NewErrorResponse("\"command\" parameter cannot be empty"))
 	}
 
-	stdin := ctx.Query("stdin") == "true"
+	interactive, err := parseExecInteractive(ctx)
+	if err != nil {
+		return responder.JSON(http.StatusBadRequest, NewErrorResponse("%v", err))
+	}
+
+	command, err = sshexec.CommandWithEnv(command, ctx.QueryMap("env"))
+	if err != nil {
+		return responder.JSON(http.StatusBadRequest, NewErrorResponse("%v", err))
+	}
 
 	waitRaw := ctx.DefaultQuery("wait", "10")
 	wait, err := strconv.ParseUint(waitRaw, 10, 16)
@@ -68,7 +76,7 @@ func (controller *Controller) execVM(ctx *gin.Context) responder.Responder {
 	defer portForwardConn.Close()
 
 	// Establish an SSH connection to a VM
-	exec, err := sshexec.New(portForwardConn, vm.SSHUsername(), vm.SSHPassword(), stdin)
+	exec, err := sshexec.New(portForwardConn, vm.SSHUsername(), vm.SSHPassword(), interactive)
 	if err != nil {
 		return responder.JSON(http.StatusServiceUnavailable, NewErrorResponse("failed to establish SSH connection to a VM: %v", err))
 	}
@@ -149,6 +157,38 @@ func (controller *Controller) execVM(ctx *gin.Context) responder.Responder {
 			return responder.Empty()
 		}
 	}
+}
+
+func parseExecInteractive(ctx *gin.Context) (bool, error) {
+	interactiveRaw, interactivePresent := ctx.GetQuery("interactive")
+	stdinRaw, stdinPresent := ctx.GetQuery("stdin")
+
+	interactive := false
+	if interactivePresent {
+		parsed, err := strconv.ParseBool(interactiveRaw)
+		if err != nil {
+			return false, fmt.Errorf("\"interactive\" parameter must be a boolean")
+		}
+
+		interactive = parsed
+	}
+
+	if stdinPresent {
+		stdin, err := strconv.ParseBool(stdinRaw)
+		if err != nil {
+			return false, fmt.Errorf("\"stdin\" parameter must be a boolean")
+		}
+
+		if interactivePresent && stdin != interactive {
+			return false, fmt.Errorf("\"interactive\" and \"stdin\" parameters cannot conflict")
+		}
+
+		if !interactivePresent {
+			interactive = stdin
+		}
+	}
+
+	return interactive, nil
 }
 
 func (controller *Controller) readFrames(

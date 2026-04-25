@@ -79,6 +79,48 @@ func TestVMExecWithStdin(t *testing.T) {
 	require.Equal(t, websocket.StatusNormalClosure, closeError.Code)
 }
 
+func TestVMExecWithEnv(t *testing.T) {
+	devClient, vmName := prepareForExec(t)
+
+	script := "sh -c 'printf \"%s|%s|%s\" \"$GREETING\" \"$QUOTE\" \"$EMPTY\"'"
+
+	wsConn, err := devClient.VMs().ExecWithOptions(t.Context(), vmName, script, client.ExecOptions{
+		Env: map[string]string{
+			"EMPTY":    "",
+			"GREETING": "Hello, World!",
+			"QUOTE":    "O'Reilly",
+		},
+		WaitSeconds: 30,
+	})
+	require.NoError(t, err)
+	defer wsConn.CloseNow()
+
+	var stdout bytes.Buffer
+	var exitFrame *execstream.Frame
+
+	for exitFrame == nil {
+		frame := readFrame(t, wsConn)
+
+		switch frame.Type {
+		case execstream.FrameTypeStdout:
+			stdout.Write(frame.Data)
+		case execstream.FrameTypeExit:
+			exitFrame = frame
+		default:
+			t.Fatalf("unexpected frame type %q", frame.Type)
+		}
+	}
+
+	require.EqualValues(t, 0, exitFrame.Exit.Code)
+	require.Equal(t, "Hello, World!|O'Reilly|", stdout.String())
+
+	// Ensure that Orchard Controller gracefully terminates the WebSocket connection
+	_, _, err = wsConn.Read(t.Context())
+	var closeError websocket.CloseError
+	require.ErrorAs(t, err, &closeError)
+	require.Equal(t, websocket.StatusNormalClosure, closeError.Code)
+}
+
 func TestVMExecScript(t *testing.T) {
 	devClient, vmName := prepareForExec(t)
 

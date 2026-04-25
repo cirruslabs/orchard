@@ -6,12 +6,17 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"regexp"
 	"slices"
+	"sort"
+	"strings"
 
 	"github.com/cirruslabs/orchard/internal/execstream"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/sync/errgroup"
 )
+
+var envNamePattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
 type Exec struct {
 	sshClient  *ssh.Client
@@ -85,6 +90,43 @@ func New(netConn net.Conn, user string, password string, stdin bool) (*Exec, err
 
 func (exec *Exec) Stdin() io.WriteCloser {
 	return exec.stdin
+}
+
+func CommandWithEnv(command string, env map[string]string) (string, error) {
+	if len(env) == 0 {
+		return command, nil
+	}
+
+	keys := make([]string, 0, len(env))
+	for key, value := range env {
+		if !envNamePattern.MatchString(key) {
+			return "", fmt.Errorf("invalid environment variable name %q", key)
+		}
+
+		if strings.ContainsRune(value, '\x00') {
+			return "", fmt.Errorf("environment variable %q contains NUL byte", key)
+		}
+
+		keys = append(keys, key)
+	}
+
+	sort.Strings(keys)
+
+	var builder strings.Builder
+	for _, key := range keys {
+		builder.WriteString("export ")
+		builder.WriteString(key)
+		builder.WriteByte('=')
+		builder.WriteString(shellQuote(env[key]))
+		builder.WriteByte('\n')
+	}
+	builder.WriteString(command)
+
+	return builder.String(), nil
+}
+
+func shellQuote(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", "'\\''") + "'"
 }
 
 func (exec *Exec) Run(
