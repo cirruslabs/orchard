@@ -144,6 +144,70 @@ type execReplayFrame struct {
 	size  int
 }
 
+type execReplayBuffer struct {
+	frames         []execReplayFrame
+	bufferBytes    int
+	nextWatermark  uint64
+	ackedWatermark uint64
+}
+
+func (buffer *execReplayBuffer) append(frame *execstream.Frame) *execstream.Frame {
+	frame = cloneExecFrame(frame)
+	buffer.nextWatermark++
+	frame.Watermark = buffer.nextWatermark
+
+	frameSize := execFrameSize(frame)
+	buffer.frames = append(buffer.frames, execReplayFrame{
+		frame: frame,
+		size:  frameSize,
+	})
+	buffer.bufferBytes += frameSize
+	buffer.trimAcknowledged()
+	buffer.trimToLimit()
+
+	return frame
+}
+
+func (buffer *execReplayBuffer) ack(watermark uint64) {
+	if watermark <= buffer.ackedWatermark {
+		return
+	}
+
+	buffer.ackedWatermark = watermark
+	buffer.trimAcknowledged()
+}
+
+func (buffer *execReplayBuffer) replayAfter(
+	watermark uint64,
+	enqueue func(*execstream.Frame) bool,
+) bool {
+	for _, record := range buffer.frames {
+		if record.frame.Watermark <= watermark {
+			continue
+		}
+
+		if !enqueue(record.frame) {
+			return false
+		}
+	}
+
+	return true
+}
+
+func (buffer *execReplayBuffer) trimAcknowledged() {
+	for len(buffer.frames) > 0 && buffer.frames[0].frame.Watermark <= buffer.ackedWatermark {
+		buffer.bufferBytes -= buffer.frames[0].size
+		buffer.frames = buffer.frames[1:]
+	}
+}
+
+func (buffer *execReplayBuffer) trimToLimit() {
+	for buffer.bufferBytes > execSessionReplayBufferBytes && len(buffer.frames) > 0 {
+		buffer.bufferBytes -= buffer.frames[0].size
+		buffer.frames = buffer.frames[1:]
+	}
+}
+
 type execSessionSubscriber struct {
 	frames chan *execstream.Frame
 }
@@ -175,18 +239,15 @@ type execSession struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	mu             sync.Mutex
-	stdin          io.WriteCloser
-	stdinClosed    bool
-	subscribers    map[*execSessionSubscriber]struct{}
-	frames         []execReplayFrame
-	bufferBytes    int
-	nextWatermark  uint64
-	ackedWatermark uint64
-	started        bool
-	finished       bool
-	closed         bool
-	expiryTimer    *time.Timer
+	mu          sync.Mutex
+	stdin       io.WriteCloser
+	stdinClosed bool
+	subscribers map[*execSessionSubscriber]struct{}
+	replay      execReplayBuffer
+	started     bool
+	finished    bool
+	closed      bool
+	expiryTimer *time.Timer
 
 	startOnce sync.Once
 	done      chan struct{}
@@ -318,12 +379,7 @@ func (session *execSession) ack(watermark uint64) {
 	session.mu.Lock()
 	defer session.mu.Unlock()
 
-	if watermark <= session.ackedWatermark {
-		return
-	}
-
-	session.ackedWatermark = watermark
-	session.trimAcknowledgedLocked()
+	session.replay.ack(watermark)
 }
 
 func (session *execSession) sendHistory(
@@ -341,21 +397,15 @@ func (session *execSession) sendHistory(
 		return
 	}
 
-	for _, record := range session.frames {
-		if record.frame.Watermark <= watermark {
-			continue
-		}
+	if !session.replay.replayAfter(watermark, subscriber.enqueue) {
+		session.detachLocked(subscriber)
 
-		if !subscriber.enqueue(record.frame) {
-			session.detachLocked(subscriber)
-
-			return
-		}
+		return
 	}
 
 	if !subscriber.enqueue(&execstream.Frame{
 		Type:      execstream.FrameTypeNoMoreHistory,
-		Watermark: session.nextWatermark,
+		Watermark: session.replay.nextWatermark,
 	}) {
 		session.detachLocked(subscriber)
 	}
@@ -375,16 +425,10 @@ func (session *execSession) close() {
 		session.expiryTimer = nil
 	}
 
-	subscribers := make([]*execSessionSubscriber, 0, len(session.subscribers))
-	for subscriber := range session.subscribers {
-		subscribers = append(subscribers, subscriber)
-	}
-	session.subscribers = map[*execSessionSubscriber]struct{}{}
+	subscribers := session.takeSubscribersLocked()
 	session.mu.Unlock()
 
-	for _, subscriber := range subscribers {
-		close(subscriber.frames)
-	}
+	closeSubscribers(subscribers)
 
 	session.cancel()
 	_ = session.exec.Close()
@@ -428,18 +472,10 @@ func (session *execSession) recordFrame(frame *execstream.Frame) {
 		return
 	}
 
-	frame = cloneExecFrame(frame)
 	if session.policy.replayEnabled {
-		session.nextWatermark++
-		frame.Watermark = session.nextWatermark
-
-		session.frames = append(session.frames, execReplayFrame{
-			frame: frame,
-			size:  execFrameSize(frame),
-		})
-		session.bufferBytes += execFrameSize(frame)
-		session.trimAcknowledgedLocked()
-		session.trimToLimitLocked()
+		frame = session.replay.append(frame)
+	} else {
+		frame = cloneExecFrame(frame)
 	}
 
 	for subscriber := range session.subscribers {
@@ -465,16 +501,10 @@ func (session *execSession) markFinished() {
 		session.expiryTimer = time.AfterFunc(session.exitTTL, session.expire)
 	}
 
-	subscribers := make([]*execSessionSubscriber, 0, len(session.subscribers))
-	for subscriber := range session.subscribers {
-		subscribers = append(subscribers, subscriber)
-	}
-	session.subscribers = map[*execSessionSubscriber]struct{}{}
+	subscribers := session.takeSubscribersLocked()
 	session.mu.Unlock()
 
-	for _, subscriber := range subscribers {
-		close(subscriber.frames)
-	}
+	closeSubscribers(subscribers)
 
 	session.doneOnce.Do(func() {
 		close(session.done)
@@ -489,17 +519,19 @@ func (session *execSession) expire() {
 	session.close()
 }
 
-func (session *execSession) trimAcknowledgedLocked() {
-	for len(session.frames) > 0 && session.frames[0].frame.Watermark <= session.ackedWatermark {
-		session.bufferBytes -= session.frames[0].size
-		session.frames = session.frames[1:]
+func (session *execSession) takeSubscribersLocked() []*execSessionSubscriber {
+	subscribers := make([]*execSessionSubscriber, 0, len(session.subscribers))
+	for subscriber := range session.subscribers {
+		subscribers = append(subscribers, subscriber)
 	}
+	session.subscribers = map[*execSessionSubscriber]struct{}{}
+
+	return subscribers
 }
 
-func (session *execSession) trimToLimitLocked() {
-	for session.bufferBytes > execSessionReplayBufferBytes && len(session.frames) > 0 {
-		session.bufferBytes -= session.frames[0].size
-		session.frames = session.frames[1:]
+func closeSubscribers(subscribers []*execSessionSubscriber) {
+	for _, subscriber := range subscribers {
+		close(subscriber.frames)
 	}
 }
 

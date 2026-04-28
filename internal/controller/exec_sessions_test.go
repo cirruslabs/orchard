@@ -153,8 +153,8 @@ func TestExecSessionHistoryReplayAndAck(t *testing.T) {
 	require.EqualValues(t, 3, noMoreHistory.Watermark)
 
 	session.ack(2)
-	require.Len(t, session.frames, 1)
-	require.EqualValues(t, 3, session.frames[0].frame.Watermark)
+	require.Len(t, session.replay.frames, 1)
+	require.EqualValues(t, 3, session.replay.frames[0].frame.Watermark)
 }
 
 func TestExecSessionDetachKeepsProcessAlive(t *testing.T) {
@@ -193,8 +193,8 @@ func TestLegacyExecSessionDoesNotRetainReplayHistory(t *testing.T) {
 
 	session.recordFrame(&execstream.Frame{Type: execstream.FrameTypeStdout, Data: []byte("out")})
 
-	require.Empty(t, session.frames)
-	require.Zero(t, session.nextWatermark)
+	require.Empty(t, session.replay.frames)
+	require.Zero(t, session.replay.nextWatermark)
 }
 
 func TestExecSessionCloseIfUnusedClosesIdleSession(t *testing.T) {
