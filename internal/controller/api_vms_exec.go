@@ -28,9 +28,13 @@ func (controller *Controller) execVM(ctx *gin.Context) responder.Responder {
 
 	// Retrieve and parse path and query parameters
 	name := ctx.Param("name")
+	sessionID := ctx.Query("session")
+	if sessionID == "" {
+		sessionID = ctx.Query("cmux_session_id")
+	}
 
 	command := ctx.Query("command")
-	if command == "" {
+	if sessionID == "" && command == "" {
 		return responder.JSON(http.StatusBadRequest,
 			NewErrorResponse("\"command\" parameter cannot be empty"))
 	}
@@ -43,6 +47,20 @@ func (controller *Controller) execVM(ctx *gin.Context) responder.Responder {
 		return responder.Code(http.StatusBadRequest)
 	}
 
+	if sessionID != "" {
+		return controller.execVMReconnectable(ctx, name, sessionID, command, stdin, wait)
+	}
+
+	return controller.execVMLegacy(ctx, name, command, stdin, wait)
+}
+
+func (controller *Controller) execVMLegacy(
+	ctx *gin.Context,
+	name string,
+	command string,
+	stdin bool,
+	wait uint64,
+) responder.Responder {
 	// Look-up the VM
 	waitContext, waitContextCancel := context.WithTimeout(ctx, time.Duration(wait)*time.Second)
 	defer waitContextCancel()
@@ -147,6 +165,198 @@ func (controller *Controller) execVM(ctx *gin.Context) responder.Responder {
 			controller.logger.Warnf("client disconnected prematurely")
 
 			return responder.Empty()
+		}
+	}
+}
+
+func (controller *Controller) execVMReconnectable(
+	ctx *gin.Context,
+	name string,
+	sessionID string,
+	command string,
+	stdin bool,
+	wait uint64,
+) responder.Responder {
+	key := execSessionKey{
+		vmName:    name,
+		sessionID: sessionID,
+	}
+
+	session, ok := controller.execSessions.get(key)
+	if ok {
+		if !session.commandMatches(command) {
+			return responder.JSON(http.StatusConflict,
+				NewErrorResponse("exec session %q is already running a different command", sessionID))
+		}
+	} else {
+		if command == "" {
+			return responder.JSON(http.StatusNotFound,
+				NewErrorResponse("exec session %q does not exist", sessionID))
+		}
+
+		waitContext, waitContextCancel := context.WithTimeout(ctx, time.Duration(wait)*time.Second)
+		defer waitContextCancel()
+
+		vm, responderImpl := controller.waitForVM(waitContext, name)
+		if responderImpl != nil {
+			return responderImpl
+		}
+
+		var err error
+		session, _, err = controller.execSessions.getOrCreate(waitContext, key, func() (*execSession, error) {
+			portForwardConn, err := retry.NewWithData[net.Conn](
+				retry.Context(waitContext),
+				retry.DelayType(retry.FixedDelay),
+				retry.Delay(time.Second),
+				retry.Attempts(0),
+				retry.LastErrorOnly(true),
+			).Do(func() (net.Conn, error) {
+				return controller.portForwardConnection(ctx, waitContext, vm.Worker, vm.UID, 22)
+			})
+			if err != nil {
+				return nil, err
+			}
+
+			exec, err := sshexec.New(portForwardConn, vm.SSHUsername(), vm.SSHPassword(), stdin)
+			if err != nil {
+				_ = portForwardConn.Close()
+
+				return nil, err
+			}
+
+			return newExecSession(
+				key,
+				command,
+				exec,
+				portForwardConn,
+				controller.execSessions,
+				controller.execSessionExitTTL,
+			), nil
+		})
+		if err != nil {
+			return responder.JSON(http.StatusServiceUnavailable, NewErrorResponse("%v", err))
+		}
+
+		if !session.commandMatches(command) {
+			return responder.JSON(http.StatusConflict,
+				NewErrorResponse("exec session %q is already running a different command", sessionID))
+		}
+	}
+
+	wsConn, err := websocket.Accept(ctx.Writer, ctx.Request, &websocket.AcceptOptions{
+		OriginPatterns: []string{"*"},
+	})
+	if err != nil {
+		return responder.Error(err)
+	}
+	defer func() {
+		_ = wsConn.CloseNow()
+	}()
+
+	subscriber, err := session.attach()
+	if err != nil {
+		_ = wsConn.Close(websocket.StatusNormalClosure, err.Error())
+
+		return responder.Empty()
+	}
+	defer session.detach(subscriber)
+
+	readFramesErrCh := make(chan error, 1)
+	go func() {
+		readFramesErrCh <- controller.readReconnectableFrames(ctx, wsConn, session, subscriber)
+	}()
+
+	for {
+		select {
+		case readFramesErr := <-readFramesErrCh:
+			if readFramesErr != nil &&
+				!errors.Is(readFramesErr, errExecSessionDetached) &&
+				!errors.Is(readFramesErr, errExecSessionClosed) {
+				controller.logger.Warnf("failed to read and process reconnectable exec frames from WebSocket: %v",
+					readFramesErr)
+			}
+
+			return responder.Empty()
+		case outgoingFrame, ok := <-subscriber.frames:
+			if !ok {
+				if err := wsConn.Close(websocket.StatusNormalClosure, "Command finished"); err != nil {
+					controller.logger.Warnf("exec: failed to close WebSocket cleanly: %v", err)
+				}
+
+				return responder.Empty()
+			}
+
+			if err := execstream.WriteFrame(ctx, wsConn, outgoingFrame); err != nil {
+				controller.logger.Warnf("failed to write reconnectable exec frame to the client: %v", err)
+
+				return responder.Empty()
+			}
+		case <-time.After(controller.pingInterval):
+			pingCtx, pingCtxCancel := context.WithTimeout(ctx, 5*time.Second)
+
+			if err := wsConn.Ping(pingCtx); err != nil {
+				controller.logger.Warnf("reconnectable exec: failed to ping the client, "+
+					"connection might time out: %v", err)
+			}
+
+			pingCtxCancel()
+		case <-ctx.Done():
+			controller.logger.Warnf("client disconnected prematurely")
+
+			return responder.Empty()
+		}
+	}
+}
+
+var (
+	errExecSessionDetached = errors.New("exec session detached")
+	errExecSessionClosed   = errors.New("exec session closed")
+)
+
+func (controller *Controller) readReconnectableFrames(
+	ctx context.Context,
+	wsConn *websocket.Conn,
+	session *execSession,
+	subscriber *execSessionSubscriber,
+) error {
+	for {
+		var frame execstream.Frame
+
+		messageType, payloadBytes, err := wsConn.Read(ctx)
+		if err != nil {
+			var closeErr websocket.CloseError
+			if errors.As(err, &closeErr) && closeErr.Code == websocket.StatusNormalClosure {
+				return errExecSessionDetached
+			}
+
+			return fmt.Errorf("failed to read next frame from WebSocket: %w", err)
+		}
+
+		if messageType != websocket.MessageText {
+			continue
+		}
+
+		if err := json.Unmarshal(payloadBytes, &frame); err != nil {
+			return err
+		}
+
+		switch frame.Type {
+		case execstream.FrameTypeStdin:
+			if err := session.writeStdin(frame.Data); err != nil {
+				return fmt.Errorf("failed to handle %q frame: %w", frame.Type, err)
+			}
+		case execstream.FrameTypeHistory:
+			session.sendHistory(subscriber, frame.Watermark)
+		case execstream.FrameTypeAck:
+			session.ack(frame.Watermark)
+		case execstream.FrameTypeDetach:
+			return errExecSessionDetached
+		case execstream.FrameTypeClose:
+			session.close()
+
+			return errExecSessionClosed
+		default:
+			return fmt.Errorf("unexpected frame type received: %q", frame.Type)
 		}
 	}
 }

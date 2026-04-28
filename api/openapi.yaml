@@ -429,11 +429,33 @@ paths:
       parameters:
         - in: query
           name: command
-          description: Command to execute
+          description: |
+            Command to execute.
+
+            Required when starting a new exec session. May be omitted when reconnecting to an
+            existing session identified by the `session` parameter.
           schema:
             type: string
             minLength: 1
-          required: true
+          required: false
+        - in: query
+          name: session
+          description: |
+            Optional stable exec session identifier. When present, websocket disconnects detach
+            from the command instead of terminating it, and later requests with the same VM name
+            and session id may reconnect and request buffered history.
+          schema:
+            type: string
+            minLength: 1
+          required: false
+        - in: query
+          name: cmux_session_id
+          description: |
+            Compatibility alias for `session`. Prefer `session` for new Orchard clients.
+          schema:
+            type: string
+            minLength: 1
+          required: false
         - in: query
           name: stdin
           description: |
@@ -483,7 +505,9 @@ paths:
         '400':
           description: Invalid parameters were supplied
         '404':
-          description: VM resource with the given name doesn't exist
+          description: VM resource with the given name or reconnectable exec session doesn't exist
+        '409':
+          description: Reconnectable exec session already exists with a different command
         '503':
           description: Controller failed to establish a connection with the VM
   /vms/{name}/ip:
@@ -800,10 +824,18 @@ components:
       description: WebSocket frame from Orchard Client to the Orchard Controller
       oneOf:
         - $ref: '#/components/schemas/ExecClientFrameStdin'
+        - $ref: '#/components/schemas/ExecClientFrameHistory'
+        - $ref: '#/components/schemas/ExecClientFrameAck'
+        - $ref: '#/components/schemas/ExecClientFrameDetach'
+        - $ref: '#/components/schemas/ExecClientFrameClose'
       discriminator:
         propertyName: type
         mapping:
           stdin: '#/components/schemas/ExecClientFrameStdin'
+          history: '#/components/schemas/ExecClientFrameHistory'
+          ack: '#/components/schemas/ExecClientFrameAck'
+          detach: '#/components/schemas/ExecClientFrameDetach'
+          close: '#/components/schemas/ExecClientFrameClose'
     ExecClientFrameStdin:
       description: Send bytes to the process standard input
       type: object
@@ -822,6 +854,56 @@ components:
       example:
         type: stdin
         data: aGVsbG8K
+    ExecClientFrameHistory:
+      description: Request buffered output strictly newer than the supplied watermark
+      type: object
+      required: [ type, watermark ]
+      properties:
+        type:
+          type: string
+          enum: [ history ]
+        watermark:
+          type: integer
+          format: int64
+          minimum: 0
+      example:
+        type: history
+        watermark: 42
+    ExecClientFrameAck:
+      description: Acknowledge that output has been durably consumed through the supplied watermark
+      type: object
+      required: [ type, watermark ]
+      properties:
+        type:
+          type: string
+          enum: [ ack ]
+        watermark:
+          type: integer
+          format: int64
+          minimum: 0
+      example:
+        type: ack
+        watermark: 42
+    ExecClientFrameDetach:
+      description: Detach this websocket while leaving the remote command running
+      type: object
+      required: [ type ]
+      properties:
+        type:
+          type: string
+          enum: [ detach ]
+      example:
+        type: detach
+    ExecClientFrameClose:
+      description: Close the reconnectable exec session and terminate the remote command
+      type: object
+      required: [ type ]
+      properties:
+        type:
+          type: string
+          enum: [ close ]
+      example:
+        type: close
     ExecControllerFrame:
       description: WebSocket frame from Orchard Controller to the Orchard Client
       oneOf:
@@ -829,6 +911,7 @@ components:
         - $ref: '#/components/schemas/ExecControllerFrameStderr'
         - $ref: '#/components/schemas/ExecControllerFrameExit'
         - $ref: '#/components/schemas/ExecControllerFrameError'
+        - $ref: '#/components/schemas/ExecControllerFrameNoMoreHistory'
       discriminator:
         propertyName: type
         mapping:
@@ -836,6 +919,7 @@ components:
           stderr: '#/components/schemas/ExecControllerFrameStderr'
           exit: '#/components/schemas/ExecControllerFrameExit'
           error: '#/components/schemas/ExecControllerFrameError'
+          no_more_history: '#/components/schemas/ExecControllerFrameNoMoreHistory'
     ExecControllerFrameStdout:
       description: Standard output from the process
       type: object
@@ -848,6 +932,10 @@ components:
           type: string
           format: byte
           description: Base64-encoded standard output bytes from the process
+        watermark:
+          type: integer
+          format: int64
+          description: Monotonic output watermark present on reconnectable sessions
       example:
         type: stdout
         data: aGVsbG8K
@@ -863,6 +951,10 @@ components:
           type: string
           format: byte
           description: Base64-encoded standard error bytes from the process
+        watermark:
+          type: integer
+          format: int64
+          description: Monotonic output watermark present on reconnectable sessions
       example:
         type: stderr
         data: aGVsbG8K
@@ -882,6 +974,10 @@ components:
               type: integer
               format: int32
               description: Process exit code
+        watermark:
+          type: integer
+          format: int64
+          description: Monotonic output watermark present on reconnectable sessions
       example:
         type: exit
         exit:
@@ -897,9 +993,28 @@ components:
         error:
           type: string
           description: Error message text
+        watermark:
+          type: integer
+          format: int64
+          description: Monotonic output watermark present on reconnectable sessions
       example:
         type: error
         error: Failed to establish SSH connection to a VM
+    ExecControllerFrameNoMoreHistory:
+      description: Marker indicating that the requested replay range has been fully sent
+      type: object
+      required: [ type, watermark ]
+      properties:
+        type:
+          type: string
+          enum: [ no_more_history ]
+        watermark:
+          type: integer
+          format: int64
+          description: Highest watermark known to the exec session at the time of replay
+      example:
+        type: no_more_history
+        watermark: 42
     Event:
       title: Generic Resource Event
       type: object
