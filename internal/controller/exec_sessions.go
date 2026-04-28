@@ -13,6 +13,22 @@ import (
 
 const execSessionReplayBufferBytes = 4 * 1024 * 1024
 
+type execSessionPolicy struct {
+	closeOnDetach   bool
+	retainAfterExit bool
+	replayEnabled   bool
+}
+
+var (
+	legacyExecSessionPolicy = execSessionPolicy{
+		closeOnDetach: true,
+	}
+	reconnectableExecSessionPolicy = execSessionPolicy{
+		retainAfterExit: true,
+		replayEnabled:   true,
+	}
+)
+
 type sshExecRunner interface {
 	Stdin() io.WriteCloser
 	Run(ctx context.Context, command string, outgoingFrames chan<- *execstream.Frame) error
@@ -154,6 +170,7 @@ type execSession struct {
 	transport net.Conn
 	registry  *execSessionRegistry
 	exitTTL   time.Duration
+	policy    execSessionPolicy
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -166,12 +183,14 @@ type execSession struct {
 	bufferBytes    int
 	nextWatermark  uint64
 	ackedWatermark uint64
+	started        bool
 	finished       bool
 	closed         bool
 	expiryTimer    *time.Timer
 
-	done     chan struct{}
-	doneOnce sync.Once
+	startOnce sync.Once
+	done      chan struct{}
+	doneOnce  sync.Once
 }
 
 func newExecSession(
@@ -181,6 +200,7 @@ func newExecSession(
 	transport net.Conn,
 	registry *execSessionRegistry,
 	exitTTL time.Duration,
+	policy execSessionPolicy,
 ) *execSession {
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -191,6 +211,7 @@ func newExecSession(
 		transport:   transport,
 		registry:    registry,
 		exitTTL:     exitTTL,
+		policy:      policy,
 		ctx:         ctx,
 		cancel:      cancel,
 		stdin:       exec.Stdin(),
@@ -198,13 +219,36 @@ func newExecSession(
 		done:        make(chan struct{}),
 	}
 
-	go session.run()
-
 	return session
 }
 
 func (session *execSession) commandMatches(command string) bool {
 	return command == "" || session.command == command
+}
+
+func (session *execSession) start() {
+	session.startOnce.Do(func() {
+		session.mu.Lock()
+		if session.closed {
+			session.mu.Unlock()
+
+			return
+		}
+		session.started = true
+		session.mu.Unlock()
+
+		go session.run()
+	})
+}
+
+func (session *execSession) closeIfUnused() {
+	session.mu.Lock()
+	unused := !session.started && len(session.subscribers) == 0
+	session.mu.Unlock()
+
+	if unused {
+		session.close()
+	}
 }
 
 func (session *execSession) attach() (*execSessionSubscriber, error) {
@@ -222,6 +266,12 @@ func (session *execSession) attach() (*execSessionSubscriber, error) {
 }
 
 func (session *execSession) detach(subscriber *execSessionSubscriber) {
+	if session.policy.closeOnDetach {
+		session.close()
+
+		return
+	}
+
 	session.mu.Lock()
 	defer session.mu.Unlock()
 
@@ -261,6 +311,10 @@ func (session *execSession) writeStdin(data []byte) error {
 }
 
 func (session *execSession) ack(watermark uint64) {
+	if !session.policy.replayEnabled {
+		return
+	}
+
 	session.mu.Lock()
 	defer session.mu.Unlock()
 
@@ -276,6 +330,10 @@ func (session *execSession) sendHistory(
 	subscriber *execSessionSubscriber,
 	watermark uint64,
 ) {
+	if !session.policy.replayEnabled {
+		return
+	}
+
 	session.mu.Lock()
 	defer session.mu.Unlock()
 
@@ -333,7 +391,9 @@ func (session *execSession) close() {
 	if session.transport != nil {
 		_ = session.transport.Close()
 	}
-	session.registry.remove(session.key, session)
+	if session.registry != nil {
+		session.registry.remove(session.key, session)
+	}
 }
 
 func (session *execSession) run() {
@@ -368,17 +428,19 @@ func (session *execSession) recordFrame(frame *execstream.Frame) {
 		return
 	}
 
-	session.nextWatermark++
 	frame = cloneExecFrame(frame)
-	frame.Watermark = session.nextWatermark
+	if session.policy.replayEnabled {
+		session.nextWatermark++
+		frame.Watermark = session.nextWatermark
 
-	session.frames = append(session.frames, execReplayFrame{
-		frame: frame,
-		size:  execFrameSize(frame),
-	})
-	session.bufferBytes += execFrameSize(frame)
-	session.trimAcknowledgedLocked()
-	session.trimToLimitLocked()
+		session.frames = append(session.frames, execReplayFrame{
+			frame: frame,
+			size:  execFrameSize(frame),
+		})
+		session.bufferBytes += execFrameSize(frame)
+		session.trimAcknowledgedLocked()
+		session.trimToLimitLocked()
+	}
 
 	for subscriber := range session.subscribers {
 		if subscriber.enqueue(frame) {
@@ -398,7 +460,8 @@ func (session *execSession) markFinished() {
 	}
 
 	session.finished = true
-	if !session.closed {
+	shouldClose := !session.policy.retainAfterExit
+	if !session.closed && session.policy.retainAfterExit {
 		session.expiryTimer = time.AfterFunc(session.exitTTL, session.expire)
 	}
 
@@ -416,6 +479,10 @@ func (session *execSession) markFinished() {
 	session.doneOnce.Do(func() {
 		close(session.done)
 	})
+
+	if shouldClose {
+		session.close()
+	}
 }
 
 func (session *execSession) expire() {

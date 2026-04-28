@@ -51,6 +51,7 @@ func newManualExecSessionForTest(
 		exec:        &fakeExec{},
 		registry:    registry,
 		exitTTL:     time.Minute,
+		policy:      reconnectableExecSessionPolicy,
 		ctx:         ctx,
 		cancel:      cancel,
 		subscribers: map[*execSessionSubscriber]struct{}{},
@@ -98,6 +99,36 @@ func TestExecSessionRegistryGetOrCreateReusesInflightCreation(t *testing.T) {
 	require.EqualValues(t, 1, createCalls.Load())
 }
 
+func TestExecSessionStartRunsCommandOnlyOnce(t *testing.T) {
+	var runCalls atomic.Int32
+	runStarted := make(chan struct{})
+
+	session := newExecSession(
+		execSessionKey{vmName: "vm", sessionID: "session"},
+		"echo test",
+		&fakeExec{
+			run: func(ctx context.Context, _ string, _ chan<- *execstream.Frame) error {
+				runCalls.Add(1)
+				close(runStarted)
+				<-ctx.Done()
+
+				return ctx.Err()
+			},
+		},
+		nil,
+		nil,
+		time.Minute,
+		reconnectableExecSessionPolicy,
+	)
+	defer session.close()
+
+	session.start()
+	session.start()
+
+	<-runStarted
+	require.EqualValues(t, 1, runCalls.Load())
+}
+
 func TestExecSessionHistoryReplayAndAck(t *testing.T) {
 	registry := newExecSessionRegistry()
 	session := newManualExecSessionForTest(execSessionKey{vmName: "vm", sessionID: "session"}, registry)
@@ -138,6 +169,57 @@ func TestExecSessionDetachKeepsProcessAlive(t *testing.T) {
 
 	require.False(t, session.closed)
 	require.EqualValues(t, 0, exec.closeCalls.Load())
+}
+
+func TestLegacyExecSessionDetachStopsProcess(t *testing.T) {
+	registry := newExecSessionRegistry()
+	session := newManualExecSessionForTest(execSessionKey{vmName: "vm", sessionID: "session"}, registry)
+	session.policy = legacyExecSessionPolicy
+	exec := session.exec.(*fakeExec)
+
+	subscriber, err := session.attach()
+	require.NoError(t, err)
+
+	session.detach(subscriber)
+
+	require.True(t, session.closed)
+	require.EqualValues(t, 1, exec.closeCalls.Load())
+}
+
+func TestLegacyExecSessionDoesNotRetainReplayHistory(t *testing.T) {
+	registry := newExecSessionRegistry()
+	session := newManualExecSessionForTest(execSessionKey{vmName: "vm", sessionID: "session"}, registry)
+	session.policy = legacyExecSessionPolicy
+
+	session.recordFrame(&execstream.Frame{Type: execstream.FrameTypeStdout, Data: []byte("out")})
+
+	require.Empty(t, session.frames)
+	require.Zero(t, session.nextWatermark)
+}
+
+func TestExecSessionCloseIfUnusedClosesIdleSession(t *testing.T) {
+	registry := newExecSessionRegistry()
+	key := execSessionKey{vmName: "vm", sessionID: "session"}
+	session := newManualExecSessionForTest(key, registry)
+	exec := session.exec.(*fakeExec)
+	registry.sessions[key] = session
+
+	session.closeIfUnused()
+
+	require.True(t, session.closed)
+	require.EqualValues(t, 1, exec.closeCalls.Load())
+}
+
+func TestExecSessionCloseIfUnusedKeepsAttachedSession(t *testing.T) {
+	registry := newExecSessionRegistry()
+	session := newManualExecSessionForTest(execSessionKey{vmName: "vm", sessionID: "session"}, registry)
+
+	_, err := session.attach()
+	require.NoError(t, err)
+
+	session.closeIfUnused()
+
+	require.False(t, session.closed)
 }
 
 func TestExecSessionCloseStopsProcessAndRemovesRegistryEntry(t *testing.T) {
