@@ -157,6 +157,47 @@ func TestExecSessionHistoryReplayAndAck(t *testing.T) {
 	require.EqualValues(t, 3, session.replay.frames[0].frame.Watermark)
 }
 
+func TestExecSessionHistoryReplayStreamsPastSubscriberBuffer(t *testing.T) {
+	registry := newExecSessionRegistry()
+	session := newManualExecSessionForTest(execSessionKey{vmName: "vm", sessionID: "session"}, registry)
+
+	const frameCount = 256
+	for i := 0; i < frameCount; i++ {
+		session.recordFrame(&execstream.Frame{
+			Type: execstream.FrameTypeStdout,
+			Data: []byte{byte(i)},
+		})
+	}
+
+	subscriber, err := session.attach()
+	require.NoError(t, err)
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		session.sendHistory(subscriber, 0)
+	}()
+
+	for i := 1; i <= frameCount; i++ {
+		frame := <-subscriber.frames
+		require.Equal(t, execstream.FrameTypeStdout, frame.Type)
+		require.EqualValues(t, i, frame.Watermark)
+	}
+
+	noMoreHistory := <-subscriber.frames
+	require.Equal(t, execstream.FrameTypeNoMoreHistory, noMoreHistory.Type)
+	require.EqualValues(t, frameCount, noMoreHistory.Watermark)
+
+	require.Eventually(t, func() bool {
+		select {
+		case <-done:
+			return true
+		default:
+			return false
+		}
+	}, time.Second, 10*time.Millisecond)
+}
+
 func TestExecSessionDetachKeepsProcessAlive(t *testing.T) {
 	registry := newExecSessionRegistry()
 	session := newManualExecSessionForTest(execSessionKey{vmName: "vm", sessionID: "session"}, registry)

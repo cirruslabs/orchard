@@ -179,19 +179,17 @@ func (buffer *execReplayBuffer) ack(watermark uint64) {
 
 func (buffer *execReplayBuffer) replayAfter(
 	watermark uint64,
-	enqueue func(*execstream.Frame) bool,
-) bool {
+	frames []*execstream.Frame,
+) []*execstream.Frame {
 	for _, record := range buffer.frames {
 		if record.frame.Watermark <= watermark {
 			continue
 		}
 
-		if !enqueue(record.frame) {
-			return false
-		}
+		frames = append(frames, record.frame)
 	}
 
-	return true
+	return frames
 }
 
 func (buffer *execReplayBuffer) trimAcknowledged() {
@@ -209,22 +207,95 @@ func (buffer *execReplayBuffer) trimToLimit() {
 }
 
 type execSessionSubscriber struct {
-	frames chan *execstream.Frame
+	frames        chan *execstream.Frame
+	closed        chan struct{}
+	closeOnce     sync.Once
+	sendMu        sync.Mutex
+	sentWatermark uint64
 }
 
 func newExecSessionSubscriber() *execSessionSubscriber {
 	return &execSessionSubscriber{
 		frames: make(chan *execstream.Frame, 128),
+		closed: make(chan struct{}),
 	}
 }
 
 func (subscriber *execSessionSubscriber) enqueue(frame *execstream.Frame) bool {
-	select {
-	case subscriber.frames <- cloneExecFrame(frame):
+	subscriber.sendMu.Lock()
+	defer subscriber.sendMu.Unlock()
+
+	if subscriber.alreadySentLocked(frame) {
 		return true
+	}
+
+	select {
+	case <-subscriber.closed:
+		return false
+	default:
+	}
+
+	select {
+	case subscriber.frames <- subscriber.markSentLocked(frame):
+		return true
+	case <-subscriber.closed:
+		return false
 	default:
 		return false
 	}
+}
+
+func (subscriber *execSessionSubscriber) sendHistory(frames []*execstream.Frame) bool {
+	for _, frame := range frames {
+		if !subscriber.sendLocked(frame) {
+			return false
+		}
+	}
+
+	return true
+}
+
+func (subscriber *execSessionSubscriber) sendLocked(frame *execstream.Frame) bool {
+	if subscriber.alreadySentLocked(frame) {
+		return true
+	}
+
+	select {
+	case <-subscriber.closed:
+		return false
+	default:
+	}
+
+	select {
+	case subscriber.frames <- subscriber.markSentLocked(frame):
+		return true
+	case <-subscriber.closed:
+		return false
+	}
+}
+
+func (subscriber *execSessionSubscriber) alreadySentLocked(frame *execstream.Frame) bool {
+	return isReplayOutputFrame(frame) &&
+		frame.Watermark != 0 &&
+		frame.Watermark <= subscriber.sentWatermark
+}
+
+func (subscriber *execSessionSubscriber) markSentLocked(frame *execstream.Frame) *execstream.Frame {
+	frame = cloneExecFrame(frame)
+	if isReplayOutputFrame(frame) && frame.Watermark > subscriber.sentWatermark {
+		subscriber.sentWatermark = frame.Watermark
+	}
+
+	return frame
+}
+
+func (subscriber *execSessionSubscriber) close() {
+	subscriber.closeOnce.Do(func() {
+		close(subscriber.closed)
+		subscriber.sendMu.Lock()
+		close(subscriber.frames)
+		subscriber.sendMu.Unlock()
+	})
 }
 
 type execSession struct {
@@ -345,7 +416,7 @@ func (session *execSession) detachLocked(subscriber *execSessionSubscriber) {
 	}
 
 	delete(session.subscribers, subscriber)
-	close(subscriber.frames)
+	subscriber.close()
 }
 
 func (session *execSession) writeStdin(data []byte) error {
@@ -391,23 +462,26 @@ func (session *execSession) sendHistory(
 	}
 
 	session.mu.Lock()
-	defer session.mu.Unlock()
 
 	if _, ok := session.subscribers[subscriber]; !ok {
-		return
-	}
-
-	if !session.replay.replayAfter(watermark, subscriber.enqueue) {
-		session.detachLocked(subscriber)
+		session.mu.Unlock()
 
 		return
 	}
 
-	if !subscriber.enqueue(&execstream.Frame{
+	subscriber.sendMu.Lock()
+	frames := session.replay.replayAfter(watermark, nil)
+	frames = append(frames, &execstream.Frame{
 		Type:      execstream.FrameTypeNoMoreHistory,
 		Watermark: session.replay.nextWatermark,
-	}) {
-		session.detachLocked(subscriber)
+	})
+	session.mu.Unlock()
+
+	ok := subscriber.sendHistory(frames)
+	subscriber.sendMu.Unlock()
+
+	if !ok {
+		session.dropSubscriber(subscriber)
 	}
 }
 
@@ -466,9 +540,10 @@ func (session *execSession) run() {
 
 func (session *execSession) recordFrame(frame *execstream.Frame) {
 	session.mu.Lock()
-	defer session.mu.Unlock()
 
 	if session.closed {
+		session.mu.Unlock()
+
 		return
 	}
 
@@ -478,12 +553,16 @@ func (session *execSession) recordFrame(frame *execstream.Frame) {
 		frame = cloneExecFrame(frame)
 	}
 
+	subscribers := make([]*execSessionSubscriber, 0, len(session.subscribers))
 	for subscriber := range session.subscribers {
-		if subscriber.enqueue(frame) {
-			continue
-		}
+		subscribers = append(subscribers, subscriber)
+	}
+	session.mu.Unlock()
 
-		session.detachLocked(subscriber)
+	for _, subscriber := range subscribers {
+		if !subscriber.enqueue(frame) {
+			session.dropSubscriber(subscriber)
+		}
 	}
 }
 
@@ -531,8 +610,15 @@ func (session *execSession) takeSubscribersLocked() []*execSessionSubscriber {
 
 func closeSubscribers(subscribers []*execSessionSubscriber) {
 	for _, subscriber := range subscribers {
-		close(subscriber.frames)
+		subscriber.close()
 	}
+}
+
+func (session *execSession) dropSubscriber(subscriber *execSessionSubscriber) {
+	session.mu.Lock()
+	defer session.mu.Unlock()
+
+	session.detachLocked(subscriber)
 }
 
 func cloneExecFrame(frame *execstream.Frame) *execstream.Frame {
@@ -558,4 +644,20 @@ func execFrameSize(frame *execstream.Frame) int {
 	}
 
 	return len(frame.Data) + len(frame.Error) + 16
+}
+
+func isReplayOutputFrame(frame *execstream.Frame) bool {
+	if frame == nil {
+		return false
+	}
+
+	switch frame.Type {
+	case execstream.FrameTypeStdout,
+		execstream.FrameTypeStderr,
+		execstream.FrameTypeExit,
+		execstream.FrameTypeError:
+		return true
+	default:
+		return false
+	}
 }
