@@ -2,6 +2,7 @@ package tests_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"testing"
 	"time"
@@ -151,6 +152,10 @@ func TestVMExecSessionReconnectHistory(t *testing.T) {
 	err = execstream.WriteFrame(t.Context(), wsConn, &execstream.Frame{Type: execstream.FrameTypeDetach})
 	require.NoError(t, err)
 	_ = wsConn.CloseNow()
+
+	// Let the detached process finish so this test verifies partial replay
+	// without relying on live-output timing.
+	time.Sleep(2 * time.Second)
 
 	wsConn, err = devClient.VMs().ExecSession(t.Context(), vmName, client.ExecSessionOptions{
 		WaitSeconds: 30,
@@ -314,14 +319,22 @@ func prepareForExec(t *testing.T) (*client.Client, string) {
 }
 
 func readFrame(t *testing.T, wsConn *websocket.Conn) *execstream.Frame {
+	t.Helper()
+
 	var frame execstream.Frame
 
-	messageType, payloadBytes, err := wsConn.Read(t.Context())
+	readCtx, readCtxCancel := context.WithTimeout(t.Context(), 30*time.Second)
+	defer readCtxCancel()
+
+	messageType, payloadBytes, err := wsConn.Read(readCtx)
 	require.NoError(t, err)
 	require.Equal(t, websocket.MessageText, messageType)
 
 	err = json.Unmarshal(payloadBytes, &frame)
 	require.NoError(t, err)
+	if frame.Type == execstream.FrameTypeError {
+		require.FailNowf(t, "exec stream error", "%s", frame.Error)
+	}
 
 	return &frame
 }

@@ -73,48 +73,46 @@ func (registry *execSessionRegistry) getOrCreate(
 	key execSessionKey,
 	create func() (*execSession, error),
 ) (*execSession, bool, error) {
-	for {
-		registry.mu.Lock()
+	registry.mu.Lock()
 
-		if session, ok := registry.sessions[key]; ok {
-			registry.mu.Unlock()
-
-			return session, false, nil
-		}
-
-		if creation, ok := registry.creating[key]; ok {
-			registry.mu.Unlock()
-
-			select {
-			case <-ctx.Done():
-				return nil, false, ctx.Err()
-			case <-creation.done:
-				if creation.err != nil {
-					return nil, false, creation.err
-				}
-
-				return creation.session, false, nil
-			}
-		}
-
-		creation := &execSessionCreation{done: make(chan struct{})}
-		registry.creating[key] = creation
+	if session, ok := registry.sessions[key]; ok {
 		registry.mu.Unlock()
 
-		session, err := create()
-
-		registry.mu.Lock()
-		delete(registry.creating, key)
-		if err == nil {
-			registry.sessions[key] = session
-		}
-		creation.session = session
-		creation.err = err
-		close(creation.done)
-		registry.mu.Unlock()
-
-		return session, true, err
+		return session, false, nil
 	}
+
+	if creation, ok := registry.creating[key]; ok {
+		registry.mu.Unlock()
+
+		select {
+		case <-ctx.Done():
+			return nil, false, ctx.Err()
+		case <-creation.done:
+			if creation.err != nil {
+				return nil, false, creation.err
+			}
+
+			return creation.session, false, nil
+		}
+	}
+
+	creation := &execSessionCreation{done: make(chan struct{})}
+	registry.creating[key] = creation
+	registry.mu.Unlock()
+
+	session, err := create()
+
+	registry.mu.Lock()
+	delete(registry.creating, key)
+	if err == nil {
+		registry.sessions[key] = session
+	}
+	creation.session = session
+	creation.err = err
+	close(creation.done)
+	registry.mu.Unlock()
+
+	return session, true, err
 }
 
 func (registry *execSessionRegistry) remove(key execSessionKey, expected *execSession) {
