@@ -293,3 +293,28 @@ func TestExecSessionFinishedEntryExpiresAfterTTL(t *testing.T) {
 		return !ok
 	}, time.Second, 10*time.Millisecond)
 }
+
+func TestExecSessionFinishKeepsReconnectableSubscriberOpen(t *testing.T) {
+	registry := newExecSessionRegistry()
+	session := newManualExecSessionForTest(execSessionKey{vmName: "vm", sessionID: "session"}, registry)
+
+	subscriber, err := session.attach()
+	require.NoError(t, err)
+
+	session.recordFrame(&execstream.Frame{Type: execstream.FrameTypeStdout, Data: []byte("out")})
+	session.recordFrame(&execstream.Frame{
+		Type: execstream.FrameTypeExit,
+		Exit: &execstream.Exit{Code: 0},
+	})
+	session.markFinished()
+
+	require.Equal(t, execstream.FrameTypeStdout, (<-subscriber.frames).Type)
+	require.Equal(t, execstream.FrameTypeExit, (<-subscriber.frames).Type)
+
+	session.sendHistory(subscriber, 0)
+
+	noMoreHistory, ok := <-subscriber.frames
+	require.True(t, ok)
+	require.Equal(t, execstream.FrameTypeNoMoreHistory, noMoreHistory.Type)
+	require.EqualValues(t, 2, noMoreHistory.Watermark)
+}

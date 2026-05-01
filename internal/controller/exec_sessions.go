@@ -606,7 +606,10 @@ func (session *execSession) markFinished() {
 		session.expiryTimer = time.AfterFunc(session.exitTTL, session.expire)
 	}
 
-	subscribers := session.takeSubscribersLocked()
+	var subscribers []*execSessionSubscriber
+	if shouldClose {
+		subscribers = session.takeSubscribersLocked()
+	}
 	session.mu.Unlock()
 
 	closeSubscribers(subscribers)
