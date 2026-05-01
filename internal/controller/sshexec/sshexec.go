@@ -14,11 +14,12 @@ import (
 )
 
 type Exec struct {
-	sshClient  *ssh.Client
-	sshSession *ssh.Session
-	stdout     io.Reader
-	stderr     io.Reader
-	stdin      io.WriteCloser
+	sshClient   *ssh.Client
+	sshSession  *ssh.Session
+	stdout      io.Reader
+	stderr      io.Reader
+	stdin       io.WriteCloser
+	stdinReader *io.PipeReader
 }
 
 func New(netConn net.Conn, user string, password string, stdin bool) (*Exec, error) {
@@ -52,14 +53,10 @@ func New(netConn net.Conn, user string, password string, stdin bool) (*Exec, err
 	}
 
 	if stdin {
-		exec.stdin, err = sshSession.StdinPipe()
-		if err != nil {
-			_ = sshSession.Close()
-			_ = sshClient.Close()
-
-			return nil, fmt.Errorf("failed to create standard input pipe "+
-				"for the SSH session: %w", err)
-		}
+		stdinReader, stdinWriter := io.Pipe()
+		sshSession.Stdin = stdinReader
+		exec.stdinReader = stdinReader
+		exec.stdin = stdinWriter
 	}
 
 	exec.stdout, err = sshSession.StdoutPipe()
@@ -92,6 +89,12 @@ func (exec *Exec) Run(
 	command string,
 	outgoingFrames chan<- *execstream.Frame,
 ) error {
+	if exec.stdinReader != nil {
+		defer func() {
+			_ = exec.stdinReader.Close()
+		}()
+	}
+
 	if err := exec.sshSession.Start(command); err != nil {
 		return fmt.Errorf("failed to start command %q: %w", command, err)
 	}
@@ -188,6 +191,13 @@ func ioStreamReader(
 }
 
 func (exec *Exec) Close() error {
+	if exec.stdin != nil {
+		_ = exec.stdin.Close()
+	}
+	if exec.stdinReader != nil {
+		_ = exec.stdinReader.Close()
+	}
+
 	if err := exec.sshSession.Close(); err != nil {
 		_ = exec.sshClient.Close()
 
