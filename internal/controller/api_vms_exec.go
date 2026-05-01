@@ -175,7 +175,7 @@ func (controller *Controller) execVMReconnectable(
 }
 
 func (controller *Controller) newSSHExecSession(
-	ctx *gin.Context,
+	_ *gin.Context,
 	waitContext context.Context,
 	vm *v1.VM,
 	key execSessionKey,
@@ -184,6 +184,8 @@ func (controller *Controller) newSSHExecSession(
 	registry *execSessionRegistry,
 	policy execSessionPolicy,
 ) (*execSession, error) {
+	sessionContext, sessionContextCancel := context.WithCancel(context.Background())
+
 	portForwardConn, err := retry.NewWithData[net.Conn](
 		retry.Context(waitContext),
 		retry.DelayType(retry.FixedDelay),
@@ -191,20 +193,25 @@ func (controller *Controller) newSSHExecSession(
 		retry.Attempts(0),
 		retry.LastErrorOnly(true),
 	).Do(func() (net.Conn, error) {
-		return controller.portForwardConnection(ctx, waitContext, vm.Worker, vm.UID, 22)
+		return controller.portForwardConnection(sessionContext, waitContext, vm.Worker, vm.UID, 22)
 	})
 	if err != nil {
+		sessionContextCancel()
+
 		return nil, err
 	}
 
 	exec, err := sshexec.New(portForwardConn, vm.SSHUsername(), vm.SSHPassword(), stdin)
 	if err != nil {
+		sessionContextCancel()
 		_ = portForwardConn.Close()
 
 		return nil, fmt.Errorf("failed to establish SSH connection to a VM: %w", err)
 	}
 
-	return newExecSession(
+	return newExecSessionWithContext(
+		sessionContext,
+		sessionContextCancel,
 		key,
 		command,
 		exec,

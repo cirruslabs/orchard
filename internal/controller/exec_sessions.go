@@ -334,6 +334,34 @@ func newExecSession(
 ) *execSession {
 	ctx, cancel := context.WithCancel(context.Background())
 
+	return newExecSessionWithContext(
+		ctx,
+		cancel,
+		key,
+		command,
+		exec,
+		transport,
+		registry,
+		exitTTL,
+		policy,
+	)
+}
+
+func newExecSessionWithContext(
+	ctx context.Context,
+	cancel context.CancelFunc,
+	key execSessionKey,
+	command string,
+	exec sshExecRunner,
+	transport net.Conn,
+	registry *execSessionRegistry,
+	exitTTL time.Duration,
+	policy execSessionPolicy,
+) *execSession {
+	if ctx == nil || cancel == nil {
+		ctx, cancel = context.WithCancel(context.Background())
+	}
+
 	session := &execSession{
 		key:         key,
 		command:     command,
