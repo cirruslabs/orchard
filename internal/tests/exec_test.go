@@ -266,6 +266,11 @@ func TestVMExecSessionStdinSurvivesReconnect(t *testing.T) {
 		Data: []byte("one\n"),
 	})
 	require.NoError(t, err)
+
+	frame := readFrame(t, wsConn)
+	require.Equal(t, execstream.FrameTypeStdout, frame.Type)
+	require.Equal(t, "one\n", string(frame.Data))
+
 	err = execstream.WriteFrame(t.Context(), wsConn, &execstream.Frame{Type: execstream.FrameTypeDetach})
 	require.NoError(t, err)
 	_ = wsConn.CloseNow()
