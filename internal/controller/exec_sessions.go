@@ -377,31 +377,6 @@ func newExecSession(
 	)
 }
 
-func newExecSessionWithContext(
-	ctx context.Context,
-	cancel context.CancelFunc,
-	key execSessionKey,
-	command string,
-	exec sshExecRunner,
-	transport net.Conn,
-	registry *execSessionRegistry,
-	exitTTL time.Duration,
-	policy execSessionPolicy,
-) *execSession {
-	return newExecSessionWithContextAndSpec(
-		ctx,
-		cancel,
-		key,
-		execSessionSpec{command: command},
-		command,
-		exec,
-		transport,
-		registry,
-		exitTTL,
-		policy,
-	)
-}
-
 func newExecSessionWithContextAndSpec(
 	ctx context.Context,
 	cancel context.CancelFunc,
