@@ -60,6 +60,12 @@ func WithWorkerOfflineTimeout(workerOfflineTimeout time.Duration) Option {
 	}
 }
 
+func WithExecSessionExitTTL(execSessionExitTTL time.Duration) Option {
+	return func(controller *Controller) {
+		controller.execSessionExitTTL = execSessionExitTTL
+	}
+}
+
 func WithExperimentalRPCV2() Option {
 	return func(controller *Controller) {
 		controller.experimentalRPCV2 = true

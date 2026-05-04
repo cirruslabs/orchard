@@ -47,6 +47,13 @@ type EventsPageOptions struct {
 	Cursor string
 }
 
+type ExecSessionOptions struct {
+	Command     string
+	Stdin       bool
+	WaitSeconds uint16
+	Session     string
+}
+
 func (service *VMsService) Create(ctx context.Context, vm *v1.VM) error {
 	err := service.client.request(ctx, http.MethodPost, "vms",
 		vm, nil, nil)
@@ -164,12 +171,33 @@ func (service *VMsService) Exec(
 	stdin bool,
 	waitSeconds uint16,
 ) (*websocket.Conn, error) {
+	return service.ExecSession(ctx, name, ExecSessionOptions{
+		Command:     command,
+		Stdin:       stdin,
+		WaitSeconds: waitSeconds,
+	})
+}
+
+func (service *VMsService) ExecSession(
+	ctx context.Context,
+	name string,
+	options ExecSessionOptions,
+) (*websocket.Conn, error) {
+	params := map[string]string{
+		"wait": strconv.FormatUint(uint64(options.WaitSeconds), 10),
+	}
+	if options.Command != "" {
+		params["command"] = options.Command
+	}
+	if options.Stdin {
+		params["stdin"] = strconv.FormatBool(true)
+	}
+	if options.Session != "" {
+		params["session"] = options.Session
+	}
+
 	return service.client.wsRequestRaw(ctx, fmt.Sprintf("vms/%s/exec", url.PathEscape(name)),
-		map[string]string{
-			"command": command,
-			"stdin":   strconv.FormatBool(stdin),
-			"wait":    strconv.FormatUint(uint64(waitSeconds), 10),
-		})
+		params)
 }
 
 func (service *VMsService) IP(ctx context.Context, name string, waitSeconds uint16) (string, error) {

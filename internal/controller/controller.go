@@ -55,6 +55,7 @@ type Controller struct {
 	ipRendezvous         *rendezvous.Rendezvous[rendezvous.ResultWithErrorMessage[string]]
 	enableSwaggerDocs    bool
 	workerOfflineTimeout time.Duration
+	execSessionExitTTL   time.Duration
 	experimentalRPCV2    bool
 	disableDBCompression bool
 	pingInterval         time.Duration
@@ -64,6 +65,7 @@ type Controller struct {
 	sshSigner       ssh.Signer
 	sshNoClientAuth bool
 	sshServer       *sshserver.SSHServer
+	execSessions    *execSessionRegistry
 
 	single singleflight.Group
 
@@ -75,7 +77,9 @@ func New(opts ...Option) (*Controller, error) {
 		connRendezvous:       rendezvous.New[rendezvous.ResultWithErrorMessage[net.Conn]](),
 		ipRendezvous:         rendezvous.New[rendezvous.ResultWithErrorMessage[string]](),
 		workerOfflineTimeout: 3 * time.Minute,
+		execSessionExitTTL:   10 * time.Minute,
 		pingInterval:         30 * time.Second,
+		execSessions:         newExecSessionRegistry(),
 		single:               singleflight.Group{},
 	}
 
@@ -307,6 +311,8 @@ func (controller *Controller) Run(ctx context.Context) error {
 	// A helper function to shut down the HTTP server on context cancellation
 	go func() {
 		<-ctx.Done()
+
+		controller.execSessions.closeAll()
 
 		if err := controller.httpServer.Shutdown(ctx); err != nil {
 			controller.logger.Errorf("failed to cleanly shutdown the HTTP server: %v", err)
