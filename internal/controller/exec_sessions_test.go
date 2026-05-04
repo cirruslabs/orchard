@@ -14,6 +14,7 @@ import (
 type fakeExec struct {
 	stdin      io.WriteCloser
 	run        func(context.Context, string, chan<- *execstream.Frame) error
+	resize     func(uint32, uint32) error
 	closeCalls atomic.Int32
 }
 
@@ -33,6 +34,14 @@ func (exec *fakeExec) Run(
 	return nil
 }
 
+func (exec *fakeExec) Resize(rows uint32, cols uint32) error {
+	if exec.resize != nil {
+		return exec.resize(rows, cols)
+	}
+
+	return nil
+}
+
 func (exec *fakeExec) Close() error {
 	exec.closeCalls.Add(1)
 
@@ -47,6 +56,7 @@ func newManualExecSessionForTest(
 
 	return &execSession{
 		key:         key,
+		spec:        execSessionSpec{command: "echo test"},
 		command:     "echo test",
 		exec:        &fakeExec{},
 		registry:    registry,
@@ -127,6 +137,64 @@ func TestExecSessionStartRunsCommandOnlyOnce(t *testing.T) {
 
 	<-runStarted
 	require.EqualValues(t, 1, runCalls.Load())
+}
+
+func TestExecSessionSpecMatchesOptions(t *testing.T) {
+	session := newManualExecSessionForTest(execSessionKey{vmName: "vm", sessionID: "session"}, nil)
+	session.spec = execSessionSpec{
+		command:     "echo test",
+		interactive: true,
+		tty:         true,
+		rows:        24,
+		cols:        80,
+		env:         map[string]string{"GREETING": "hello"},
+		workdir:     "/tmp",
+	}
+
+	require.True(t, session.specMatches(execSessionSpec{}))
+	require.True(t, session.specMatches(execSessionSpec{
+		command:     "echo test",
+		interactive: true,
+		tty:         true,
+		rows:        24,
+		cols:        80,
+		env:         map[string]string{"GREETING": "hello"},
+		workdir:     "/tmp",
+	}))
+	require.False(t, session.specMatches(execSessionSpec{
+		command:     "echo test",
+		interactive: true,
+		tty:         true,
+		rows:        24,
+		cols:        80,
+		env:         map[string]string{"GREETING": "goodbye"},
+		workdir:     "/tmp",
+	}))
+}
+
+func TestExecSessionResizeRequiresTTY(t *testing.T) {
+	session := newManualExecSessionForTest(execSessionKey{vmName: "vm", sessionID: "session"}, nil)
+
+	err := session.resize(24, 80)
+	require.ErrorContains(t, err, "no TTY")
+}
+
+func TestExecSessionResizeDelegatesToRunner(t *testing.T) {
+	var resizedRows, resizedCols uint32
+	session := newManualExecSessionForTest(execSessionKey{vmName: "vm", sessionID: "session"}, nil)
+	session.spec.tty = true
+	session.exec = &fakeExec{
+		resize: func(rows uint32, cols uint32) error {
+			resizedRows = rows
+			resizedCols = cols
+
+			return nil
+		},
+	}
+
+	require.NoError(t, session.resize(24, 80))
+	require.EqualValues(t, 24, resizedRows)
+	require.EqualValues(t, 80, resizedCols)
 }
 
 func TestExecSessionHistoryReplayAndAck(t *testing.T) {

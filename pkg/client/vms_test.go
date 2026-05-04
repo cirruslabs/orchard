@@ -26,7 +26,12 @@ func TestExecSessionBuildsReconnectableQuery(t *testing.T) {
 
 	conn, err := devClient.VMs().ExecSession(t.Context(), "vm", ExecSessionOptions{
 		Command:     "echo hello",
-		Stdin:       true,
+		Interactive: true,
+		TTY:         true,
+		Rows:        24,
+		Cols:        80,
+		Env:         map[string]string{"GREETING": "hello"},
+		Workdir:     "/tmp",
 		WaitSeconds: 7,
 		Session:     "resume-me",
 	})
@@ -34,7 +39,12 @@ func TestExecSessionBuildsReconnectableQuery(t *testing.T) {
 	defer conn.CloseNow()
 
 	require.Equal(t, []string{"echo hello"}, query["command"])
-	require.Equal(t, []string{"true"}, query["stdin"])
+	require.Equal(t, []string{"true"}, query["interactive"])
+	require.Equal(t, []string{"true"}, query["tty"])
+	require.Equal(t, []string{"24"}, query["rows"])
+	require.Equal(t, []string{"80"}, query["cols"])
+	require.Equal(t, []string{"hello"}, query["env[GREETING]"])
+	require.Equal(t, []string{"/tmp"}, query["workdir"])
 	require.Equal(t, []string{"7"}, query["wait"])
 	require.Equal(t, []string{"resume-me"}, query["session"])
 }

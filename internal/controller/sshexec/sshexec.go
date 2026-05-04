@@ -6,12 +6,26 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"regexp"
 	"slices"
+	"sort"
+	"strings"
 
 	"github.com/cirruslabs/orchard/internal/execstream"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/sync/errgroup"
 )
+
+var envNamePattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+
+type Options struct {
+	Interactive bool
+	TTY         bool
+	Rows        uint32
+	Cols        uint32
+	Env         map[string]string
+	Workdir     string
+}
 
 type Exec struct {
 	sshClient   *ssh.Client
@@ -20,9 +34,10 @@ type Exec struct {
 	stderr      io.Reader
 	stdin       io.WriteCloser
 	stdinReader *io.PipeReader
+	tty         bool
 }
 
-func New(netConn net.Conn, user string, password string, stdin bool) (*Exec, error) {
+func New(netConn net.Conn, user string, password string, options Options) (*Exec, error) {
 	// Establish an SSH connection
 	sshConn, sshChans, sshReqs, err := ssh.NewClientConn(netConn, "", &ssh.ClientConfig{
 		HostKeyCallback: func(hostname string, remote net.Addr, key ssh.PublicKey) error {
@@ -50,13 +65,28 @@ func New(netConn net.Conn, user string, password string, stdin bool) (*Exec, err
 	exec := &Exec{
 		sshClient:  sshClient,
 		sshSession: sshSession,
+		tty:        options.TTY,
 	}
 
-	if stdin {
+	if options.Interactive || options.TTY {
 		stdinReader, stdinWriter := io.Pipe()
 		sshSession.Stdin = stdinReader
 		exec.stdinReader = stdinReader
 		exec.stdin = stdinWriter
+	}
+
+	if options.TTY {
+		if err := sshSession.RequestPty(
+			"xterm-256color",
+			int(options.Rows),
+			int(options.Cols),
+			ssh.TerminalModes{},
+		); err != nil {
+			_ = sshSession.Close()
+			_ = sshClient.Close()
+
+			return nil, fmt.Errorf("failed to request PTY for the SSH session: %w", err)
+		}
 	}
 
 	exec.stdout, err = sshSession.StdoutPipe()
@@ -82,6 +112,63 @@ func New(netConn net.Conn, user string, password string, stdin bool) (*Exec, err
 
 func (exec *Exec) Stdin() io.WriteCloser {
 	return exec.stdin
+}
+
+func CommandWithOptions(command string, options Options) (string, error) {
+	if strings.ContainsRune(options.Workdir, '\x00') {
+		return "", errors.New("working directory contains NUL byte")
+	}
+
+	keys := make([]string, 0, len(options.Env))
+	for key, value := range options.Env {
+		if !envNamePattern.MatchString(key) {
+			return "", fmt.Errorf("invalid environment variable name %q", key)
+		}
+
+		if strings.ContainsRune(value, '\x00') {
+			return "", fmt.Errorf("environment variable %q contains NUL byte", key)
+		}
+
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	if command == "" {
+		return command, nil
+	}
+
+	if options.Workdir == "" && len(keys) == 0 {
+		return command, nil
+	}
+
+	var builder strings.Builder
+	if options.Workdir != "" {
+		builder.WriteString("cd ")
+		builder.WriteString(shellQuote(options.Workdir))
+		builder.WriteString(" || exit $?\n")
+	}
+	for _, key := range keys {
+		builder.WriteString("export ")
+		builder.WriteString(key)
+		builder.WriteByte('=')
+		builder.WriteString(shellQuote(options.Env[key]))
+		builder.WriteByte('\n')
+	}
+	builder.WriteString(command)
+
+	return builder.String(), nil
+}
+
+func shellQuote(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", "'\\''") + "'"
+}
+
+func (exec *Exec) Resize(rows uint32, cols uint32) error {
+	if !exec.tty {
+		return errors.New("this exec session does not have a TTY")
+	}
+
+	return exec.sshSession.WindowChange(int(rows), int(cols))
 }
 
 func (exec *Exec) Run(

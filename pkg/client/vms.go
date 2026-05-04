@@ -49,7 +49,12 @@ type EventsPageOptions struct {
 
 type ExecSessionOptions struct {
 	Command     string
-	Stdin       bool
+	Interactive bool
+	TTY         bool
+	Rows        uint32
+	Cols        uint32
+	Env         map[string]string
+	Workdir     string
 	WaitSeconds uint16
 	Session     string
 }
@@ -173,7 +178,7 @@ func (service *VMsService) Exec(
 ) (*websocket.Conn, error) {
 	return service.ExecSession(ctx, name, ExecSessionOptions{
 		Command:     command,
-		Stdin:       stdin,
+		Interactive: stdin,
 		WaitSeconds: waitSeconds,
 	})
 }
@@ -189,8 +194,23 @@ func (service *VMsService) ExecSession(
 	if options.Command != "" {
 		params["command"] = options.Command
 	}
-	if options.Stdin {
-		params["stdin"] = strconv.FormatBool(true)
+	if options.Interactive {
+		params["interactive"] = strconv.FormatBool(true)
+	}
+	if options.TTY {
+		params["tty"] = strconv.FormatBool(true)
+	}
+	if options.Rows > 0 {
+		params["rows"] = strconv.FormatUint(uint64(options.Rows), 10)
+	}
+	if options.Cols > 0 {
+		params["cols"] = strconv.FormatUint(uint64(options.Cols), 10)
+	}
+	for key, value := range options.Env {
+		params[fmt.Sprintf("env[%s]", key)] = value
+	}
+	if options.Workdir != "" {
+		params["workdir"] = options.Workdir
 	}
 	if options.Session != "" {
 		params["session"] = options.Session
