@@ -80,6 +80,94 @@ func TestVMExecWithStdin(t *testing.T) {
 	require.Equal(t, websocket.StatusNormalClosure, closeError.Code)
 }
 
+func TestVMExecWithOptions(t *testing.T) {
+	devClient, vmName := prepareForExec(t)
+
+	script := "sh -c 'printf \"%s|%s|%s\" \"$GREETING\" \"$QUOTE\" \"$PWD\"'"
+
+	wsConn, err := devClient.VMs().ExecSession(t.Context(), vmName, client.ExecSessionOptions{
+		Command: script,
+		Env: map[string]string{
+			"GREETING": "Hello, World!",
+			"QUOTE":    "O'Reilly",
+		},
+		Workdir:     "/tmp",
+		WaitSeconds: 30,
+	})
+	require.NoError(t, err)
+	defer wsConn.CloseNow()
+
+	var stdout bytes.Buffer
+	var exitFrame *execstream.Frame
+
+	for exitFrame == nil {
+		frame := readFrame(t, wsConn)
+
+		switch frame.Type {
+		case execstream.FrameTypeStdout:
+			stdout.Write(frame.Data)
+		case execstream.FrameTypeExit:
+			exitFrame = frame
+		default:
+			t.Fatalf("unexpected frame type %q", frame.Type)
+		}
+	}
+
+	require.EqualValues(t, 0, exitFrame.Exit.Code)
+	require.Equal(t, "Hello, World!|O'Reilly|/tmp", stdout.String())
+}
+
+func TestVMExecTTYResize(t *testing.T) {
+	devClient, vmName := prepareForExec(t)
+
+	wsConn, err := devClient.VMs().ExecSession(t.Context(), vmName, client.ExecSessionOptions{
+		Command:     "sh -c 'stty size; read -r line; stty size'",
+		Interactive: true,
+		TTY:         true,
+		Rows:        24,
+		Cols:        80,
+		WaitSeconds: 30,
+	})
+	require.NoError(t, err)
+	defer wsConn.CloseNow()
+
+	firstFrame := readFrame(t, wsConn)
+	require.Equal(t, execstream.FrameTypeStdout, firstFrame.Type)
+	require.Contains(t, string(firstFrame.Data), "24 80")
+
+	err = execstream.WriteFrame(t.Context(), wsConn, &execstream.Frame{
+		Type: execstream.FrameTypeResize,
+		Terminal: &execstream.TerminalSize{
+			Rows: 40,
+			Cols: 120,
+		},
+	})
+	require.NoError(t, err)
+	err = execstream.WriteFrame(t.Context(), wsConn, &execstream.Frame{
+		Type: execstream.FrameTypeStdin,
+		Data: []byte("continue\n"),
+	})
+	require.NoError(t, err)
+
+	var stdout bytes.Buffer
+	var exitFrame *execstream.Frame
+	for exitFrame == nil {
+		frame := readFrame(t, wsConn)
+
+		switch frame.Type {
+		case execstream.FrameTypeStdout:
+			stdout.Write(frame.Data)
+		case execstream.FrameTypeExit:
+			exitFrame = frame
+		default:
+			t.Fatalf("unexpected frame type %q", frame.Type)
+		}
+	}
+
+	require.Contains(t, stdout.String(), "40 120")
+	require.EqualValues(t, 0, exitFrame.Exit.Code)
+}
+
 func TestVMExecScript(t *testing.T) {
 	devClient, vmName := prepareForExec(t)
 
@@ -255,7 +343,7 @@ func TestVMExecSessionStdinSurvivesReconnect(t *testing.T) {
 
 	wsConn, err := devClient.VMs().ExecSession(t.Context(), vmName, client.ExecSessionOptions{
 		Command:     "/bin/cat",
-		Stdin:       true,
+		Interactive: true,
 		WaitSeconds: 30,
 		Session:     sessionID,
 	})

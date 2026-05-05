@@ -38,7 +38,10 @@ func (controller *Controller) execVM(ctx *gin.Context) responder.Responder {
 			NewErrorResponse("\"command\" parameter cannot be empty"))
 	}
 
-	stdin := ctx.Query("stdin") == "true"
+	spec, runCommand, err := parseExecSessionSpec(ctx, command)
+	if err != nil {
+		return responder.JSON(http.StatusBadRequest, NewErrorResponse("%v", err))
+	}
 
 	waitRaw := ctx.DefaultQuery("wait", "10")
 	wait, err := strconv.ParseUint(waitRaw, 10, 16)
@@ -47,17 +50,17 @@ func (controller *Controller) execVM(ctx *gin.Context) responder.Responder {
 	}
 
 	if sessionID != "" {
-		return controller.execVMReconnectable(ctx, name, sessionID, command, stdin, wait)
+		return controller.execVMReconnectable(ctx, name, sessionID, spec, runCommand, wait)
 	}
 
-	return controller.execVMLegacy(ctx, name, command, stdin, wait)
+	return controller.execVMLegacy(ctx, name, spec, runCommand, wait)
 }
 
 func (controller *Controller) execVMLegacy(
 	ctx *gin.Context,
 	name string,
-	command string,
-	stdin bool,
+	spec execSessionSpec,
+	runCommand string,
 	wait uint64,
 ) responder.Responder {
 	// Look-up the VM
@@ -74,8 +77,8 @@ func (controller *Controller) execVMLegacy(
 		waitContext,
 		vm,
 		execSessionKey{vmName: name},
-		command,
-		stdin,
+		spec,
+		runCommand,
 		nil,
 		legacyExecSessionPolicy,
 	)
@@ -107,8 +110,8 @@ func (controller *Controller) execVMReconnectable(
 	ctx *gin.Context,
 	name string,
 	sessionID string,
-	command string,
-	stdin bool,
+	spec execSessionSpec,
+	runCommand string,
 	wait uint64,
 ) responder.Responder {
 	key := execSessionKey{
@@ -118,12 +121,12 @@ func (controller *Controller) execVMReconnectable(
 
 	session, ok := controller.execSessions.get(key)
 	if ok {
-		if !session.commandMatches(command) {
+		if !session.specMatches(spec) {
 			return responder.JSON(http.StatusConflict,
-				NewErrorResponse("exec session %q is already running a different command", sessionID))
+				NewErrorResponse("exec session %q is already running with different options", sessionID))
 		}
 	} else {
-		if command == "" {
+		if spec.command == "" {
 			return responder.JSON(http.StatusNotFound,
 				NewErrorResponse("exec session %q does not exist", sessionID))
 		}
@@ -143,8 +146,8 @@ func (controller *Controller) execVMReconnectable(
 				waitContext,
 				vm,
 				key,
-				command,
-				stdin,
+				spec,
+				runCommand,
 				controller.execSessions,
 				reconnectableExecSessionPolicy,
 			)
@@ -153,9 +156,9 @@ func (controller *Controller) execVMReconnectable(
 			return responder.JSON(http.StatusServiceUnavailable, NewErrorResponse("%v", err))
 		}
 
-		if !session.commandMatches(command) {
+		if !session.specMatches(spec) {
 			return responder.JSON(http.StatusConflict,
-				NewErrorResponse("exec session %q is already running a different command", sessionID))
+				NewErrorResponse("exec session %q is already running with different options", sessionID))
 		}
 	}
 
@@ -179,8 +182,8 @@ func (controller *Controller) newSSHExecSession(
 	waitContext context.Context,
 	vm *v1.VM,
 	key execSessionKey,
-	command string,
-	stdin bool,
+	spec execSessionSpec,
+	runCommand string,
 	registry *execSessionRegistry,
 	policy execSessionPolicy,
 ) (*execSession, error) {
@@ -201,7 +204,12 @@ func (controller *Controller) newSSHExecSession(
 		return nil, err
 	}
 
-	exec, err := sshexec.New(portForwardConn, vm.SSHUsername(), vm.SSHPassword(), stdin)
+	exec, err := sshexec.New(portForwardConn, vm.SSHUsername(), vm.SSHPassword(), sshexec.Options{
+		Interactive: spec.interactive,
+		TTY:         spec.tty,
+		Rows:        spec.rows,
+		Cols:        spec.cols,
+	})
 	if err != nil {
 		sessionContextCancel()
 		_ = portForwardConn.Close()
@@ -209,11 +217,12 @@ func (controller *Controller) newSSHExecSession(
 		return nil, fmt.Errorf("failed to establish SSH connection to a VM: %w", err)
 	}
 
-	return newExecSessionWithContext(
+	return newExecSessionWithContextAndSpec(
 		sessionContext,
 		sessionContextCancel,
 		key,
-		command,
+		spec,
+		runCommand,
 		exec,
 		portForwardConn,
 		registry,
@@ -288,6 +297,111 @@ var (
 	errExecSessionClosed   = errors.New("exec session closed")
 )
 
+func parseExecSessionSpec(ctx *gin.Context, command string) (execSessionSpec, string, error) {
+	interactive, err := parseExecInteractive(ctx)
+	if err != nil {
+		return execSessionSpec{}, "", err
+	}
+
+	tty, err := parseExecBool(ctx, "tty")
+	if err != nil {
+		return execSessionSpec{}, "", err
+	}
+	if tty {
+		interactive = true
+	}
+
+	rows, err := parseExecUint32(ctx.Query("rows"), "rows")
+	if err != nil {
+		return execSessionSpec{}, "", err
+	}
+	cols, err := parseExecUint32(ctx.Query("cols"), "cols")
+	if err != nil {
+		return execSessionSpec{}, "", err
+	}
+	if (rows == 0) != (cols == 0) {
+		return execSessionSpec{}, "", errors.New("\"rows\" and \"cols\" must be provided together")
+	}
+
+	spec := execSessionSpec{
+		command:     command,
+		interactive: interactive,
+		tty:         tty,
+		rows:        rows,
+		cols:        cols,
+		env:         ctx.QueryMap("env"),
+		workdir:     ctx.Query("workdir"),
+	}
+
+	runCommand, err := sshexec.CommandWithOptions(command, sshexec.Options{
+		Env:     spec.env,
+		Workdir: spec.workdir,
+	})
+	if err != nil {
+		return execSessionSpec{}, "", err
+	}
+
+	return spec, runCommand, nil
+}
+
+func parseExecInteractive(ctx *gin.Context) (bool, error) {
+	interactive, err := parseExecBool(ctx, "interactive")
+	if err != nil {
+		return false, err
+	}
+
+	interactiveRaw, interactivePresent := ctx.GetQuery("interactive")
+	stdinRaw, stdinPresent := ctx.GetQuery("stdin")
+	if !stdinPresent {
+		return interactive, nil
+	}
+
+	stdin, err := strconv.ParseBool(stdinRaw)
+	if err != nil {
+		return false, errors.New("\"stdin\" parameter must be a boolean")
+	}
+
+	if interactivePresent {
+		parsedInteractive, _ := strconv.ParseBool(interactiveRaw)
+		if stdin != parsedInteractive {
+			return false, errors.New("\"interactive\" and \"stdin\" parameters cannot conflict")
+		}
+	}
+
+	if !interactivePresent {
+		interactive = stdin
+	}
+
+	return interactive, nil
+}
+
+func parseExecBool(ctx *gin.Context, name string) (bool, error) {
+	raw, present := ctx.GetQuery(name)
+	if !present {
+		return false, nil
+	}
+
+	value, err := strconv.ParseBool(raw)
+	if err != nil {
+		return false, fmt.Errorf("%q parameter must be a boolean", name)
+	}
+
+	return value, nil
+}
+
+func parseExecUint32(raw string, name string) (uint32, error) {
+	if raw == "" {
+		return 0, nil
+	}
+
+	value, err := strconv.ParseUint(raw, 10, 32)
+	if err != nil {
+		return 0, fmt.Errorf("%q parameter must be an unsigned integer", name)
+	}
+
+	return uint32(value), nil
+}
+
 func (controller *Controller) readExecSessionFrames(
 	ctx context.Context,
 	wsConn *websocket.Conn,
@@ -318,6 +432,14 @@ func (controller *Controller) readExecSessionFrames(
 		switch frame.Type {
 		case execstream.FrameTypeStdin:
 			if err := session.writeStdin(frame.Data); err != nil {
+				return fmt.Errorf("failed to handle %q frame: %w", frame.Type, err)
+			}
+		case execstream.FrameTypeResize:
+			if frame.Terminal == nil {
+				return fmt.Errorf("failed to handle %q frame: terminal size is required", frame.Type)
+			}
+
+			if err := session.resize(frame.Terminal.Rows, frame.Terminal.Cols); err != nil {
 				return fmt.Errorf("failed to handle %q frame: %w", frame.Type, err)
 			}
 		case execstream.FrameTypeHistory:

@@ -457,7 +457,7 @@ paths:
             minLength: 1
           required: false
         - in: query
-          name: stdin
+          name: interactive
           description: |
             Whether to allocate an interactive standard input for the command
             
@@ -467,6 +467,59 @@ paths:
           schema:
             type: boolean
             default: false
+          required: false
+        - in: query
+          name: stdin
+          deprecated: true
+          description: |
+            Deprecated alias for `interactive`.
+
+            If both `interactive` and `stdin` are provided, their values must match.
+          schema:
+            type: boolean
+            default: false
+          required: false
+        - in: query
+          name: tty
+          description: Whether to allocate a pseudo-terminal for the command
+          schema:
+            type: boolean
+            default: false
+          required: false
+        - in: query
+          name: rows
+          description: Initial terminal row count when `tty=true`
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 4294967295
+          required: false
+        - in: query
+          name: cols
+          description: Initial terminal column count when `tty=true`
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 4294967295
+          required: false
+        - in: query
+          name: env
+          description: |
+            Environment variables to expose to the command.
+
+            Use deep object query syntax, for example `env[FOO]=bar&env[BAZ]=qux`.
+          style: deepObject
+          explode: true
+          schema:
+            type: object
+            additionalProperties:
+              type: string
+          required: false
+        - in: query
+          name: workdir
+          description: Working directory to switch to before starting the command
+          schema:
+            type: string
           required: false
         - in: query
           name: wait
@@ -507,7 +560,7 @@ paths:
         '404':
           description: VM resource with the given name or reconnectable exec session doesn't exist
         '409':
-          description: Reconnectable exec session already exists with a different command
+          description: Reconnectable exec session already exists with different options
         '503':
           description: Controller failed to establish a connection with the VM
   /vms/{name}/ip:
@@ -824,6 +877,7 @@ components:
       description: WebSocket frame from Orchard Client to the Orchard Controller
       oneOf:
         - $ref: '#/components/schemas/ExecClientFrameStdin'
+        - $ref: '#/components/schemas/ExecClientFrameResize'
         - $ref: '#/components/schemas/ExecClientFrameHistory'
         - $ref: '#/components/schemas/ExecClientFrameAck'
         - $ref: '#/components/schemas/ExecClientFrameDetach'
@@ -832,6 +886,7 @@ components:
         propertyName: type
         mapping:
           stdin: '#/components/schemas/ExecClientFrameStdin'
+          resize: '#/components/schemas/ExecClientFrameResize'
           history: '#/components/schemas/ExecClientFrameHistory'
           ack: '#/components/schemas/ExecClientFrameAck'
           detach: '#/components/schemas/ExecClientFrameDetach'
@@ -854,6 +909,21 @@ components:
       example:
         type: stdin
         data: aGVsbG8K
+    ExecClientFrameResize:
+      description: Resize the pseudo-terminal for a TTY exec session
+      type: object
+      required: [ type, terminal ]
+      properties:
+        type:
+          type: string
+          enum: [ resize ]
+        terminal:
+          $ref: '#/components/schemas/ExecTerminalSize'
+      example:
+        type: resize
+        terminal:
+          rows: 40
+          cols: 120
     ExecClientFrameHistory:
       description: Request buffered output strictly newer than the supplied watermark
       type: object
@@ -1015,6 +1085,19 @@ components:
       example:
         type: no_more_history
         watermark: 42
+    ExecTerminalSize:
+      description: Pseudo-terminal size
+      type: object
+      required: [ rows, cols ]
+      properties:
+        rows:
+          type: integer
+          format: int64
+          minimum: 0
+        cols:
+          type: integer
+          format: int64
+          minimum: 0
     Event:
       title: Generic Resource Event
       type: object

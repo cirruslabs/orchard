@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"maps"
 	"net"
 	"sync"
 	"time"
@@ -31,8 +32,35 @@ var (
 
 type sshExecRunner interface {
 	Stdin() io.WriteCloser
+	Resize(rows uint32, cols uint32) error
 	Run(ctx context.Context, command string, outgoingFrames chan<- *execstream.Frame) error
 	Close() error
+}
+
+type execSessionSpec struct {
+	command     string
+	interactive bool
+	tty         bool
+	rows        uint32
+	cols        uint32
+	env         map[string]string
+	workdir     string
+}
+
+func (spec execSessionSpec) clone() execSessionSpec {
+	spec.env = maps.Clone(spec.env)
+
+	return spec
+}
+
+func (spec execSessionSpec) equal(other execSessionSpec) bool {
+	return spec.command == other.command &&
+		spec.interactive == other.interactive &&
+		spec.tty == other.tty &&
+		spec.rows == other.rows &&
+		spec.cols == other.cols &&
+		spec.workdir == other.workdir &&
+		maps.Equal(spec.env, other.env)
 }
 
 type execSessionKey struct {
@@ -298,6 +326,7 @@ func (subscriber *execSessionSubscriber) close() {
 
 type execSession struct {
 	key       execSessionKey
+	spec      execSessionSpec
 	command   string
 	exec      sshExecRunner
 	transport net.Conn
@@ -334,10 +363,11 @@ func newExecSession(
 ) *execSession {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	return newExecSessionWithContext(
+	return newExecSessionWithContextAndSpec(
 		ctx,
 		cancel,
 		key,
+		execSessionSpec{command: command},
 		command,
 		exec,
 		transport,
@@ -347,10 +377,11 @@ func newExecSession(
 	)
 }
 
-func newExecSessionWithContext(
+func newExecSessionWithContextAndSpec(
 	ctx context.Context,
 	cancel context.CancelFunc,
 	key execSessionKey,
+	spec execSessionSpec,
 	command string,
 	exec sshExecRunner,
 	transport net.Conn,
@@ -364,6 +395,7 @@ func newExecSessionWithContext(
 
 	session := &execSession{
 		key:         key,
+		spec:        spec.clone(),
 		command:     command,
 		exec:        exec,
 		transport:   transport,
@@ -380,8 +412,8 @@ func newExecSessionWithContext(
 	return session
 }
 
-func (session *execSession) commandMatches(command string) bool {
-	return command == "" || session.command == command
+func (session *execSession) specMatches(spec execSessionSpec) bool {
+	return spec.command == "" || session.spec.equal(spec)
 }
 
 func (session *execSession) start() {
@@ -466,6 +498,17 @@ func (session *execSession) writeStdin(data []byte) error {
 	_, err := session.stdin.Write(data)
 
 	return err
+}
+
+func (session *execSession) resize(rows uint32, cols uint32) error {
+	session.mu.Lock()
+	defer session.mu.Unlock()
+
+	if !session.spec.tty {
+		return errors.New("this exec session has no TTY")
+	}
+
+	return session.exec.Resize(rows, cols)
 }
 
 func (session *execSession) ack(watermark uint64) {
@@ -662,6 +705,10 @@ func cloneExecFrame(frame *execstream.Frame) *execstream.Frame {
 	if frame.Exit != nil {
 		exit := *frame.Exit
 		clone.Exit = &exit
+	}
+	if frame.Terminal != nil {
+		terminal := *frame.Terminal
+		clone.Terminal = &terminal
 	}
 
 	return &clone
