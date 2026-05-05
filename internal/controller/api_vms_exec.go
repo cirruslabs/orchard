@@ -189,32 +189,50 @@ func (controller *Controller) newSSHExecSession(
 ) (*execSession, error) {
 	sessionContext, sessionContextCancel := context.WithCancel(context.Background())
 
-	portForwardConn, err := retry.NewWithData[net.Conn](
+	type sshExecAttempt struct {
+		portForwardConn net.Conn
+		exec            *sshexec.Exec
+	}
+
+	attempt, err := retry.NewWithData[sshExecAttempt](
 		retry.Context(waitContext),
 		retry.DelayType(retry.FixedDelay),
 		retry.Delay(time.Second),
 		retry.Attempts(0),
 		retry.LastErrorOnly(true),
-	).Do(func() (net.Conn, error) {
-		return controller.portForwardConnection(sessionContext, waitContext, vm.Worker, vm.UID, 22)
+	).Do(func() (sshExecAttempt, error) {
+		portForwardConn, err := controller.portForwardConnection(
+			sessionContext,
+			waitContext,
+			vm.Worker,
+			vm.UID,
+			22,
+		)
+		if err != nil {
+			return sshExecAttempt{}, err
+		}
+
+		exec, err := sshexec.New(portForwardConn, vm.SSHUsername(), vm.SSHPassword(), sshexec.Options{
+			Interactive: spec.interactive,
+			TTY:         spec.tty,
+			Rows:        spec.rows,
+			Cols:        spec.cols,
+		})
+		if err != nil {
+			_ = portForwardConn.Close()
+
+			return sshExecAttempt{}, fmt.Errorf("failed to establish SSH connection to a VM: %w", err)
+		}
+
+		return sshExecAttempt{
+			portForwardConn: portForwardConn,
+			exec:            exec,
+		}, nil
 	})
 	if err != nil {
 		sessionContextCancel()
 
 		return nil, err
-	}
-
-	exec, err := sshexec.New(portForwardConn, vm.SSHUsername(), vm.SSHPassword(), sshexec.Options{
-		Interactive: spec.interactive,
-		TTY:         spec.tty,
-		Rows:        spec.rows,
-		Cols:        spec.cols,
-	})
-	if err != nil {
-		sessionContextCancel()
-		_ = portForwardConn.Close()
-
-		return nil, fmt.Errorf("failed to establish SSH connection to a VM: %w", err)
 	}
 
 	return newExecSessionWithContextAndSpec(
@@ -223,8 +241,8 @@ func (controller *Controller) newSSHExecSession(
 		key,
 		spec,
 		runCommand,
-		exec,
-		portForwardConn,
+		attempt.exec,
+		attempt.portForwardConn,
 		registry,
 		controller.execSessionExitTTL,
 		policy,
