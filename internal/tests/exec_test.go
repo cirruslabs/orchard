@@ -4,13 +4,19 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
+	"net"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/cirruslabs/orchard/internal/controller"
+	"github.com/cirruslabs/orchard/internal/dialer"
 	"github.com/cirruslabs/orchard/internal/execstream"
 	"github.com/cirruslabs/orchard/internal/tests/devcontroller"
 	"github.com/cirruslabs/orchard/internal/tests/platformdependent"
 	"github.com/cirruslabs/orchard/internal/tests/wait"
+	"github.com/cirruslabs/orchard/internal/worker"
 	"github.com/cirruslabs/orchard/pkg/client"
 	v1 "github.com/cirruslabs/orchard/pkg/resource/v1"
 	"github.com/coder/websocket"
@@ -221,6 +227,88 @@ func TestVMExecScript(t *testing.T) {
 	require.Equal(t, websocket.StatusNormalClosure, closeError.Code)
 }
 
+func TestVMExecManyConcurrentSessions(t *testing.T) {
+	sshServer := startExecSSHServer(t, 24)
+
+	devClient, vmName := prepareForSyntheticExec(t, dialer.DialFunc(
+		func(ctx context.Context, network string, addr string) (net.Conn, error) {
+			var netDialer net.Dialer
+
+			return netDialer.DialContext(ctx, network, sshServer.Addr())
+		},
+	))
+
+	const concurrentExecs = 32
+
+	start := make(chan struct{})
+	errCh := make(chan error, concurrentExecs)
+
+	var wg sync.WaitGroup
+	wg.Add(concurrentExecs)
+
+	for i := range concurrentExecs {
+		go func() {
+			defer wg.Done()
+
+			<-start
+
+			wsConn, err := devClient.VMs().Exec(
+				t.Context(),
+				vmName,
+				fmt.Sprintf("sh -c 'sleep 2; printf exec-%02d'", i),
+				false,
+				30,
+			)
+			if err != nil {
+				errCh <- fmt.Errorf("exec %d failed to start: %w", i, err)
+
+				return
+			}
+			defer wsConn.CloseNow()
+
+			frame, err := readFrameErr(t.Context(), wsConn)
+			if err != nil {
+				errCh <- fmt.Errorf("exec %d failed to read stdout frame: %w", i, err)
+
+				return
+			}
+			if frame.Type != execstream.FrameTypeStdout {
+				errCh <- fmt.Errorf("exec %d produced first frame %q", i, frame.Type)
+
+				return
+			}
+			if got, want := string(frame.Data), "ok"; got != want {
+				errCh <- fmt.Errorf("exec %d produced stdout %q, want %q", i, got, want)
+
+				return
+			}
+
+			frame, err = readFrameErr(t.Context(), wsConn)
+			if err != nil {
+				errCh <- fmt.Errorf("exec %d failed to read exit frame: %w", i, err)
+
+				return
+			}
+			if frame.Type != execstream.FrameTypeExit {
+				errCh <- fmt.Errorf("exec %d produced second frame %q", i, frame.Type)
+
+				return
+			}
+			if frame.Exit.Code != 0 {
+				errCh <- fmt.Errorf("exec %d exited with code %d", i, frame.Exit.Code)
+			}
+		}()
+	}
+
+	close(start)
+	wg.Wait()
+	close(errCh)
+
+	for err := range errCh {
+		require.NoError(t, err)
+	}
+}
+
 func TestVMExecSessionReconnectHistory(t *testing.T) {
 	devClient, vmName := prepareForExec(t)
 	sessionID := uuid.NewString()
@@ -411,25 +499,63 @@ func prepareForExec(t *testing.T) (*client.Client, string) {
 	return devClient, vmName
 }
 
+func prepareForSyntheticExec(t *testing.T, vmDialer dialer.Dialer) (*client.Client, string) {
+	devClient, _, _ := devcontroller.StartIntegrationTestEnvironmentWithAdditionalOpts(t,
+		false, []controller.Option{controller.WithSynthetic()},
+		false, []worker.Option{
+			worker.WithSynthetic(),
+			worker.WithDialer(vmDialer),
+		},
+	)
+
+	vmName := "test-vm-exec-" + uuid.NewString()
+
+	err := devClient.VMs().Create(t.Context(), platformdependent.VM(vmName))
+	require.NoError(t, err)
+
+	require.True(t, wait.Wait(30*time.Second, func() bool {
+		vm, err := devClient.VMs().Get(t.Context(), vmName)
+		require.NoError(t, err)
+
+		t.Logf("Waiting for the synthetic VM to start. Current status: %s", vm.Status)
+
+		return vm.Status == v1.VMStatusRunning
+	}), "failed to start a synthetic VM")
+
+	return devClient, vmName
+}
+
 func readFrame(t *testing.T, wsConn *websocket.Conn) *execstream.Frame {
 	t.Helper()
 
+	frame, err := readFrameErr(t.Context(), wsConn)
+	require.NoError(t, err)
+
+	return frame
+}
+
+func readFrameErr(ctx context.Context, wsConn *websocket.Conn) (*execstream.Frame, error) {
 	var frame execstream.Frame
 
-	readCtx, readCtxCancel := context.WithTimeout(t.Context(), 30*time.Second)
+	readCtx, readCtxCancel := context.WithTimeout(ctx, 30*time.Second)
 	defer readCtxCancel()
 
 	messageType, payloadBytes, err := wsConn.Read(readCtx)
-	require.NoError(t, err)
-	require.Equal(t, websocket.MessageText, messageType)
-
-	err = json.Unmarshal(payloadBytes, &frame)
-	require.NoError(t, err)
-	if frame.Type == execstream.FrameTypeError {
-		require.FailNowf(t, "exec stream error", "%s", frame.Error)
+	if err != nil {
+		return nil, err
+	}
+	if messageType != websocket.MessageText {
+		return nil, fmt.Errorf("unexpected websocket message type %q", messageType)
 	}
 
-	return &frame
+	if err := json.Unmarshal(payloadBytes, &frame); err != nil {
+		return nil, err
+	}
+	if frame.Type == execstream.FrameTypeError {
+		return nil, fmt.Errorf("exec stream error: %s", frame.Error)
+	}
+
+	return &frame, nil
 }
 
 func readFramesUntilExit(t *testing.T, wsConn *websocket.Conn) []*execstream.Frame {
