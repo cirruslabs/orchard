@@ -174,6 +174,41 @@ func TestPortForwarding(t *testing.T) {
 	require.Contains(t, string(unameOutput), cases.Title(language.English).String(runtime.GOOS))
 }
 
+func TestSparseWorkerUpdatePreservesLastSeen(t *testing.T) {
+	ctx := context.Background()
+
+	devClient, _, _ := devcontroller.StartIntegrationTestEnvironmentWithAdditionalOpts(
+		t,
+		false,
+		nil,
+		true,
+		nil,
+	)
+
+	lastSeen := time.Now().Add(-time.Minute).UTC().Truncate(time.Microsecond)
+	_, err := devClient.Workers().Create(ctx, v1.Worker{
+		Meta: v1.Meta{
+			Name: "sparse-update-worker",
+		},
+		LastSeen:  lastSeen,
+		MachineID: "sparse-update-machine",
+	})
+	require.NoError(t, err)
+
+	_, err = devClient.Workers().Update(ctx, v1.Worker{
+		Meta: v1.Meta{
+			Name: "sparse-update-worker",
+		},
+		SchedulingPaused: true,
+	})
+	require.NoError(t, err)
+
+	worker, err := devClient.Workers().Get(ctx, "sparse-update-worker")
+	require.NoError(t, err)
+	require.Equal(t, lastSeen, worker.LastSeen)
+	require.True(t, worker.SchedulingPaused)
+}
+
 // TestSchedulerHealthCheckingNonExistentWorker ensures that scheduler
 // will eventually fail VMs that are scheduled on a worker that was
 // deleted from the API.
