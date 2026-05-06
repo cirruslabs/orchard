@@ -25,10 +25,6 @@ type execSSHServer struct {
 	wg sync.WaitGroup
 }
 
-func startExecSSHServer(t *testing.T, rejectFirstConnections int32) *execSSHServer {
-	return startExecSSHServerWithSessionGate(t, rejectFirstConnections, nil)
-}
-
 func startExecSSHServerWithSessionGate(
 	t *testing.T,
 	rejectFirstConnections int32,
