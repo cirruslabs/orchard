@@ -104,7 +104,9 @@ func (controller *Controller) updateWorker(ctx *gin.Context) responder.Responder
 			return responder.Error(err)
 		}
 
-		dbWorker.LastSeen = userWorker.LastSeen
+		if !userWorker.LastSeen.IsZero() {
+			dbWorker.LastSeen = userWorker.LastSeen
+		}
 		dbWorker.SchedulingPaused = userWorker.SchedulingPaused
 
 		if err := txn.SetWorker(*dbWorker); err != nil {
