@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -228,10 +229,14 @@ func TestVMExecScript(t *testing.T) {
 }
 
 func TestVMExecManyConcurrentSessions(t *testing.T) {
-	sshServer := startExecSSHServer(t, 24)
+	releaseSessions := make(chan struct{})
+	sshServer := startExecSSHServerWithSessionGate(t, 0, releaseSessions)
+	var vmDialCalls atomic.Int32
 
 	devClient, vmName := prepareForSyntheticExec(t, dialer.DialFunc(
 		func(ctx context.Context, network string, addr string) (net.Conn, error) {
+			vmDialCalls.Add(1)
+
 			var netDialer net.Dialer
 
 			return netDialer.DialContext(ctx, network, sshServer.Addr())
@@ -301,12 +306,21 @@ func TestVMExecManyConcurrentSessions(t *testing.T) {
 	}
 
 	close(start)
+	require.Eventually(t, func() bool {
+		return sshServer.acceptedSessions.Load() == concurrentExecs
+	}, 30*time.Second, 10*time.Millisecond)
+	require.EqualValues(t, 1, vmDialCalls.Load())
+	require.EqualValues(t, 1, sshServer.successfulConnections.Load())
+	close(releaseSessions)
+
 	wg.Wait()
 	close(errCh)
 
 	for err := range errCh {
 		require.NoError(t, err)
 	}
+
+	require.EqualValues(t, concurrentExecs, sshServer.acceptedSessions.Load())
 }
 
 func TestVMExecSessionReconnectHistory(t *testing.T) {

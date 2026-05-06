@@ -10,6 +10,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/cirruslabs/orchard/internal/execstream"
 	"golang.org/x/crypto/ssh"
@@ -28,16 +29,24 @@ type Options struct {
 }
 
 type Exec struct {
-	sshClient   *ssh.Client
 	sshSession  *ssh.Session
 	stdout      io.Reader
 	stderr      io.Reader
 	stdin       io.WriteCloser
 	stdinReader *io.PipeReader
 	tty         bool
+	closeOwner  func() error
 }
 
-func New(netConn net.Conn, user string, password string, options Options) (*Exec, error) {
+type Client struct {
+	netConn   net.Conn
+	sshClient *ssh.Client
+
+	closeOnce sync.Once
+	closeErr  error
+}
+
+func NewClient(netConn net.Conn, user string, password string) (*Client, error) {
 	// Establish an SSH connection
 	sshConn, sshChans, sshReqs, err := ssh.NewClientConn(netConn, "", &ssh.ClientConfig{
 		HostKeyCallback: func(hostname string, remote net.Addr, key ssh.PublicKey) error {
@@ -49,21 +58,29 @@ func New(netConn net.Conn, user string, password string, options Options) (*Exec
 		},
 	})
 	if err != nil {
+		_ = netConn.Close()
+
 		return nil, fmt.Errorf("failed to create an SSH connection: %w", err)
 	}
 
-	sshClient := ssh.NewClient(sshConn, sshChans, sshReqs)
+	return &Client{
+		netConn:   netConn,
+		sshClient: ssh.NewClient(sshConn, sshChans, sshReqs),
+	}, nil
+}
+
+func (client *Client) NewExec(options Options) (*Exec, error) {
+	if client == nil || client.sshClient == nil {
+		return nil, errors.New("SSH client is not initialized")
+	}
 
 	// Create a new SSH session
-	sshSession, err := sshClient.NewSession()
+	sshSession, err := client.sshClient.NewSession()
 	if err != nil {
-		_ = sshClient.Close()
-
 		return nil, fmt.Errorf("failed to create an SSH session: %w", err)
 	}
 
 	exec := &Exec{
-		sshClient:  sshClient,
 		sshSession: sshSession,
 		tty:        options.TTY,
 	}
@@ -83,7 +100,6 @@ func New(netConn net.Conn, user string, password string, options Options) (*Exec
 			ssh.TerminalModes{},
 		); err != nil {
 			_ = sshSession.Close()
-			_ = sshClient.Close()
 
 			return nil, fmt.Errorf("failed to request PTY for the SSH session: %w", err)
 		}
@@ -92,7 +108,6 @@ func New(netConn net.Conn, user string, password string, options Options) (*Exec
 	exec.stdout, err = sshSession.StdoutPipe()
 	if err != nil {
 		_ = sshSession.Close()
-		_ = sshClient.Close()
 
 		return nil, fmt.Errorf("failed to create standard output pipe "+
 			"for the SSH session: %w", err)
@@ -101,11 +116,49 @@ func New(netConn net.Conn, user string, password string, options Options) (*Exec
 	exec.stderr, err = sshSession.StderrPipe()
 	if err != nil {
 		_ = sshSession.Close()
-		_ = sshClient.Close()
 
 		return nil, fmt.Errorf("failed to create standard error pipe "+
 			"for the SSH session: %w", err)
 	}
+
+	return exec, nil
+}
+
+func (client *Client) Close() error {
+	if client == nil {
+		return nil
+	}
+
+	client.closeOnce.Do(func() {
+		if client.sshClient != nil {
+			client.closeErr = client.sshClient.Close()
+			if client.closeErr == nil {
+				return
+			}
+		}
+
+		if client.netConn != nil {
+			client.closeErr = errors.Join(client.closeErr, client.netConn.Close())
+		}
+	})
+
+	return client.closeErr
+}
+
+func New(netConn net.Conn, user string, password string, options Options) (*Exec, error) {
+	client, err := NewClient(netConn, user, password)
+	if err != nil {
+		return nil, err
+	}
+
+	exec, err := client.NewExec(options)
+	if err != nil {
+		_ = client.Close()
+
+		return nil, err
+	}
+
+	exec.closeOwner = client.Close
 
 	return exec, nil
 }
@@ -285,11 +338,15 @@ func (exec *Exec) Close() error {
 		_ = exec.stdinReader.Close()
 	}
 
-	if err := exec.sshSession.Close(); err != nil {
-		_ = exec.sshClient.Close()
+	sessionErr := exec.sshSession.Close()
+	if exec.closeOwner != nil {
+		ownerErr := exec.closeOwner()
+		if sessionErr != nil {
+			return sessionErr
+		}
 
-		return err
+		return ownerErr
 	}
 
-	return exec.sshClient.Close()
+	return sessionErr
 }

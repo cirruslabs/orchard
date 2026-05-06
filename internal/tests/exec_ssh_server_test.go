@@ -17,11 +17,23 @@ type execSSHServer struct {
 	config   *ssh.ServerConfig
 
 	rejectFirstConnections atomic.Int32
+	successfulConnections  atomic.Int32
+	acceptedSessions       atomic.Int32
+	releaseSessions        <-chan struct{}
+	done                   chan struct{}
 
 	wg sync.WaitGroup
 }
 
 func startExecSSHServer(t *testing.T, rejectFirstConnections int32) *execSSHServer {
+	return startExecSSHServerWithSessionGate(t, rejectFirstConnections, nil)
+}
+
+func startExecSSHServerWithSessionGate(
+	t *testing.T,
+	rejectFirstConnections int32,
+	releaseSessions <-chan struct{},
+) *execSSHServer {
 	t.Helper()
 
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
@@ -34,7 +46,9 @@ func startExecSSHServer(t *testing.T, rejectFirstConnections int32) *execSSHServ
 	require.NoError(t, err)
 
 	server := &execSSHServer{
-		listener: listener,
+		listener:        listener,
+		releaseSessions: releaseSessions,
+		done:            make(chan struct{}),
 		config: &ssh.ServerConfig{
 			PasswordCallback: func(conn ssh.ConnMetadata, password []byte) (*ssh.Permissions, error) {
 				if conn.User() != "admin" || string(password) != "admin" {
@@ -52,6 +66,7 @@ func startExecSSHServer(t *testing.T, rejectFirstConnections int32) *execSSHServ
 	go server.run()
 
 	t.Cleanup(func() {
+		close(server.done)
 		require.NoError(t, server.listener.Close())
 		server.wg.Wait()
 	})
@@ -94,6 +109,7 @@ func (server *execSSHServer) serve(conn net.Conn) {
 	if err != nil {
 		return
 	}
+	server.successfulConnections.Add(1)
 	defer serverConn.Close()
 
 	go ssh.DiscardRequests(requests)
@@ -109,17 +125,18 @@ func (server *execSSHServer) serve(conn net.Conn) {
 		if err != nil {
 			continue
 		}
+		server.acceptedSessions.Add(1)
 
 		server.wg.Add(1)
 		go func() {
 			defer server.wg.Done()
 
-			serveExecSSHSession(channel, requests)
+			server.serveExecSSHSession(channel, requests)
 		}()
 	}
 }
 
-func serveExecSSHSession(channel ssh.Channel, requests <-chan *ssh.Request) {
+func (server *execSSHServer) serveExecSSHSession(channel ssh.Channel, requests <-chan *ssh.Request) {
 	defer channel.Close()
 
 	for request := range requests {
@@ -127,6 +144,13 @@ func serveExecSSHSession(channel ssh.Channel, requests <-chan *ssh.Request) {
 		case "exec":
 			_ = request.Reply(true, nil)
 			_, _ = io.WriteString(channel, "ok")
+			if server.releaseSessions != nil {
+				select {
+				case <-server.releaseSessions:
+				case <-server.done:
+					return
+				}
+			}
 			_, _ = channel.SendRequest("exit-status", false, ssh.Marshal(struct {
 				Status uint32
 			}{Status: 0}))

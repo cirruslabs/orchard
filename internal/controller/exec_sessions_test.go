@@ -386,3 +386,31 @@ func TestExecSessionFinishKeepsReconnectableSubscriberOpen(t *testing.T) {
 	require.Equal(t, execstream.FrameTypeNoMoreHistory, noMoreHistory.Type)
 	require.EqualValues(t, 2, noMoreHistory.Watermark)
 }
+
+func TestExecSessionFinishReleasesTransportWhileRetainingHistory(t *testing.T) {
+	registry := newExecSessionRegistry()
+	session := newManualExecSessionForTest(execSessionKey{vmName: "vm", sessionID: "session"}, registry)
+	var releaseCalls atomic.Int32
+	session.release = func() {
+		releaseCalls.Add(1)
+	}
+
+	session.recordFrame(&execstream.Frame{Type: execstream.FrameTypeStdout, Data: []byte("out")})
+	session.recordFrame(&execstream.Frame{
+		Type: execstream.FrameTypeExit,
+		Exit: &execstream.Exit{Code: 0},
+	})
+	session.markFinished()
+
+	require.False(t, session.closed)
+	require.EqualValues(t, 1, releaseCalls.Load())
+	require.EqualValues(t, 1, session.exec.(*fakeExec).closeCalls.Load())
+
+	subscriber, err := session.attach()
+	require.NoError(t, err)
+	session.sendHistory(subscriber, 0)
+
+	require.Equal(t, execstream.FrameTypeStdout, (<-subscriber.frames).Type)
+	require.Equal(t, execstream.FrameTypeExit, (<-subscriber.frames).Type)
+	require.Equal(t, execstream.FrameTypeNoMoreHistory, (<-subscriber.frames).Type)
+}

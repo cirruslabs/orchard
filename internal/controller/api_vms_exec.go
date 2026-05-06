@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net"
 	"net/http"
 	"strconv"
 	"time"
@@ -190,8 +189,14 @@ func (controller *Controller) newSSHExecSession(
 	sessionContext, sessionContextCancel := context.WithCancel(context.Background())
 
 	type sshExecAttempt struct {
-		portForwardConn net.Conn
-		exec            *sshexec.Exec
+		lease *execSSHTransportLease
+		exec  sshExecRunner
+	}
+
+	transportKey := execSSHTransportKey{
+		workerName:   vm.Worker,
+		vmUID:        vm.UID,
+		restartCount: vm.RestartCount,
 	}
 
 	attempt, err := retry.NewWithData[sshExecAttempt](
@@ -201,32 +206,49 @@ func (controller *Controller) newSSHExecSession(
 		retry.Attempts(0),
 		retry.LastErrorOnly(true),
 	).Do(func() (sshExecAttempt, error) {
-		portForwardConn, err := controller.portForwardConnection(
-			sessionContext,
-			waitContext,
-			vm.Worker,
-			vm.UID,
-			22,
-		)
+		lease, err := controller.execSSHPool.acquire(waitContext, transportKey, func() (execSSHTransport, error) {
+			portForwardConn, err := controller.portForwardConnection(
+				context.Background(),
+				waitContext,
+				vm.Worker,
+				vm.UID,
+				22,
+			)
+			if err != nil {
+				return nil, err
+			}
+
+			client, err := sshexec.NewClient(portForwardConn, vm.SSHUsername(), vm.SSHPassword())
+			if err != nil {
+				return nil, fmt.Errorf("failed to establish SSH connection to a VM: %w", err)
+			}
+
+			return &execSSHClientTransport{client: client}, nil
+		})
 		if err != nil {
 			return sshExecAttempt{}, err
 		}
 
-		exec, err := sshexec.New(portForwardConn, vm.SSHUsername(), vm.SSHPassword(), sshexec.Options{
+		exec, err := lease.transport().NewExec(sshexec.Options{
 			Interactive: spec.interactive,
 			TTY:         spec.tty,
 			Rows:        spec.rows,
 			Cols:        spec.cols,
 		})
 		if err != nil {
-			_ = portForwardConn.Close()
+			lease.release()
 
-			return sshExecAttempt{}, fmt.Errorf("failed to establish SSH connection to a VM: %w", err)
+			err = fmt.Errorf("failed to create SSH session for a VM: %w", err)
+			if lease.reused {
+				return sshExecAttempt{}, retry.Unrecoverable(err)
+			}
+
+			return sshExecAttempt{}, err
 		}
 
 		return sshExecAttempt{
-			portForwardConn: portForwardConn,
-			exec:            exec,
+			lease: lease,
+			exec:  exec,
 		}, nil
 	})
 	if err != nil {
@@ -242,7 +264,7 @@ func (controller *Controller) newSSHExecSession(
 		spec,
 		runCommand,
 		attempt.exec,
-		attempt.portForwardConn,
+		attempt.lease.release,
 		registry,
 		controller.execSessionExitTTL,
 		policy,
