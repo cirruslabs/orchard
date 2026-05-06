@@ -2,7 +2,7 @@
 
 ## Project map
 
-- Orchard is a Go orchestration system for Tart-backed VMs.
+- Orchard is a Go orchestration system for Tart- and Vetu-backed VMs on macOS and Linux hosts.
 - `internal/controller/` owns the API surface, scheduling, SSH server, and exec/session coordination.
 - `internal/worker/` owns worker-side RPC handling and VM lifecycle integration.
 - `pkg/client/` and `pkg/resource/v1/` are the public client/resource packages.
@@ -16,7 +16,7 @@
 - Lint with the repository configuration in `.golangci.yml`, for example:
   - `golangci-lint run`
   - or `go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest run`
-- Some integration tests require macOS VM support and may not be portable to every development host; when possible, add synthetic coverage for controller/worker behavior as well.
+- Some integration tests require host-specific VM support and may not be portable to every development host; when possible, add synthetic coverage for controller/worker behavior as well.
 
 ## Generated code
 
