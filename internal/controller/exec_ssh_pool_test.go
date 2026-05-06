@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"context"
 	"errors"
 	"sync"
 	"sync/atomic"
@@ -31,8 +30,8 @@ func (transport *fakeExecSSHTransport) Close() error {
 	return nil
 }
 
-func TestExecSSHTransportPoolConcurrentAcquireReusesOneTransport(t *testing.T) {
-	pool := newExecSSHTransportPool()
+func TestExecSSHTransportCacheConcurrentGetOrCreateReusesOneTransport(t *testing.T) {
+	cache := newExecSSHTransportCache()
 	key := execSSHTransportKey{workerName: "worker", vmUID: "vm", restartCount: 1}
 
 	createStarted := make(chan struct{})
@@ -49,24 +48,22 @@ func TestExecSSHTransportPoolConcurrentAcquireReusesOneTransport(t *testing.T) {
 		return transport, nil
 	}
 
-	const leasesCount = 16
-	leases := make([]*execSSHTransportLease, leasesCount)
-	errCh := make(chan error, leasesCount)
+	const callersCount = 16
+	transports := make([]execSSHTransport, callersCount)
+	reused := make([]bool, callersCount)
+	errCh := make(chan error, callersCount)
 
 	var wg sync.WaitGroup
-	wg.Add(leasesCount)
-	for i := range leasesCount {
+	wg.Add(callersCount)
+	for i := range callersCount {
 		go func() {
 			defer wg.Done()
 
-			lease, err := pool.acquire(context.Background(), key, create)
+			var err error
+			transports[i], reused[i], err = cache.getOrCreate(key, create)
 			if err != nil {
 				errCh <- err
-
-				return
 			}
-
-			leases[i] = lease
 		}()
 	}
 
@@ -80,37 +77,14 @@ func TestExecSSHTransportPoolConcurrentAcquireReusesOneTransport(t *testing.T) {
 	}
 	require.EqualValues(t, 1, createCalls.Load())
 
-	for _, lease := range leases {
-		require.NotNil(t, lease)
-		require.Same(t, transport, lease.transport())
-		lease.release()
+	for _, cachedTransport := range transports {
+		require.Same(t, transport, cachedTransport)
 	}
+	require.Equal(t, callersCount-1, countTrue(reused))
 }
 
-func TestExecSSHTransportPoolClosesOnLastRelease(t *testing.T) {
-	pool := newExecSSHTransportPool()
-	key := execSSHTransportKey{workerName: "worker", vmUID: "vm", restartCount: 1}
-	transport := &fakeExecSSHTransport{}
-
-	create := func() (execSSHTransport, error) {
-		return transport, nil
-	}
-
-	firstLease, err := pool.acquire(context.Background(), key, create)
-	require.NoError(t, err)
-	secondLease, err := pool.acquire(context.Background(), key, create)
-	require.NoError(t, err)
-
-	firstLease.release()
-	require.EqualValues(t, 0, transport.closeCalls.Load())
-
-	secondLease.release()
-	require.EqualValues(t, 1, transport.closeCalls.Load())
-	require.Empty(t, pool.entries)
-}
-
-func TestExecSSHTransportPoolSeparatesVMIncarnations(t *testing.T) {
-	pool := newExecSSHTransportPool()
+func TestExecSSHTransportCacheSeparatesVMIncarnations(t *testing.T) {
+	cache := newExecSSHTransportCache()
 	var createCalls atomic.Int32
 
 	create := func() (execSSHTransport, error) {
@@ -119,28 +93,59 @@ func TestExecSSHTransportPoolSeparatesVMIncarnations(t *testing.T) {
 		return &fakeExecSSHTransport{}, nil
 	}
 
-	firstLease, err := pool.acquire(context.Background(),
+	firstTransport, _, err := cache.getOrCreate(
 		execSSHTransportKey{workerName: "worker", vmUID: "vm", restartCount: 1}, create)
 	require.NoError(t, err)
-	secondLease, err := pool.acquire(context.Background(),
+	secondTransport, _, err := cache.getOrCreate(
 		execSSHTransportKey{workerName: "worker", vmUID: "vm", restartCount: 2}, create)
 	require.NoError(t, err)
-	defer firstLease.release()
-	defer secondLease.release()
 
 	require.EqualValues(t, 2, createCalls.Load())
-	require.NotSame(t, firstLease.transport(), secondLease.transport())
+	require.NotSame(t, firstTransport, secondTransport)
 }
 
-func TestExecSSHTransportPoolKeepsSharedTransportAfterSessionCreationFailure(t *testing.T) {
-	pool := newExecSSHTransportPool()
+func TestExecSSHTransportCacheDiscardClosesExpectedTransport(t *testing.T) {
+	cache := newExecSSHTransportCache()
 	key := execSSHTransportKey{workerName: "worker", vmUID: "vm", restartCount: 1}
-	var createCalls atomic.Int32
+	transport := &fakeExecSSHTransport{}
+
+	cachedTransport, _, err := cache.getOrCreate(key, func() (execSSHTransport, error) {
+		return transport, nil
+	})
+	require.NoError(t, err)
+
+	cache.discard(key, cachedTransport)
+	require.EqualValues(t, 1, transport.closeCalls.Load())
+	require.Empty(t, cache.entries)
+}
+
+func TestExecSSHTransportCacheDiscardIgnoresReplacedTransport(t *testing.T) {
+	cache := newExecSSHTransportCache()
+	key := execSSHTransportKey{workerName: "worker", vmUID: "vm", restartCount: 1}
+	originalTransport := &fakeExecSSHTransport{}
+	replacementTransport := &fakeExecSSHTransport{}
+
+	cachedTransport, _, err := cache.getOrCreate(key, func() (execSSHTransport, error) {
+		return originalTransport, nil
+	})
+	require.NoError(t, err)
+
+	cache.entries[key] = replacementTransport
+	cache.discard(key, cachedTransport)
+
+	require.EqualValues(t, 0, originalTransport.closeCalls.Load())
+	require.Same(t, replacementTransport, cache.entries[key])
+}
+
+func TestExecSSHTransportCacheKeepsTransportAcrossExecs(t *testing.T) {
+	cache := newExecSSHTransportCache()
+	key := execSSHTransportKey{workerName: "worker", vmUID: "vm", restartCount: 1}
 	transport := &fakeExecSSHTransport{
 		newExec: func(sshexec.Options) (sshExecRunner, error) {
 			return nil, errors.New("failed to open channel")
 		},
 	}
+	var createCalls atomic.Int32
 
 	create := func() (execSSHTransport, error) {
 		createCalls.Add(1)
@@ -148,39 +153,41 @@ func TestExecSSHTransportPoolKeepsSharedTransportAfterSessionCreationFailure(t *
 		return transport, nil
 	}
 
-	activeLease, err := pool.acquire(context.Background(), key, create)
+	firstTransport, reused, err := cache.getOrCreate(key, create)
 	require.NoError(t, err)
-	failedLease, err := pool.acquire(context.Background(), key, create)
+	require.False(t, reused)
+	secondTransport, reused, err := cache.getOrCreate(key, create)
 	require.NoError(t, err)
-	require.True(t, failedLease.reused)
+	require.True(t, reused)
 
-	_, err = failedLease.transport().NewExec(sshexec.Options{})
-	require.ErrorContains(t, err, "failed to open channel")
-	failedLease.release()
-
+	require.Same(t, firstTransport, secondTransport)
 	require.EqualValues(t, 1, createCalls.Load())
 	require.EqualValues(t, 0, transport.closeCalls.Load())
-	require.Len(t, pool.entries, 1)
-
-	activeLease.release()
-	require.EqualValues(t, 1, transport.closeCalls.Load())
 }
 
-func TestExecSSHTransportPoolCloseAllClosesActiveTransports(t *testing.T) {
-	pool := newExecSSHTransportPool()
+func TestExecSSHTransportCacheCloseAllClosesTransports(t *testing.T) {
+	cache := newExecSSHTransportCache()
 	transport := &fakeExecSSHTransport{}
 
-	lease, err := pool.acquire(context.Background(),
+	_, _, err := cache.getOrCreate(
 		execSSHTransportKey{workerName: "worker", vmUID: "vm", restartCount: 1},
 		func() (execSSHTransport, error) {
 			return transport, nil
 		})
 	require.NoError(t, err)
 
-	pool.closeAll()
+	cache.closeAll()
 	require.EqualValues(t, 1, transport.closeCalls.Load())
-	require.Empty(t, pool.entries)
+	require.Empty(t, cache.entries)
+}
 
-	lease.release()
-	require.EqualValues(t, 1, transport.closeCalls.Load())
+func countTrue(values []bool) int {
+	count := 0
+	for _, value := range values {
+		if value {
+			count++
+		}
+	}
+
+	return count
 }

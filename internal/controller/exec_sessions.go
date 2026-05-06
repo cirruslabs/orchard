@@ -328,7 +328,6 @@ type execSession struct {
 	spec     execSessionSpec
 	command  string
 	exec     sshExecRunner
-	release  func()
 	registry *execSessionRegistry
 	exitTTL  time.Duration
 	policy   execSessionPolicy
@@ -347,7 +346,6 @@ type execSession struct {
 	expiryTimer *time.Timer
 
 	startOnce sync.Once
-	closeOnce sync.Once
 	done      chan struct{}
 	doneOnce  sync.Once
 }
@@ -356,7 +354,6 @@ func newExecSession(
 	key execSessionKey,
 	command string,
 	exec sshExecRunner,
-	release func(),
 	registry *execSessionRegistry,
 	exitTTL time.Duration,
 	policy execSessionPolicy,
@@ -370,7 +367,6 @@ func newExecSession(
 		execSessionSpec{command: command},
 		command,
 		exec,
-		release,
 		registry,
 		exitTTL,
 		policy,
@@ -384,7 +380,6 @@ func newExecSessionWithContextAndSpec(
 	spec execSessionSpec,
 	command string,
 	exec sshExecRunner,
-	release func(),
 	registry *execSessionRegistry,
 	exitTTL time.Duration,
 	policy execSessionPolicy,
@@ -398,7 +393,6 @@ func newExecSessionWithContextAndSpec(
 		spec:        spec.clone(),
 		command:     command,
 		exec:        exec,
-		release:     release,
 		registry:    registry,
 		exitTTL:     exitTTL,
 		policy:      policy,
@@ -574,7 +568,7 @@ func (session *execSession) close() {
 	closeSubscribers(subscribers)
 
 	session.cancel()
-	session.closeCommandResources()
+	_ = session.exec.Close()
 	if session.registry != nil {
 		session.registry.remove(session.key, session)
 	}
@@ -658,7 +652,7 @@ func (session *execSession) markFinished() {
 		close(session.done)
 	})
 
-	session.closeCommandResources()
+	_ = session.exec.Close()
 
 	if shouldClose {
 		session.close()
@@ -690,15 +684,6 @@ func (session *execSession) dropSubscriber(subscriber *execSessionSubscriber) {
 	defer session.mu.Unlock()
 
 	session.detachLocked(subscriber)
-}
-
-func (session *execSession) closeCommandResources() {
-	session.closeOnce.Do(func() {
-		_ = session.exec.Close()
-		if session.release != nil {
-			session.release()
-		}
-	})
 }
 
 func cloneExecFrame(frame *execstream.Frame) *execstream.Frame {

@@ -126,7 +126,6 @@ func TestExecSessionStartRunsCommandOnlyOnce(t *testing.T) {
 			},
 		},
 		nil,
-		nil,
 		time.Minute,
 		reconnectableExecSessionPolicy,
 	)
@@ -387,13 +386,9 @@ func TestExecSessionFinishKeepsReconnectableSubscriberOpen(t *testing.T) {
 	require.EqualValues(t, 2, noMoreHistory.Watermark)
 }
 
-func TestExecSessionFinishReleasesTransportWhileRetainingHistory(t *testing.T) {
+func TestExecSessionFinishClosesCommandWhileRetainingHistory(t *testing.T) {
 	registry := newExecSessionRegistry()
 	session := newManualExecSessionForTest(execSessionKey{vmName: "vm", sessionID: "session"}, registry)
-	var releaseCalls atomic.Int32
-	session.release = func() {
-		releaseCalls.Add(1)
-	}
 
 	session.recordFrame(&execstream.Frame{Type: execstream.FrameTypeStdout, Data: []byte("out")})
 	session.recordFrame(&execstream.Frame{
@@ -403,7 +398,6 @@ func TestExecSessionFinishReleasesTransportWhileRetainingHistory(t *testing.T) {
 	session.markFinished()
 
 	require.False(t, session.closed)
-	require.EqualValues(t, 1, releaseCalls.Load())
 	require.EqualValues(t, 1, session.exec.(*fakeExec).closeCalls.Load())
 
 	subscriber, err := session.attach()

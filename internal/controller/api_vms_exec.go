@@ -189,8 +189,7 @@ func (controller *Controller) newSSHExecSession(
 	sessionContext, sessionContextCancel := context.WithCancel(context.Background())
 
 	type sshExecAttempt struct {
-		lease *execSSHTransportLease
-		exec  sshExecRunner
+		exec sshExecRunner
 	}
 
 	transportKey := execSSHTransportKey{
@@ -206,7 +205,7 @@ func (controller *Controller) newSSHExecSession(
 		retry.Attempts(0),
 		retry.LastErrorOnly(true),
 	).Do(func() (sshExecAttempt, error) {
-		lease, err := controller.execSSHPool.acquire(waitContext, transportKey, func() (execSSHTransport, error) {
+		transport, reused, err := controller.execSSHCache.getOrCreate(transportKey, func() (execSSHTransport, error) {
 			portForwardConn, err := controller.portForwardConnection(
 				context.Background(),
 				waitContext,
@@ -229,17 +228,17 @@ func (controller *Controller) newSSHExecSession(
 			return sshExecAttempt{}, err
 		}
 
-		exec, err := lease.transport().NewExec(sshexec.Options{
+		exec, err := transport.NewExec(sshexec.Options{
 			Interactive: spec.interactive,
 			TTY:         spec.tty,
 			Rows:        spec.rows,
 			Cols:        spec.cols,
 		})
 		if err != nil {
-			lease.release()
+			controller.execSSHCache.discard(transportKey, transport)
 
 			err = fmt.Errorf("failed to create SSH session for a VM: %w", err)
-			if lease.reused {
+			if reused {
 				return sshExecAttempt{}, retry.Unrecoverable(err)
 			}
 
@@ -247,8 +246,7 @@ func (controller *Controller) newSSHExecSession(
 		}
 
 		return sshExecAttempt{
-			lease: lease,
-			exec:  exec,
+			exec: exec,
 		}, nil
 	})
 	if err != nil {
@@ -264,7 +262,6 @@ func (controller *Controller) newSSHExecSession(
 		spec,
 		runCommand,
 		attempt.exec,
-		attempt.lease.release,
 		registry,
 		controller.execSessionExitTTL,
 		policy,

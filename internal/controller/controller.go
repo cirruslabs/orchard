@@ -66,7 +66,7 @@ type Controller struct {
 	sshNoClientAuth bool
 	sshServer       *sshserver.SSHServer
 	execSessions    *execSessionRegistry
-	execSSHPool     *execSSHTransportPool
+	execSSHCache    *execSSHTransportCache
 
 	single singleflight.Group
 
@@ -81,7 +81,7 @@ func New(opts ...Option) (*Controller, error) {
 		execSessionExitTTL:   10 * time.Minute,
 		pingInterval:         30 * time.Second,
 		execSessions:         newExecSessionRegistry(),
-		execSSHPool:          newExecSSHTransportPool(),
+		execSSHCache:         newExecSSHTransportCache(),
 		single:               singleflight.Group{},
 	}
 
@@ -315,7 +315,7 @@ func (controller *Controller) Run(ctx context.Context) error {
 		<-ctx.Done()
 
 		controller.execSessions.closeAll()
-		controller.execSSHPool.closeAll()
+		controller.execSSHCache.closeAll()
 
 		if err := controller.httpServer.Shutdown(ctx); err != nil {
 			controller.logger.Errorf("failed to cleanly shutdown the HTTP server: %v", err)

@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"context"
 	"sync"
 
 	"github.com/cirruslabs/orchard/internal/controller/sshexec"
@@ -30,153 +29,63 @@ type execSSHTransportKey struct {
 	restartCount uint64
 }
 
-type execSSHTransportEntry struct {
-	key       execSSHTransportKey
-	transport execSSHTransport
-	refs      int
-	closed    bool
+type execSSHTransportCache struct {
+	mu      sync.Mutex
+	entries map[execSSHTransportKey]execSSHTransport
 }
 
-type execSSHTransportCreation struct {
-	done chan struct{}
-	err  error
-}
-
-type execSSHTransportPool struct {
-	mu       sync.Mutex
-	entries  map[execSSHTransportKey]*execSSHTransportEntry
-	creating map[execSSHTransportKey]*execSSHTransportCreation
-}
-
-func newExecSSHTransportPool() *execSSHTransportPool {
-	return &execSSHTransportPool{
-		entries:  map[execSSHTransportKey]*execSSHTransportEntry{},
-		creating: map[execSSHTransportKey]*execSSHTransportCreation{},
+func newExecSSHTransportCache() *execSSHTransportCache {
+	return &execSSHTransportCache{
+		entries: map[execSSHTransportKey]execSSHTransport{},
 	}
 }
 
-func (pool *execSSHTransportPool) acquire(
-	ctx context.Context,
+func (cache *execSSHTransportCache) getOrCreate(
 	key execSSHTransportKey,
 	create func() (execSSHTransport, error),
-) (*execSSHTransportLease, error) {
-	for {
-		pool.mu.Lock()
+) (execSSHTransport, bool, error) {
+	cache.mu.Lock()
+	defer cache.mu.Unlock()
 
-		if entry, ok := pool.entries[key]; ok {
-			entry.refs++
-			pool.mu.Unlock()
-
-			return &execSSHTransportLease{
-				pool:   pool,
-				entry:  entry,
-				reused: true,
-			}, nil
-		}
-
-		if creation, ok := pool.creating[key]; ok {
-			pool.mu.Unlock()
-
-			select {
-			case <-ctx.Done():
-				return nil, ctx.Err()
-			case <-creation.done:
-				if creation.err != nil {
-					return nil, creation.err
-				}
-			}
-
-			continue
-		}
-
-		creation := &execSSHTransportCreation{done: make(chan struct{})}
-		pool.creating[key] = creation
-		pool.mu.Unlock()
-
-		transport, err := create()
-
-		pool.mu.Lock()
-		delete(pool.creating, key)
-		creation.err = err
-
-		var entry *execSSHTransportEntry
-		if err == nil {
-			entry = &execSSHTransportEntry{
-				key:       key,
-				transport: transport,
-				refs:      1,
-			}
-			pool.entries[key] = entry
-		}
-
-		close(creation.done)
-		pool.mu.Unlock()
-
-		if err != nil {
-			return nil, err
-		}
-
-		return &execSSHTransportLease{
-			pool:  pool,
-			entry: entry,
-		}, nil
+	if transport, ok := cache.entries[key]; ok {
+		return transport, true, nil
 	}
+
+	transport, err := create()
+	if err != nil {
+		return nil, false, err
+	}
+
+	cache.entries[key] = transport
+
+	return transport, false, nil
 }
 
-func (pool *execSSHTransportPool) release(entry *execSSHTransportEntry) {
+func (cache *execSSHTransportCache) discard(key execSSHTransportKey, expected execSSHTransport) {
 	var transport execSSHTransport
 
-	pool.mu.Lock()
-	if entry.closed {
-		pool.mu.Unlock()
-
-		return
+	cache.mu.Lock()
+	if cache.entries[key] == expected {
+		transport = expected
+		delete(cache.entries, key)
 	}
-
-	entry.refs--
-	if entry.refs == 0 {
-		entry.closed = true
-		if pool.entries[entry.key] == entry {
-			delete(pool.entries, entry.key)
-		}
-		transport = entry.transport
-	}
-	pool.mu.Unlock()
+	cache.mu.Unlock()
 
 	if transport != nil {
 		_ = transport.Close()
 	}
 }
 
-func (pool *execSSHTransportPool) closeAll() {
-	pool.mu.Lock()
-	entries := make([]*execSSHTransportEntry, 0, len(pool.entries))
-	for key, entry := range pool.entries {
-		entry.closed = true
-		delete(pool.entries, key)
-		entries = append(entries, entry)
+func (cache *execSSHTransportCache) closeAll() {
+	cache.mu.Lock()
+	transports := make([]execSSHTransport, 0, len(cache.entries))
+	for key, transport := range cache.entries {
+		delete(cache.entries, key)
+		transports = append(transports, transport)
 	}
-	pool.mu.Unlock()
+	cache.mu.Unlock()
 
-	for _, entry := range entries {
-		_ = entry.transport.Close()
+	for _, transport := range transports {
+		_ = transport.Close()
 	}
-}
-
-type execSSHTransportLease struct {
-	pool   *execSSHTransportPool
-	entry  *execSSHTransportEntry
-	reused bool
-
-	releaseOnce sync.Once
-}
-
-func (lease *execSSHTransportLease) transport() execSSHTransport {
-	return lease.entry.transport
-}
-
-func (lease *execSSHTransportLease) release() {
-	lease.releaseOnce.Do(func() {
-		lease.pool.release(lease.entry)
-	})
 }
