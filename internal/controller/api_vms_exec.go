@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net"
 	"net/http"
 	"strconv"
 	"time"
@@ -190,8 +189,7 @@ func (controller *Controller) newSSHExecSession(
 	sessionContext, sessionContextCancel := context.WithCancel(context.Background())
 
 	type sshExecAttempt struct {
-		portForwardConn net.Conn
-		exec            *sshexec.Exec
+		exec *sshexec.Exec
 	}
 
 	attempt, err := retry.NewWithData[sshExecAttempt](
@@ -201,32 +199,38 @@ func (controller *Controller) newSSHExecSession(
 		retry.Attempts(0),
 		retry.LastErrorOnly(true),
 	).Do(func() (sshExecAttempt, error) {
-		portForwardConn, err := controller.portForwardConnection(
-			sessionContext,
-			waitContext,
-			vm.Worker,
-			vm.UID,
-			22,
-		)
-		if err != nil {
-			return sshExecAttempt{}, err
-		}
-
-		exec, err := sshexec.New(portForwardConn, vm.SSHUsername(), vm.SSHPassword(), sshexec.Options{
+		exec, err := controller.execSSHClients.newExec(vm.UID, sshexec.Options{
 			Interactive: spec.interactive,
 			TTY:         spec.tty,
 			Rows:        spec.rows,
 			Cols:        spec.cols,
+		}, func() (sshExecClient, error) {
+			portForwardConn, err := controller.portForwardConnection(
+				context.Background(),
+				waitContext,
+				vm.Worker,
+				vm.UID,
+				22,
+			)
+			if err != nil {
+				return nil, err
+			}
+
+			client, err := sshexec.NewClient(portForwardConn, vm.SSHUsername(), vm.SSHPassword())
+			if err != nil {
+				_ = portForwardConn.Close()
+
+				return nil, fmt.Errorf("failed to establish SSH connection to a VM: %w", err)
+			}
+
+			return client, nil
 		})
 		if err != nil {
-			_ = portForwardConn.Close()
-
 			return sshExecAttempt{}, fmt.Errorf("failed to establish SSH connection to a VM: %w", err)
 		}
 
 		return sshExecAttempt{
-			portForwardConn: portForwardConn,
-			exec:            exec,
+			exec: exec,
 		}, nil
 	})
 	if err != nil {
@@ -242,9 +246,9 @@ func (controller *Controller) newSSHExecSession(
 		spec,
 		runCommand,
 		attempt.exec,
-		attempt.portForwardConn,
+		nil,
 		registry,
-		controller.execSessionExitTTL,
+		controller.execSessionRetentionTTL,
 		policy,
 	), nil
 }

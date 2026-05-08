@@ -228,7 +228,7 @@ func TestVMExecScript(t *testing.T) {
 }
 
 func TestVMExecManyConcurrentSessions(t *testing.T) {
-	sshServer := startExecSSHServer(t, 24)
+	sshServer := startExecSSHServer(t, 2)
 
 	devClient, vmName := prepareForSyntheticExec(t, dialer.DialFunc(
 		func(ctx context.Context, network string, addr string) (net.Conn, error) {
@@ -307,6 +307,62 @@ func TestVMExecManyConcurrentSessions(t *testing.T) {
 	for err := range errCh {
 		require.NoError(t, err)
 	}
+
+	require.EqualValues(t, 1, sshServer.SuccessfulConnections())
+}
+
+func TestVMExecRecreatesSharedSSHClientAfterDisconnect(t *testing.T) {
+	sshServer := startExecSSHServer(t, 0)
+
+	devClient, vmName := prepareForSyntheticExec(t, dialer.DialFunc(
+		func(ctx context.Context, network string, addr string) (net.Conn, error) {
+			var netDialer net.Dialer
+
+			return netDialer.DialContext(ctx, network, sshServer.Addr())
+		},
+	))
+
+	runSyntheticExec(t, devClient, vmName)
+	require.EqualValues(t, 1, sshServer.SuccessfulConnections())
+
+	sshServer.CloseClientConnections()
+
+	runSyntheticExec(t, devClient, vmName)
+	require.EqualValues(t, 2, sshServer.SuccessfulConnections())
+}
+
+func TestVMExecSharedSSHClientSendsKeepalives(t *testing.T) {
+	sshServer := startExecSSHServer(t, 0)
+
+	devClient, vmName := prepareForSyntheticExec(t, dialer.DialFunc(
+		func(ctx context.Context, network string, addr string) (net.Conn, error) {
+			var netDialer net.Dialer
+
+			return netDialer.DialContext(ctx, network, sshServer.Addr())
+		},
+	), controller.WithExecSSHConnectionKeepaliveInterval(10*time.Millisecond))
+
+	runSyntheticExec(t, devClient, vmName)
+
+	require.Eventually(t, func() bool {
+		return sshServer.KeepaliveRequests() > 0
+	}, time.Second, 10*time.Millisecond)
+}
+
+func TestVMExecKeepsSharedSSHClientAfterSessionRejection(t *testing.T) {
+	sshServer := startExecSSHServer(t, 0)
+	sshServer.RejectNextSessions(1)
+
+	devClient, vmName := prepareForSyntheticExec(t, dialer.DialFunc(
+		func(ctx context.Context, network string, addr string) (net.Conn, error) {
+			var netDialer net.Dialer
+
+			return netDialer.DialContext(ctx, network, sshServer.Addr())
+		},
+	))
+
+	runSyntheticExec(t, devClient, vmName)
+	require.EqualValues(t, 1, sshServer.SuccessfulConnections())
 }
 
 func TestVMExecSessionReconnectHistory(t *testing.T) {
@@ -499,9 +555,15 @@ func prepareForExec(t *testing.T) (*client.Client, string) {
 	return devClient, vmName
 }
 
-func prepareForSyntheticExec(t *testing.T, vmDialer dialer.Dialer) (*client.Client, string) {
+func prepareForSyntheticExec(
+	t *testing.T,
+	vmDialer dialer.Dialer,
+	additionalControllerOpts ...controller.Option,
+) (*client.Client, string) {
+	controllerOpts := append([]controller.Option{controller.WithSynthetic()}, additionalControllerOpts...)
+
 	devClient, _, _ := devcontroller.StartIntegrationTestEnvironmentWithAdditionalOpts(t,
-		false, []controller.Option{controller.WithSynthetic()},
+		false, controllerOpts,
 		false, []worker.Option{
 			worker.WithSynthetic(),
 			worker.WithDialer(vmDialer),
@@ -523,6 +585,22 @@ func prepareForSyntheticExec(t *testing.T, vmDialer dialer.Dialer) (*client.Clie
 	}), "failed to start a synthetic VM")
 
 	return devClient, vmName
+}
+
+func runSyntheticExec(t *testing.T, devClient *client.Client, vmName string) {
+	t.Helper()
+
+	wsConn, err := devClient.VMs().Exec(t.Context(), vmName, "echo ignored", false, 30)
+	require.NoError(t, err)
+	defer wsConn.CloseNow()
+
+	frame := readFrame(t, wsConn)
+	require.Equal(t, execstream.FrameTypeStdout, frame.Type)
+	require.Equal(t, "ok", string(frame.Data))
+
+	frame = readFrame(t, wsConn)
+	require.Equal(t, execstream.FrameTypeExit, frame.Type)
+	require.EqualValues(t, 0, frame.Exit.Code)
 }
 
 func readFrame(t *testing.T, wsConn *websocket.Conn) *execstream.Frame {

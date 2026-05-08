@@ -35,7 +35,8 @@ var noExperimentalRPCV2 bool
 var experimentalPingInterval time.Duration
 var experimentalDisableDBCompression bool
 var workerOfflineTimeout time.Duration
-var execSessionExitTTL time.Duration
+var execSessionRetentionTTL time.Duration
+var execSSHConnectionKeepaliveInterval time.Duration
 var synthetic bool
 
 func newRunCommand() *cobra.Command {
@@ -88,8 +89,10 @@ func newRunCommand() *cobra.Command {
 		"duration (e.g. 60s or 5m30s) after which a worker is considered offline for the purposes "+
 			"of scheduling (no new VMs will be scheduled on such worker and already assigned VMs will be "+
 			"marked as failed)")
-	cmd.Flags().DurationVar(&execSessionExitTTL, "exec-session-exit-ttl", 10*time.Minute,
+	cmd.Flags().DurationVar(&execSessionRetentionTTL, "exec-session-retention-ttl", 10*time.Minute,
 		"duration to retain reconnectable exec session history after the command exits")
+	cmd.Flags().DurationVar(&execSSHConnectionKeepaliveInterval, "exec-ssh-connection-keepalive-interval", 30*time.Second,
+		"interval between SSH keepalive requests sent by the controller for shared exec connections")
 
 	// Hidden flags
 	cmd.Flags().BoolVar(&synthetic, "synthetic", false, "")
@@ -150,7 +153,8 @@ func runController(cmd *cobra.Command, args []string) (err error) {
 		controller.WithListenAddr(address),
 		controller.WithDataDir(dataDir),
 		controller.WithWorkerOfflineTimeout(workerOfflineTimeout),
-		controller.WithExecSessionExitTTL(execSessionExitTTL),
+		controller.WithExecSessionRetentionTTL(execSessionRetentionTTL),
+		controller.WithExecSSHConnectionKeepaliveInterval(execSSHConnectionKeepaliveInterval),
 		controller.WithLogger(logger),
 	}
 
@@ -213,6 +217,10 @@ func runController(cmd *cobra.Command, args []string) (err error) {
 
 	if experimentalDisableDBCompression {
 		controllerOpts = append(controllerOpts, controller.WithDisableDBCompression())
+	}
+
+	if execSSHConnectionKeepaliveInterval < 5*time.Second {
+		return fmt.Errorf("--exec-ssh-connection-keepalive-interval's value cannot be less than 5 seconds")
 	}
 
 	controllerInstance, err := controller.New(controllerOpts...)

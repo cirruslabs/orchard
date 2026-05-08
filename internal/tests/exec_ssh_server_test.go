@@ -17,6 +17,12 @@ type execSSHServer struct {
 	config   *ssh.ServerConfig
 
 	rejectFirstConnections atomic.Int32
+	rejectFirstSessions    atomic.Int32
+	successfulConnections  atomic.Int32
+	keepaliveRequests      atomic.Int32
+
+	mu    sync.Mutex
+	conns map[net.Conn]struct{}
 
 	wg sync.WaitGroup
 }
@@ -35,6 +41,7 @@ func startExecSSHServer(t *testing.T, rejectFirstConnections int32) *execSSHServ
 
 	server := &execSSHServer{
 		listener: listener,
+		conns:    map[net.Conn]struct{}{},
 		config: &ssh.ServerConfig{
 			PasswordCallback: func(conn ssh.ConnMetadata, password []byte) (*ssh.Permissions, error) {
 				if conn.User() != "admin" || string(password) != "admin" {
@@ -63,6 +70,31 @@ func (server *execSSHServer) Addr() string {
 	return server.listener.Addr().String()
 }
 
+func (server *execSSHServer) SuccessfulConnections() int32 {
+	return server.successfulConnections.Load()
+}
+
+func (server *execSSHServer) KeepaliveRequests() int32 {
+	return server.keepaliveRequests.Load()
+}
+
+func (server *execSSHServer) RejectNextSessions(count int32) {
+	server.rejectFirstSessions.Store(count)
+}
+
+func (server *execSSHServer) CloseClientConnections() {
+	server.mu.Lock()
+	conns := make([]net.Conn, 0, len(server.conns))
+	for conn := range server.conns {
+		conns = append(conns, conn)
+	}
+	server.mu.Unlock()
+
+	for _, conn := range conns {
+		_ = conn.Close()
+	}
+}
+
 func (server *execSSHServer) run() {
 	defer server.wg.Done()
 
@@ -88,6 +120,15 @@ func (server *execSSHServer) run() {
 }
 
 func (server *execSSHServer) serve(conn net.Conn) {
+	server.mu.Lock()
+	server.conns[conn] = struct{}{}
+	server.mu.Unlock()
+
+	defer func() {
+		server.mu.Lock()
+		delete(server.conns, conn)
+		server.mu.Unlock()
+	}()
 	defer conn.Close()
 
 	serverConn, newChannels, requests, err := ssh.NewServerConn(conn, server.config)
@@ -96,11 +137,18 @@ func (server *execSSHServer) serve(conn net.Conn) {
 	}
 	defer serverConn.Close()
 
-	go ssh.DiscardRequests(requests)
+	server.successfulConnections.Add(1)
+
+	go server.serveGlobalRequests(requests)
 
 	for newChannel := range newChannels {
 		if newChannel.ChannelType() != "session" {
 			_ = newChannel.Reject(ssh.UnknownChannelType, "unsupported channel type")
+
+			continue
+		}
+		if server.rejectFirstSessions.Add(-1) >= 0 {
+			_ = newChannel.Reject(ssh.Prohibited, "session rejected for test")
 
 			continue
 		}
@@ -116,6 +164,17 @@ func (server *execSSHServer) serve(conn net.Conn) {
 
 			serveExecSSHSession(channel, requests)
 		}()
+	}
+}
+
+func (server *execSSHServer) serveGlobalRequests(requests <-chan *ssh.Request) {
+	for request := range requests {
+		if request.Type == "keepalive@openssh.com" {
+			server.keepaliveRequests.Add(1)
+		}
+		if request.WantReply {
+			_ = request.Reply(false, nil)
+		}
 	}
 }
 
