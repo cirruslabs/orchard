@@ -10,6 +10,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/cirruslabs/orchard/internal/execstream"
 	"golang.org/x/crypto/ssh"
@@ -27,8 +28,15 @@ type Options struct {
 	Workdir     string
 }
 
+type Client struct {
+	sshClient *ssh.Client
+	done      chan struct{}
+	waitErr   error
+	waitMu    sync.Mutex
+}
+
 type Exec struct {
-	sshClient   *ssh.Client
+	ownedClient *Client
 	sshSession  *ssh.Session
 	stdout      io.Reader
 	stderr      io.Reader
@@ -37,7 +45,7 @@ type Exec struct {
 	tty         bool
 }
 
-func New(netConn net.Conn, user string, password string, options Options) (*Exec, error) {
+func NewClient(netConn net.Conn, user string, password string) (*Client, error) {
 	// Establish an SSH connection
 	sshConn, sshChans, sshReqs, err := ssh.NewClientConn(netConn, "", &ssh.ClientConfig{
 		HostKeyCallback: func(hostname string, remote net.Addr, key ssh.PublicKey) error {
@@ -52,18 +60,50 @@ func New(netConn net.Conn, user string, password string, options Options) (*Exec
 		return nil, fmt.Errorf("failed to create an SSH connection: %w", err)
 	}
 
-	sshClient := ssh.NewClient(sshConn, sshChans, sshReqs)
+	client := &Client{
+		sshClient: ssh.NewClient(sshConn, sshChans, sshReqs),
+		done:      make(chan struct{}),
+	}
 
-	// Create a new SSH session
-	sshSession, err := sshClient.NewSession()
+	go func() {
+		err := client.sshClient.Wait()
+
+		client.waitMu.Lock()
+		client.waitErr = err
+		client.waitMu.Unlock()
+
+		close(client.done)
+	}()
+
+	return client, nil
+}
+
+func New(netConn net.Conn, user string, password string, options Options) (*Exec, error) {
+	client, err := NewClient(netConn, user, password)
 	if err != nil {
-		_ = sshClient.Close()
+		return nil, err
+	}
 
+	exec, err := client.NewExec(options)
+	if err != nil {
+		_ = client.Close()
+
+		return nil, err
+	}
+
+	exec.ownedClient = client
+
+	return exec, nil
+}
+
+func (client *Client) NewExec(options Options) (*Exec, error) {
+	// Create a new SSH session
+	sshSession, err := client.sshClient.NewSession()
+	if err != nil {
 		return nil, fmt.Errorf("failed to create an SSH session: %w", err)
 	}
 
 	exec := &Exec{
-		sshClient:  sshClient,
 		sshSession: sshSession,
 		tty:        options.TTY,
 	}
@@ -83,7 +123,6 @@ func New(netConn net.Conn, user string, password string, options Options) (*Exec
 			ssh.TerminalModes{},
 		); err != nil {
 			_ = sshSession.Close()
-			_ = sshClient.Close()
 
 			return nil, fmt.Errorf("failed to request PTY for the SSH session: %w", err)
 		}
@@ -92,7 +131,6 @@ func New(netConn net.Conn, user string, password string, options Options) (*Exec
 	exec.stdout, err = sshSession.StdoutPipe()
 	if err != nil {
 		_ = sshSession.Close()
-		_ = sshClient.Close()
 
 		return nil, fmt.Errorf("failed to create standard output pipe "+
 			"for the SSH session: %w", err)
@@ -101,13 +139,47 @@ func New(netConn net.Conn, user string, password string, options Options) (*Exec
 	exec.stderr, err = sshSession.StderrPipe()
 	if err != nil {
 		_ = sshSession.Close()
-		_ = sshClient.Close()
 
 		return nil, fmt.Errorf("failed to create standard error pipe "+
 			"for the SSH session: %w", err)
 	}
 
 	return exec, nil
+}
+
+func (client *Client) Keepalive() error {
+	_, _, err := client.sshClient.SendRequest("keepalive@openssh.com", true, nil)
+
+	return err
+}
+
+func (client *Client) Done() <-chan struct{} {
+	return client.done
+}
+
+func (client *Client) Err() error {
+	<-client.done
+
+	client.waitMu.Lock()
+	defer client.waitMu.Unlock()
+
+	return client.waitErr
+}
+
+func (client *Client) Close() error {
+	return client.sshClient.Close()
+}
+
+func (client *Client) ShouldRecreateAfter(err error) bool {
+	select {
+	case <-client.done:
+		return true
+	default:
+	}
+
+	return errors.Is(err, io.EOF) ||
+		errors.Is(err, net.ErrClosed) ||
+		strings.Contains(err.Error(), "use of closed network connection")
 }
 
 func (exec *Exec) Stdin() io.WriteCloser {
@@ -286,10 +358,16 @@ func (exec *Exec) Close() error {
 	}
 
 	if err := exec.sshSession.Close(); err != nil {
-		_ = exec.sshClient.Close()
+		if exec.ownedClient != nil {
+			_ = exec.ownedClient.Close()
+		}
 
 		return err
 	}
 
-	return exec.sshClient.Close()
+	if exec.ownedClient != nil {
+		return exec.ownedClient.Close()
+	}
+
+	return nil
 }

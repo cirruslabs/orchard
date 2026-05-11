@@ -60,9 +60,15 @@ func WithWorkerOfflineTimeout(workerOfflineTimeout time.Duration) Option {
 	}
 }
 
-func WithExecSessionExitTTL(execSessionExitTTL time.Duration) Option {
+func WithExecSessionRetentionTTL(execSessionRetentionTTL time.Duration) Option {
 	return func(controller *Controller) {
-		controller.execSessionExitTTL = execSessionExitTTL
+		controller.execSessionRetentionTTL = execSessionRetentionTTL
+	}
+}
+
+func WithExecSSHConnectionKeepaliveInterval(execSSHConnectionKeepaliveInterval time.Duration) Option {
+	return func(controller *Controller) {
+		controller.execSSHConnectionKeepaliveInterval = execSSHConnectionKeepaliveInterval
 	}
 }
 

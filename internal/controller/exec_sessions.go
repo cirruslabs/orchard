@@ -325,14 +325,14 @@ func (subscriber *execSessionSubscriber) close() {
 }
 
 type execSession struct {
-	key       execSessionKey
-	spec      execSessionSpec
-	command   string
-	exec      sshExecRunner
-	transport net.Conn
-	registry  *execSessionRegistry
-	exitTTL   time.Duration
-	policy    execSessionPolicy
+	key          execSessionKey
+	spec         execSessionSpec
+	command      string
+	exec         sshExecRunner
+	transport    net.Conn
+	registry     *execSessionRegistry
+	retentionTTL time.Duration
+	policy       execSessionPolicy
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -358,7 +358,7 @@ func newExecSession(
 	exec sshExecRunner,
 	transport net.Conn,
 	registry *execSessionRegistry,
-	exitTTL time.Duration,
+	retentionTTL time.Duration,
 	policy execSessionPolicy,
 ) *execSession {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -372,7 +372,7 @@ func newExecSession(
 		exec,
 		transport,
 		registry,
-		exitTTL,
+		retentionTTL,
 		policy,
 	)
 }
@@ -386,7 +386,7 @@ func newExecSessionWithContextAndSpec(
 	exec sshExecRunner,
 	transport net.Conn,
 	registry *execSessionRegistry,
-	exitTTL time.Duration,
+	retentionTTL time.Duration,
 	policy execSessionPolicy,
 ) *execSession {
 	if ctx == nil || cancel == nil {
@@ -394,19 +394,19 @@ func newExecSessionWithContextAndSpec(
 	}
 
 	session := &execSession{
-		key:         key,
-		spec:        spec.clone(),
-		command:     command,
-		exec:        exec,
-		transport:   transport,
-		registry:    registry,
-		exitTTL:     exitTTL,
-		policy:      policy,
-		ctx:         ctx,
-		cancel:      cancel,
-		stdin:       exec.Stdin(),
-		subscribers: map[*execSessionSubscriber]struct{}{},
-		done:        make(chan struct{}),
+		key:          key,
+		spec:         spec.clone(),
+		command:      command,
+		exec:         exec,
+		transport:    transport,
+		registry:     registry,
+		retentionTTL: retentionTTL,
+		policy:       policy,
+		ctx:          ctx,
+		cancel:       cancel,
+		stdin:        exec.Stdin(),
+		subscribers:  map[*execSessionSubscriber]struct{}{},
+		done:         make(chan struct{}),
 	}
 
 	return session
@@ -646,7 +646,7 @@ func (session *execSession) markFinished() {
 	session.finished = true
 	shouldClose := !session.policy.retainAfterExit
 	if !session.closed && session.policy.retainAfterExit {
-		session.expiryTimer = time.AfterFunc(session.exitTTL, session.expire)
+		session.expiryTimer = time.AfterFunc(session.retentionTTL, session.expire)
 	}
 
 	var subscribers []*execSessionSubscriber

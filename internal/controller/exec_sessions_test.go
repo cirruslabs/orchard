@@ -55,17 +55,17 @@ func newManualExecSessionForTest(
 	ctx, cancel := context.WithCancel(context.Background())
 
 	return &execSession{
-		key:         key,
-		spec:        execSessionSpec{command: "echo test"},
-		command:     "echo test",
-		exec:        &fakeExec{},
-		registry:    registry,
-		exitTTL:     time.Minute,
-		policy:      reconnectableExecSessionPolicy,
-		ctx:         ctx,
-		cancel:      cancel,
-		subscribers: map[*execSessionSubscriber]struct{}{},
-		done:        make(chan struct{}),
+		key:          key,
+		spec:         execSessionSpec{command: "echo test"},
+		command:      "echo test",
+		exec:         &fakeExec{},
+		registry:     registry,
+		retentionTTL: time.Minute,
+		policy:       reconnectableExecSessionPolicy,
+		ctx:          ctx,
+		cancel:       cancel,
+		subscribers:  map[*execSessionSubscriber]struct{}{},
+		done:         make(chan struct{}),
 	}
 }
 
@@ -350,7 +350,7 @@ func TestExecSessionFinishedEntryExpiresAfterTTL(t *testing.T) {
 	registry := newExecSessionRegistry()
 	key := execSessionKey{vmName: "vm", sessionID: "session"}
 	session := newManualExecSessionForTest(key, registry)
-	session.exitTTL = 10 * time.Millisecond
+	session.retentionTTL = 10 * time.Millisecond
 	registry.sessions[key] = session
 
 	session.markFinished()

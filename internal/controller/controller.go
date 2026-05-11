@@ -39,33 +39,35 @@ var (
 )
 
 type Controller struct {
-	dataDir              *DataDir
-	listenAddr           string
-	apiPrefix            string
-	tlsConfig            *tls.Config
-	listener             net.Listener
-	httpServer           *http.Server
-	insecureAuthDisabled bool
-	scheduler            *scheduler.Scheduler
-	store                storepkg.Store
-	logger               *zap.SugaredLogger
-	grpcServer           *grpc.Server
-	workerNotifier       *notifier.Notifier
-	connRendezvous       *rendezvous.Rendezvous[rendezvous.ResultWithErrorMessage[net.Conn]]
-	ipRendezvous         *rendezvous.Rendezvous[rendezvous.ResultWithErrorMessage[string]]
-	enableSwaggerDocs    bool
-	workerOfflineTimeout time.Duration
-	execSessionExitTTL   time.Duration
-	experimentalRPCV2    bool
-	disableDBCompression bool
-	pingInterval         time.Duration
-	synthetic            bool
+	dataDir                            *DataDir
+	listenAddr                         string
+	apiPrefix                          string
+	tlsConfig                          *tls.Config
+	listener                           net.Listener
+	httpServer                         *http.Server
+	insecureAuthDisabled               bool
+	scheduler                          *scheduler.Scheduler
+	store                              storepkg.Store
+	logger                             *zap.SugaredLogger
+	grpcServer                         *grpc.Server
+	workerNotifier                     *notifier.Notifier
+	connRendezvous                     *rendezvous.Rendezvous[rendezvous.ResultWithErrorMessage[net.Conn]]
+	ipRendezvous                       *rendezvous.Rendezvous[rendezvous.ResultWithErrorMessage[string]]
+	enableSwaggerDocs                  bool
+	workerOfflineTimeout               time.Duration
+	execSessionRetentionTTL            time.Duration
+	execSSHConnectionKeepaliveInterval time.Duration
+	experimentalRPCV2                  bool
+	disableDBCompression               bool
+	pingInterval                       time.Duration
+	synthetic                          bool
 
 	sshListenAddr   string
 	sshSigner       ssh.Signer
 	sshNoClientAuth bool
 	sshServer       *sshserver.SSHServer
 	execSessions    *execSessionRegistry
+	execSSHClients  *execSSHClientPool
 
 	single singleflight.Group
 
@@ -74,13 +76,14 @@ type Controller struct {
 
 func New(opts ...Option) (*Controller, error) {
 	controller := &Controller{
-		connRendezvous:       rendezvous.New[rendezvous.ResultWithErrorMessage[net.Conn]](),
-		ipRendezvous:         rendezvous.New[rendezvous.ResultWithErrorMessage[string]](),
-		workerOfflineTimeout: 3 * time.Minute,
-		execSessionExitTTL:   10 * time.Minute,
-		pingInterval:         30 * time.Second,
-		execSessions:         newExecSessionRegistry(),
-		single:               singleflight.Group{},
+		connRendezvous:                     rendezvous.New[rendezvous.ResultWithErrorMessage[net.Conn]](),
+		ipRendezvous:                       rendezvous.New[rendezvous.ResultWithErrorMessage[string]](),
+		workerOfflineTimeout:               3 * time.Minute,
+		execSessionRetentionTTL:            10 * time.Minute,
+		execSSHConnectionKeepaliveInterval: 30 * time.Second,
+		pingInterval:                       30 * time.Second,
+		execSessions:                       newExecSessionRegistry(),
+		single:                             singleflight.Group{},
 	}
 
 	// Apply options
@@ -99,6 +102,10 @@ func New(opts ...Option) (*Controller, error) {
 	if controller.logger == nil {
 		controller.logger = zap.NewNop().Sugar()
 	}
+	controller.execSSHClients = newExecSSHClientPool(
+		controller.execSSHConnectionKeepaliveInterval,
+		controller.logger.With("component", "exec-ssh"),
+	)
 
 	// Instantiate the database
 	store, err := badger.NewBadgerStore(controller.dataDir.DBPath(), controller.disableDBCompression,
@@ -313,6 +320,7 @@ func (controller *Controller) Run(ctx context.Context) error {
 		<-ctx.Done()
 
 		controller.execSessions.closeAll()
+		controller.execSSHClients.closeAll()
 
 		if err := controller.httpServer.Shutdown(ctx); err != nil {
 			controller.logger.Errorf("failed to cleanly shutdown the HTTP server: %v", err)
