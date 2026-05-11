@@ -68,6 +68,7 @@ type Controller struct {
 	sshServer       *sshserver.SSHServer
 	execSessions    *execSessionRegistry
 	execSSHClients  *execSSHClientPool
+	execTelemetry   *execTelemetry
 
 	single singleflight.Group
 
@@ -106,6 +107,11 @@ func New(opts ...Option) (*Controller, error) {
 		controller.execSSHConnectionKeepaliveInterval,
 		controller.logger.With("component", "exec-ssh"),
 	)
+	execTelemetry, err := newDefaultExecTelemetry()
+	if err != nil {
+		return nil, err
+	}
+	controller.execTelemetry = execTelemetry
 
 	// Instantiate the database
 	store, err := badger.NewBadgerStore(controller.dataDir.DBPath(), controller.disableDBCompression,
