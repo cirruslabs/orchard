@@ -2,15 +2,25 @@ package opentelemetry
 
 import (
 	"context"
+	"os"
+
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc"
+	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
+	otellogglobal "go.opentelemetry.io/otel/log/global"
+	sdklog "go.opentelemetry.io/otel/sdk/log"
 	"go.opentelemetry.io/otel/sdk/metric"
-	"os"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 )
 
 var (
-	DefaultMeter = otel.Meter("")
+	DefaultLogger = otellogglobal.Logger("")
+	DefaultMeter  = otel.Meter("")
+	DefaultTracer = otel.Tracer("")
 )
 
 func Configure(ctx context.Context) error {
@@ -28,6 +38,12 @@ func Configure(ctx context.Context) error {
 	}
 
 	if err := setupMeterProvider(ctx); err != nil {
+		return err
+	}
+	if err := setupTracerProvider(ctx); err != nil {
+		return err
+	}
+	if err := setupLoggerProvider(ctx); err != nil {
 		return err
 	}
 
@@ -51,6 +67,48 @@ func setupMeterProvider(ctx context.Context) error {
 	)
 
 	otel.SetMeterProvider(meterProvider)
+
+	return nil
+}
+
+func setupTracerProvider(ctx context.Context) error {
+	httpExporter, err := otlptracehttp.New(ctx)
+	if err != nil {
+		return err
+	}
+
+	grpcExporter, err := otlptracegrpc.New(ctx)
+	if err != nil {
+		return err
+	}
+
+	tracerProvider := sdktrace.NewTracerProvider(
+		sdktrace.WithBatcher(httpExporter),
+		sdktrace.WithBatcher(grpcExporter),
+	)
+
+	otel.SetTracerProvider(tracerProvider)
+
+	return nil
+}
+
+func setupLoggerProvider(ctx context.Context) error {
+	httpExporter, err := otlploghttp.New(ctx)
+	if err != nil {
+		return err
+	}
+
+	grpcExporter, err := otlploggrpc.New(ctx)
+	if err != nil {
+		return err
+	}
+
+	loggerProvider := sdklog.NewLoggerProvider(
+		sdklog.WithProcessor(sdklog.NewBatchProcessor(httpExporter)),
+		sdklog.WithProcessor(sdklog.NewBatchProcessor(grpcExporter)),
+	)
+
+	otellogglobal.SetLoggerProvider(loggerProvider)
 
 	return nil
 }

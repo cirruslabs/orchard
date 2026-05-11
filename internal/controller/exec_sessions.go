@@ -238,12 +238,14 @@ type execSessionSubscriber struct {
 	closeOnce     sync.Once
 	sendMu        sync.Mutex
 	sentWatermark uint64
+	telemetry     *execAttachmentTelemetry
 }
 
-func newExecSessionSubscriber() *execSessionSubscriber {
+func newExecSessionSubscriber(telemetry *execAttachmentTelemetry) *execSessionSubscriber {
 	return &execSessionSubscriber{
-		frames: make(chan *execstream.Frame, 128),
-		closed: make(chan struct{}),
+		frames:    make(chan *execstream.Frame, 128),
+		closed:    make(chan struct{}),
+		telemetry: telemetry,
 	}
 }
 
@@ -315,8 +317,12 @@ func (subscriber *execSessionSubscriber) markSentLocked(frame *execstream.Frame)
 	return frame
 }
 
-func (subscriber *execSessionSubscriber) close() {
+func (subscriber *execSessionSubscriber) close(outcome string) {
 	subscriber.closeOnce.Do(func() {
+		if subscriber.telemetry != nil {
+			subscriber.telemetry.finish(outcome)
+		}
+
 		close(subscriber.closed)
 		subscriber.sendMu.Lock()
 		close(subscriber.frames)
@@ -347,6 +353,9 @@ type execSession struct {
 	closed      bool
 	expiryTimer *time.Timer
 
+	telemetry       *execSessionTelemetry
+	attachmentCount uint64
+
 	startOnce sync.Once
 	done      chan struct{}
 	doneOnce  sync.Once
@@ -374,6 +383,7 @@ func newExecSession(
 		registry,
 		retentionTTL,
 		policy,
+		nil,
 	)
 }
 
@@ -388,6 +398,7 @@ func newExecSessionWithContextAndSpec(
 	registry *execSessionRegistry,
 	retentionTTL time.Duration,
 	policy execSessionPolicy,
+	telemetry *execSessionTelemetry,
 ) *execSession {
 	if ctx == nil || cancel == nil {
 		ctx, cancel = context.WithCancel(context.Background())
@@ -406,6 +417,7 @@ func newExecSessionWithContextAndSpec(
 		cancel:       cancel,
 		stdin:        exec.Stdin(),
 		subscribers:  map[*execSessionSubscriber]struct{}{},
+		telemetry:    telemetry,
 		done:         make(chan struct{}),
 	}
 
@@ -427,6 +439,10 @@ func (session *execSession) start() {
 		session.started = true
 		session.mu.Unlock()
 
+		if session.telemetry != nil {
+			session.telemetry.start()
+		}
+
 		go session.run()
 	})
 }
@@ -441,7 +457,7 @@ func (session *execSession) closeIfUnused() {
 	}
 }
 
-func (session *execSession) attach() (*execSessionSubscriber, error) {
+func (session *execSession) attach(requestCtx context.Context) (*execSessionSubscriber, error) {
 	session.mu.Lock()
 	defer session.mu.Unlock()
 
@@ -449,7 +465,18 @@ func (session *execSession) attach() (*execSessionSubscriber, error) {
 		return nil, errors.New("exec session is closed")
 	}
 
-	subscriber := newExecSessionSubscriber()
+	attachmentKind := execTelemetryAttachmentInitial
+	if session.attachmentCount > 0 {
+		attachmentKind = execTelemetryAttachmentReconnect
+	}
+	session.attachmentCount++
+
+	var telemetry *execAttachmentTelemetry
+	if session.telemetry != nil {
+		telemetry = session.telemetry.attach(requestCtx, attachmentKind)
+	}
+
+	subscriber := newExecSessionSubscriber(telemetry)
 	session.subscribers[subscriber] = struct{}{}
 
 	return subscriber, nil
@@ -457,6 +484,7 @@ func (session *execSession) attach() (*execSessionSubscriber, error) {
 
 func (session *execSession) detach(subscriber *execSessionSubscriber) {
 	if session.policy.closeOnDetach {
+		session.detachSubscriber(subscriber, execTelemetryOutcomeDetached)
 		session.close()
 
 		return
@@ -465,16 +493,23 @@ func (session *execSession) detach(subscriber *execSessionSubscriber) {
 	session.mu.Lock()
 	defer session.mu.Unlock()
 
-	session.detachLocked(subscriber)
+	session.detachLocked(subscriber, execTelemetryOutcomeDetached)
 }
 
-func (session *execSession) detachLocked(subscriber *execSessionSubscriber) {
+func (session *execSession) detachSubscriber(subscriber *execSessionSubscriber, outcome string) {
+	session.mu.Lock()
+	defer session.mu.Unlock()
+
+	session.detachLocked(subscriber, outcome)
+}
+
+func (session *execSession) detachLocked(subscriber *execSessionSubscriber, outcome string) {
 	if _, ok := session.subscribers[subscriber]; !ok {
 		return
 	}
 
 	delete(session.subscribers, subscriber)
-	subscriber.close()
+	subscriber.close(outcome)
 }
 
 func (session *execSession) writeStdin(data []byte) error {
@@ -569,9 +604,14 @@ func (session *execSession) close() {
 	}
 
 	subscribers := session.takeSubscribersLocked()
+	started := session.started
 	session.mu.Unlock()
 
-	closeSubscribers(subscribers)
+	closeSubscribers(subscribers, execTelemetryOutcomeClosed)
+
+	if !started && session.telemetry != nil {
+		session.telemetry.finish(execTelemetryOutcomeClosed, nil)
+	}
 
 	session.cancel()
 	_ = session.exec.Close()
@@ -602,9 +642,12 @@ func (session *execSession) run() {
 			Type:  execstream.FrameTypeError,
 			Error: runErr.Error(),
 		})
+		if session.telemetry != nil {
+			session.telemetry.fail(runErr)
+		}
 	}
 
-	session.markFinished()
+	session.markFinished(runErr)
 }
 
 func (session *execSession) recordFrame(frame *execstream.Frame) {
@@ -635,7 +678,7 @@ func (session *execSession) recordFrame(frame *execstream.Frame) {
 	}
 }
 
-func (session *execSession) markFinished() {
+func (session *execSession) markFinished(runErr error) {
 	session.mu.Lock()
 	if session.finished {
 		session.mu.Unlock()
@@ -655,7 +698,11 @@ func (session *execSession) markFinished() {
 	}
 	session.mu.Unlock()
 
-	closeSubscribers(subscribers)
+	closeSubscribers(subscribers, execTelemetryOutcomeFinished)
+
+	if session.telemetry != nil {
+		session.telemetry.finish(execTelemetryOutcomeFromError(runErr), runErr)
+	}
 
 	session.doneOnce.Do(func() {
 		close(session.done)
@@ -680,9 +727,9 @@ func (session *execSession) takeSubscribersLocked() []*execSessionSubscriber {
 	return subscribers
 }
 
-func closeSubscribers(subscribers []*execSessionSubscriber) {
+func closeSubscribers(subscribers []*execSessionSubscriber, outcome string) {
 	for _, subscriber := range subscribers {
-		subscriber.close()
+		subscriber.close(outcome)
 	}
 }
 
@@ -690,7 +737,7 @@ func (session *execSession) dropSubscriber(subscriber *execSessionSubscriber) {
 	session.mu.Lock()
 	defer session.mu.Unlock()
 
-	session.detachLocked(subscriber)
+	session.detachLocked(subscriber, execTelemetryOutcomeDropped)
 }
 
 func cloneExecFrame(frame *execstream.Frame) *execstream.Frame {

@@ -62,28 +62,37 @@ func (controller *Controller) execVMLegacy(
 	runCommand string,
 	wait uint64,
 ) responder.Responder {
+	key := execSessionKey{vmName: name}
+	setupTelemetry := controller.execTelemetry.startSetup(ctx.Request.Context(), key, spec)
+
 	// Look-up the VM
 	waitContext, waitContextCancel := context.WithTimeout(ctx, time.Duration(wait)*time.Second)
 	defer waitContextCancel()
 
 	vm, responderImpl := controller.waitForVM(waitContext, name)
 	if responderImpl != nil {
+		setupTelemetry.finish(errors.New("failed to wait for VM"))
+
 		return responderImpl
 	}
+	setupTelemetry.setVM(vm)
 
 	session, err := controller.newSSHExecSession(
-		ctx,
 		waitContext,
 		vm,
-		execSessionKey{vmName: name},
+		key,
 		spec,
 		runCommand,
 		nil,
 		legacyExecSessionPolicy,
+		setupTelemetry,
 	)
 	if err != nil {
+		setupTelemetry.finish(err)
+
 		return responder.JSON(http.StatusServiceUnavailable, NewErrorResponse("%v", err))
 	}
+	setupTelemetry.finish(nil)
 
 	// Upgrade HTTP request to a WebSocket connection
 	wsConn, err := websocket.Accept(ctx.Writer, ctx.Request, &websocket.AcceptOptions{
@@ -130,18 +139,22 @@ func (controller *Controller) execVMReconnectable(
 				NewErrorResponse("exec session %q does not exist", sessionID))
 		}
 
+		setupTelemetry := controller.execTelemetry.startSetup(ctx.Request.Context(), key, spec)
+
 		waitContext, waitContextCancel := context.WithTimeout(ctx, time.Duration(wait)*time.Second)
 		defer waitContextCancel()
 
 		vm, responderImpl := controller.waitForVM(waitContext, name)
 		if responderImpl != nil {
+			setupTelemetry.finish(errors.New("failed to wait for VM"))
+
 			return responderImpl
 		}
+		setupTelemetry.setVM(vm)
 
 		var err error
 		session, _, err = controller.execSessions.getOrCreate(waitContext, key, func() (*execSession, error) {
 			return controller.newSSHExecSession(
-				ctx,
 				waitContext,
 				vm,
 				key,
@@ -149,11 +162,15 @@ func (controller *Controller) execVMReconnectable(
 				runCommand,
 				controller.execSessions,
 				reconnectableExecSessionPolicy,
+				setupTelemetry,
 			)
 		})
 		if err != nil {
+			setupTelemetry.finish(err)
+
 			return responder.JSON(http.StatusServiceUnavailable, NewErrorResponse("%v", err))
 		}
+		setupTelemetry.finish(nil)
 
 		if !session.specMatches(spec) {
 			return responder.JSON(http.StatusConflict,
@@ -177,7 +194,6 @@ func (controller *Controller) execVMReconnectable(
 }
 
 func (controller *Controller) newSSHExecSession(
-	_ *gin.Context,
 	waitContext context.Context,
 	vm *v1.VM,
 	key execSessionKey,
@@ -185,9 +201,8 @@ func (controller *Controller) newSSHExecSession(
 	runCommand string,
 	registry *execSessionRegistry,
 	policy execSessionPolicy,
+	setupTelemetry *execSetupTelemetry,
 ) (*execSession, error) {
-	sessionContext, sessionContextCancel := context.WithCancel(context.Background())
-
 	type sshExecAttempt struct {
 		exec *sshexec.Exec
 	}
@@ -234,10 +249,11 @@ func (controller *Controller) newSSHExecSession(
 		}, nil
 	})
 	if err != nil {
-		sessionContextCancel()
-
 		return nil, err
 	}
+
+	sessionTraceContext, sessionTelemetry := setupTelemetry.startSession()
+	sessionContext, sessionContextCancel := context.WithCancel(sessionTraceContext)
 
 	return newExecSessionWithContextAndSpec(
 		sessionContext,
@@ -250,6 +266,7 @@ func (controller *Controller) newSSHExecSession(
 		registry,
 		controller.execSessionRetentionTTL,
 		policy,
+		sessionTelemetry,
 	), nil
 }
 
@@ -258,7 +275,7 @@ func (controller *Controller) serveExecSession(
 	wsConn *websocket.Conn,
 	session *execSession,
 ) responder.Responder {
-	subscriber, err := session.attach()
+	subscriber, err := session.attach(ctx.Request.Context())
 	if err != nil {
 		_ = wsConn.Close(websocket.StatusNormalClosure, err.Error())
 

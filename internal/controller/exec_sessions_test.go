@@ -208,7 +208,7 @@ func TestExecSessionHistoryReplayAndAck(t *testing.T) {
 		Exit: &execstream.Exit{Code: 7},
 	})
 
-	subscriber, err := session.attach()
+	subscriber, err := session.attach(context.Background())
 	require.NoError(t, err)
 
 	session.sendHistory(subscriber, 0)
@@ -237,7 +237,7 @@ func TestExecSessionHistoryReplayStreamsPastSubscriberBuffer(t *testing.T) {
 		})
 	}
 
-	subscriber, err := session.attach()
+	subscriber, err := session.attach(context.Background())
 	require.NoError(t, err)
 
 	done := make(chan struct{})
@@ -271,7 +271,7 @@ func TestExecSessionDetachKeepsProcessAlive(t *testing.T) {
 	session := newManualExecSessionForTest(execSessionKey{vmName: "vm", sessionID: "session"}, registry)
 	exec := session.exec.(*fakeExec)
 
-	subscriber, err := session.attach()
+	subscriber, err := session.attach(context.Background())
 	require.NoError(t, err)
 
 	session.detach(subscriber)
@@ -286,7 +286,7 @@ func TestLegacyExecSessionDetachStopsProcess(t *testing.T) {
 	session.policy = legacyExecSessionPolicy
 	exec := session.exec.(*fakeExec)
 
-	subscriber, err := session.attach()
+	subscriber, err := session.attach(context.Background())
 	require.NoError(t, err)
 
 	session.detach(subscriber)
@@ -323,7 +323,7 @@ func TestExecSessionCloseIfUnusedKeepsAttachedSession(t *testing.T) {
 	registry := newExecSessionRegistry()
 	session := newManualExecSessionForTest(execSessionKey{vmName: "vm", sessionID: "session"}, registry)
 
-	_, err := session.attach()
+	_, err := session.attach(context.Background())
 	require.NoError(t, err)
 
 	session.closeIfUnused()
@@ -353,7 +353,7 @@ func TestExecSessionFinishedEntryExpiresAfterTTL(t *testing.T) {
 	session.retentionTTL = 10 * time.Millisecond
 	registry.sessions[key] = session
 
-	session.markFinished()
+	session.markFinished(nil)
 
 	require.Eventually(t, func() bool {
 		_, ok := registry.get(key)
@@ -366,7 +366,7 @@ func TestExecSessionFinishKeepsReconnectableSubscriberOpen(t *testing.T) {
 	registry := newExecSessionRegistry()
 	session := newManualExecSessionForTest(execSessionKey{vmName: "vm", sessionID: "session"}, registry)
 
-	subscriber, err := session.attach()
+	subscriber, err := session.attach(context.Background())
 	require.NoError(t, err)
 
 	session.recordFrame(&execstream.Frame{Type: execstream.FrameTypeStdout, Data: []byte("out")})
@@ -374,7 +374,7 @@ func TestExecSessionFinishKeepsReconnectableSubscriberOpen(t *testing.T) {
 		Type: execstream.FrameTypeExit,
 		Exit: &execstream.Exit{Code: 0},
 	})
-	session.markFinished()
+	session.markFinished(nil)
 
 	require.Equal(t, execstream.FrameTypeStdout, (<-subscriber.frames).Type)
 	require.Equal(t, execstream.FrameTypeExit, (<-subscriber.frames).Type)
